@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { api } from '../lib/api.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -8,6 +9,8 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken 
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const dialogRef = useRef(null);
+  useFocusTrap(dialogRef, onClose);
 
   useEffect(() => {
     api.listVersions(noteId, { unlockToken })
@@ -29,10 +32,10 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken 
 
   return (
     <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 dark:bg-black/60 p-4" onClick={onClose}>
-      <div role="dialog" aria-label="Version history" onClick={(e) => e.stopPropagation()}
-        className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-stone-900 shadow-xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="history-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}
+        className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-stone-900 shadow-xl outline-none">
         <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 px-5 py-3">
-          <h2 className="font-semibold">Version history</h2>
+          <h2 id="history-title" className="font-semibold">Version history</h2>
           <button className="btn-ghost px-2" onClick={onClose} aria-label="Close">✕</button>
         </div>
         {error && <p className="px-5 pt-3 text-sm text-red-600">{error}</p>}

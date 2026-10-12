@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 
 // Asks for the lock PIN. `onSubmit(pin)` should throw an Error with a message on failure.
 export default function PinPrompt({ title = 'This note is locked', description = 'Enter your PIN to view it.', submitLabel = 'Unlock', onSubmit, onCancel, inline = false }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const dialogRef = useRef(null);
+  const noTrap = useRef(null);
+  useFocusTrap(inline ? noTrap : dialogRef, onCancel);
 
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);
@@ -14,7 +18,7 @@ export default function PinPrompt({ title = 'This note is locked', description =
   const form = (
     <form onSubmit={submit} className="w-full max-w-xs text-center">
       <div className="text-3xl">🔒</div>
-      <h2 className="mt-2 font-semibold">{title}</h2>
+      <h2 id="pin-title" className="mt-2 font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
       <input className="input mt-4 text-center font-mono text-lg tracking-[0.5em]" type="password" inputMode="numeric" autoComplete="off"
         pattern="\d{4,6}" maxLength={6} autoFocus required placeholder="••••" aria-label="PIN"
@@ -30,7 +34,8 @@ export default function PinPrompt({ title = 'This note is locked', description =
   if (inline) return <div className="grid place-items-center py-16">{form}</div>;
   return (
     <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={onCancel}>
-      <div className="rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>{form}</div>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="pin-title" tabIndex={-1}
+        className="rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl outline-none" onClick={(e) => e.stopPropagation()}>{form}</div>
     </div>
   );
 }
