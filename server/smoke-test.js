@@ -150,6 +150,12 @@ try {
     assert.equal(await NoteVersion.countDocuments({ note: h._id }), 0);
   }
 
+  // quick capture payload (title + content + tags) round-trips
+  r = await call('POST', '/notes', { title: 'Call mom', content: 'about Sunday', tags: ['family'] });
+  assert.equal(r.status, 201); assert.equal(r.data.note.title, 'Call mom'); assert.deepEqual(r.data.note.tags, ['family']);
+  await call('DELETE', `/notes/${r.data.note._id}?permanent=true`);
+  assert.equal((await call('POST', '/notes', { title: 'x'.repeat(201) })).status, 400);
+
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes

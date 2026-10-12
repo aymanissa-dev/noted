@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import NoteCard from '../components/NoteCard.jsx';
+import QuickCapture from '../components/QuickCapture.jsx';
 
 const VIEWS = {
   active: { empty: 'Nothing here yet.', hint: 'Write it down. Find it later.' },
@@ -57,6 +58,24 @@ export default function Dashboard({ view = 'active' }) {
     } catch (e) { setError(e.message); }
   };
 
+  // Optimistic quick capture: show the note immediately, then swap in the saved (or offline-queued) note.
+  const capture = async (fields, rawText) => {
+    const tempId = `optimistic-${Date.now()}`;
+    const now = new Date().toISOString();
+    const optimistic = { _id: tempId, ...fields, pinned: false, archived: false, deletedAt: null, color: '', emoji: '', createdAt: now, updatedAt: now, pending: true };
+    setNotes((l) => [optimistic, ...l].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
+    try {
+      const { note } = await api.createNote(fields);
+      setNotes((l) => l.map((n) => (n._id === tempId ? note : n)));
+      if (fields.tags.length) api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
+    } catch (e) {
+      setNotes((l) => l.filter((n) => n._id !== tempId));
+      setError(`Couldn't save quick note: ${e.message}`);
+      const input = document.getElementById('quick-capture');
+      if (input && !input.value) { const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(input, rawText); input.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+  };
+
   const restore = async (note) => {
     try { await api.restoreNote(note._id); setNotes((l) => l.filter((n) => n._id !== note._id)); }
     catch (e) { setError(e.message); }
@@ -86,6 +105,8 @@ export default function Dashboard({ view = 'active' }) {
         {isActive && <Link to="/notes/new" className="btn-primary">+ New note</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}
       </div>
+
+      {isActive && <QuickCapture onCapture={capture} />}
 
       {isActive && tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 export const SHORTCUTS = [
   ['N', 'New note'],
   ['/', 'Search notes'],
+  ['Q', 'Quick capture'],
   ['Esc', 'Go back / close'],
   ['⌘/Ctrl + S', 'Save now'],
   ['?', 'Show shortcuts'],
@@ -43,6 +44,9 @@ export function useShortcuts({ helpOpen, setHelpOpen }) {
         const focusSearch = () => document.getElementById('search')?.focus();
         if (document.getElementById('search')) focusSearch();
         else { navigate('/'); setTimeout(focusSearch, 50); }
+      } else if (e.key === 'q' || e.key === 'Q') {
+        const el = document.getElementById('quick-capture');
+        if (el) { e.preventDefault(); el.focus(); }
       } else if (e.key === '?') {
         e.preventDefault();
         setHelpOpen((o) => !o);

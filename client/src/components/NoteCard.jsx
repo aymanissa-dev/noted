@@ -18,7 +18,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
     );
   }
   return (
-    <Link to={`/notes/${note._id}`}
+    <Link to={String(note._id).startsWith('optimistic-') ? '#' : `/notes/${note._id}`}
       className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}>
       {onTogglePin && <button
         onClick={(e) => { e.preventDefault(); if (!note.pending) onTogglePin(note); }}
