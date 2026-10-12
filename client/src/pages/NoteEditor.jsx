@@ -219,27 +219,36 @@ export default function NoteEditor() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-y-2">
         <button type="button" onClick={done} className="btn-ghost -ml-3">← Back</button>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-0.5 sm:gap-1">
           <SaveStatus status={status} />
           <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
           <button type="button" onClick={togglePin} title={note.pinned ? 'Unpin' : 'Pin'}
             className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
-            <PinIcon filled={note.pinned} /><span className="ml-1.5">{note.pinned ? 'Pinned' : 'Pin'}</span>
+            <PinIcon filled={note.pinned} /><span className="ml-1.5 hidden sm:inline">{note.pinned ? 'Pinned' : 'Pin'}</span>
           </button>
           {noteId && !isTempId(noteId) && !note.deletedAt && (
             note.locked
-              ? <button type="button" className="btn-ghost" onClick={() => setRemoveLockOpen(true)} title="Remove lock">🔓 Unlock</button>
-              : <button type="button" className="btn-ghost" onClick={lockNote} title="Lock with PIN">🔒 Lock</button>
+              ? <button type="button" className="btn-ghost" onClick={() => setRemoveLockOpen(true)} title="Remove lock" aria-label="Remove lock">🔓<span className="ml-1 hidden sm:inline">Unlock</span></button>
+              : <button type="button" className="btn-ghost" onClick={lockNote} title="Lock with PIN" aria-label="Lock with PIN">🔒<span className="ml-1 hidden sm:inline">Lock</span></button>
           )}
           {noteId && !isTempId(noteId) && (
-            <button type="button" className="btn-ghost" onClick={openHistory} title="Version history">History</button>
+            <button type="button" className="btn-ghost" onClick={openHistory} title="Version history" aria-label="Version history">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>
+              <span className="hidden sm:inline">History</span>
+            </button>
           )}
           {noteId && !isTempId(noteId) && !note.deletedAt && (
-            <button type="button" className="btn-ghost" onClick={toggleArchive}>{note.archived ? 'Unarchive' : 'Archive'}</button>
+            <button type="button" className="btn-ghost" onClick={toggleArchive} title={note.archived ? 'Unarchive' : 'Archive'} aria-label={note.archived ? 'Unarchive' : 'Archive'}>
+              <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" /></svg>
+              <span className="hidden sm:inline">{note.archived ? 'Unarchive' : 'Archive'}</span>
+            </button>
           )}
-          {noteId && !isTempId(noteId) && !note.deletedAt && <button type="button" className="btn-danger" onClick={moveToTrash}>Delete</button>}
+          {noteId && !isTempId(noteId) && !note.deletedAt && <button type="button" className="btn-danger" onClick={moveToTrash} title="Delete" aria-label="Delete">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3" /></svg>
+            <span className="hidden sm:inline">Delete</span>
+          </button>}
           {note.deletedAt && <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete forever</button>}
           <button type="button" className="btn-primary ml-1" onClick={done}>Done</button>
         </div>
@@ -254,7 +263,7 @@ export default function NoteEditor() {
       {note.archived && !note.deletedAt && (
         <div className="mb-3 rounded-xl bg-stone-100 dark:bg-stone-800 px-4 py-2 text-sm text-stone-600 dark:text-stone-300">Archived</div>
       )}
-      <div className={`rounded-2xl border p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
+      <div className={`rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
         <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
           placeholder="Title" value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
@@ -265,7 +274,7 @@ export default function NoteEditor() {
       </div>
       <div className="mt-2 flex justify-between text-xs text-stone-400">
         <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>
-        <span>Saves automatically · ⌘/Ctrl + S</span>
+        <span className="hidden sm:inline">Saves automatically · ⌘/Ctrl + S</span>
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
@@ -304,8 +313,8 @@ function SaveStatus({ status }) {
   if (!map[status]) return null;
   const [label, dot] = map[status];
   return (
-    <span className="mr-2 inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400" aria-live="polite">
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />{label}
+    <span className="mr-1 inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-stone-500 dark:text-stone-400 sm:mr-2" aria-live="polite" title={label}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} /><span className="hidden min-[400px]:inline">{label}</span>
     </span>
   );
 }

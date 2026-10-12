@@ -7,7 +7,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   if (note.deletedAt) {
     return (
       <div className="flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4">
-        <h3 className="font-semibold text-stone-700 dark:text-stone-200 line-clamp-1">{note.locked ? '🔒 Locked note' : note.title || 'Untitled'}</h3>
+        <h3 className="font-semibold text-stone-700 dark:text-stone-200 line-clamp-1 break-words">{note.locked ? '🔒 Locked note' : note.title || 'Untitled'}</h3>
         <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-500 dark:text-stone-400 line-clamp-3">{note.content}</p>
         <div className="mt-3 flex items-center gap-1">
           <span className="text-xs text-stone-400">Deleted {timeAgo(note.deletedAt)}</span>

@@ -28,7 +28,8 @@ export default function QuickCapture({ onCapture }) {
   return (
     <div className="mt-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-4 py-2.5 shadow-sm focus-within:border-stone-400 dark:focus-within:border-stone-600">
       <textarea ref={ref} id="quick-capture" rows={1} value={text} onChange={onChange} onKeyDown={onKeyDown}
-        placeholder="Quick note… press Enter to save (Shift+Enter for a new line, #tag to tag)"
+        placeholder="Quick note… (Enter to save)"
+        title="Enter saves · Shift+Enter adds a line · #tag adds a tag"
         className="block w-full resize-none bg-transparent text-sm outline-none placeholder:text-stone-400" aria-label="Quick capture" />
     </div>
   );

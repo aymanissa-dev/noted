@@ -23,7 +23,7 @@ export default function TagInput({ tags, onChange }) {
         </span>
       ))}
       <input className="min-w-[8rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-stone-400"
-        placeholder={tags.length ? 'Add tag…' : 'Add tags (press Enter)'}
+        placeholder="Add tag…" title="Press Enter or comma to add a tag"
         value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKeyDown} onBlur={() => value && add(value)} />
     </div>
   );

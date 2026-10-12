@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body { overflow-x: clip; }
 :root { color-scheme: light; }
 .dark { color-scheme: dark; }
 
