@@ -74,6 +74,18 @@ export function clearLocalData() {
 
 const unlockHeaders = (t) => (t ? { headers: { 'X-Unlock-Token': t } } : {});
 
+// ---- Optimistic moves (trash/archive) ----
+// While a move request is in flight, list results reflect it so the note doesn't flash back.
+const pendingMoves = new Map(); // id -> patch
+function applyMoves(notes, view) {
+  if (!pendingMoves.size) return notes;
+  return notes.map((n) => (pendingMoves.has(n._id) ? { ...n, ...pendingMoves.get(n._id) } : n)).filter((n) => viewOf(n) === view);
+}
+async function withMove(id, patch, run) {
+  pendingMoves.set(id, patch);
+  try { return await run(); } finally { pendingMoves.delete(id); }
+}
+
 // ---- Sync ----
 const sendEntry = async (e) => {
   if (e.op === 'create') return (await request('POST', '/notes', e.body)).note;
@@ -152,7 +164,7 @@ export const api = {
       offline = true;
       notes = filterLocal(Object.values(readCache()), { search, tag, view });
     }
-    notes = queue.applyPending(notes);
+    notes = applyMoves(queue.applyPending(notes), view);
     if (view === 'active') {
       const local = filterLocal(queue.localNotes(), { search, tag, view });
       notes = [...local, ...notes].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt)));
@@ -214,9 +226,9 @@ export const api = {
   },
 
   togglePin: async (id) => { const r = await request('PATCH', `/notes/${id}/pin`); cacheNotes([r.note]); return r; },
-  deleteNote: async (id) => { const r = await request('DELETE', `/notes/${id}`); cacheNotes([r.note]); return r; }, // moves to trash
+  deleteNote: (id) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`); cacheNotes([r.note]); return r; }), // moves to trash
   deleteForever: async (id) => { const r = await request('DELETE', `/notes/${id}?permanent=true`); uncache(id); return r; },
-  toggleArchive: async (id) => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return r; },
+  toggleArchive: (id, archived) => withMove(id, archived === undefined ? {} : archived ? { archived: true, pinned: false } : { archived: false }, async () => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return r; }),
   restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return r; },
   async emptyTrash() {
     const r = await request('DELETE', '/notes/trash');

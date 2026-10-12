@@ -8,6 +8,7 @@ import AppearancePicker from '../components/AppearancePicker.jsx';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import PinPrompt from '../components/PinPrompt.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import { cardClass } from '../lib/colors.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -19,6 +20,7 @@ export default function NoteEditor() {
   const { id: routeId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false });
   const [noteId, setNoteId] = useState(routeId || null);
   const [updatedAt, setUpdatedAt] = useState(null);
@@ -196,21 +198,29 @@ export default function NoteEditor() {
     setNote(restored); setUpdatedAt(n.updatedAt); setStatus('saved');
   };
 
+  // Optimistic archive/trash: leave the editor right away, offer Undo, report failures in a toast.
   const toggleArchive = async () => {
-    try {
-      await save();
-      const { note: updated } = await api.toggleArchive(idRef.current);
-      setNote((n) => ({ ...n, archived: updated.archived, pinned: updated.pinned }));
-      if (updated.archived) navigate('/');
-    } catch (e) { setError(e.message); }
+    const id = idRef.current;
+    const archiving = !note.archived;
+    await save();
+    if (!archiving) {
+      setNote((n) => ({ ...n, archived: false }));
+      api.toggleArchive(id, false).catch((e) => { setNote((n) => ({ ...n, archived: true })); setError(e.message); });
+      return;
+    }
+    const req = api.toggleArchive(id, true);
+    navigate('/');
+    toast.show('Note archived.', { action: { label: 'Undo', onClick: () => req.then(() => api.toggleArchive(id, false)).then(() => toast.show('Note restored.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
+    req.catch((e) => toast.show(`Couldn’t archive the note: ${e.message}`));
   };
 
   const moveToTrash = async () => {
-    try {
-      await save();
-      await api.deleteNote(idRef.current);
-      navigate('/');
-    } catch (e) { setError(e.message); }
+    const id = idRef.current;
+    await save();
+    const req = api.deleteNote(id);
+    navigate('/');
+    toast.show('Note moved to trash.', { action: { label: 'Undo', onClick: () => req.then(() => api.restoreNote(id)).then(() => { toast.show('Note restored.'); window.dispatchEvent(new Event('noted:queue-changed')); }).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
+    req.catch((e) => toast.show(`Couldn’t delete the note: ${e.message}`));
   };
 
   const restore = async () => {

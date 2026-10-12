@@ -57,14 +57,13 @@ export default function Dashboard({ view = 'active' }) {
     api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
   }, []);
 
+  const sortNotes = (list) => [...list].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt)));
+  // Optimistic pin: flip immediately, roll back if the server refuses.
   const togglePin = async (note) => {
-    try {
-      const { note: updated } = await api.togglePin(note._id);
-      setNotes((list) =>
-        list.map((n) => (n._id === updated._id ? updated : n))
-          .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt)))
-      );
-    } catch (e) { setError(e.message); }
+    const flip = (pinned) => setNotes((list) => sortNotes(list.map((n) => (n._id === note._id ? { ...n, pinned } : n))));
+    flip(!note.pinned);
+    try { await api.togglePin(note._id); }
+    catch (e) { flip(note.pinned); setError(e.message); }
   };
 
   // Optimistic quick capture: show the note immediately, then swap in the saved (or offline-queued) note.
@@ -86,8 +85,9 @@ export default function Dashboard({ view = 'active' }) {
   };
 
   const restore = async (note) => {
-    try { await api.restoreNote(note._id); setNotes((l) => l.filter((n) => n._id !== note._id)); }
-    catch (e) { setError(e.message); }
+    setNotes((l) => l.filter((n) => n._id !== note._id)); // optimistic
+    try { await api.restoreNote(note._id); }
+    catch (e) { setNotes((l) => [note, ...l]); setError(e.message); }
   };
   const deleteForever = async (note) => {
     if (!window.confirm('Delete this note forever? This can\'t be undone.')) return;
