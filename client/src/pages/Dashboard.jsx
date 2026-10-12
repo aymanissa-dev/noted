@@ -87,7 +87,11 @@ export default function Dashboard({ view = 'active' }) {
   };
   const emptyTrash = async () => {
     if (!window.confirm('Permanently delete everything in the trash?')) return;
-    try { await api.emptyTrash(); setNotes([]); } catch (e) { setError(e.message); }
+    const previous = notes;
+    setNotes([]); // optimistic
+    try { await api.emptyTrash(); }
+    catch (e) { setNotes(previous); setError(e.message); }
+    finally { setSyncTick((t) => t + 1); } // refetch to confirm server state
   };
 
   const isActive = view === 'active';

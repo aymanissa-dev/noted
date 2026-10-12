@@ -264,6 +264,10 @@ try {
     await call('DELETE', `/notes/${secret._id}?permanent=true`);
   }
 
+  // API responses are never cacheable
+  { const res0 = await fetch(`${base}/notes`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(res0.headers.get('cache-control'), 'no-store'); assert.equal(res0.headers.get('etag'), null); }
+
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes

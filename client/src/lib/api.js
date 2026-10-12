@@ -22,6 +22,7 @@ async function request(method, path, body, { headers: extra } = {}) {
   if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
   const res = await fetch(BASE + path, {
     method,
+    cache: 'no-store',
     headers: {
       ...(body && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -199,7 +200,12 @@ export const api = {
   deleteForever: async (id) => { const r = await request('DELETE', `/notes/${id}?permanent=true`); uncache(id); return r; },
   toggleArchive: async (id) => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return r; },
   restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return r; },
-  emptyTrash: () => request('DELETE', '/notes/trash'),
+  async emptyTrash() {
+    const r = await request('DELETE', '/notes/trash');
+    // drop trashed notes from the offline cache too
+    try { const c = readCache(); for (const [id, n] of Object.entries(c)) if (n.deletedAt) delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* ignore */ }
+    return r;
+  },
   exportJson: (pin) => download('/notes/export?format=json', 'noted.json', pin ? { 'X-Lock-Pin': pin } : {}),
   exportMarkdown: (pin) => download('/notes/export?format=md', 'noted.zip', pin ? { 'X-Lock-Pin': pin } : {}),
   importNotes: (data) => request('POST', '/notes/import', data),
