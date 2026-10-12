@@ -45,8 +45,16 @@ try {
   r = await call('GET', '/notes'); assert.equal(r.data.notes[0].title, 'Groceries');
 
   r = await call('PUT', `/notes/${b._id}`, { title: 'Ideas v2' }); assert.equal(r.data.note.title, 'Ideas v2');
+
+  // autosave: rapid partial updates, last write wins, other fields untouched
+  for (const t of ['I', 'Id', 'Ide', 'Ideas v3']) await call('PATCH', `/notes/${b._id}`, { title: t });
+  r = await call('PATCH', `/notes/${b._id}`, { content: 'autosaved body' });
+  assert.equal(r.data.note.title, 'Ideas v3'); assert.equal(r.data.note.content, 'autosaved body');
+  assert.deepEqual(r.data.note.tags, ['work']);
   assert.equal((await call('DELETE', `/notes/${b._id}`)).status, 204);
   assert.equal((await call('GET', `/notes/${b._id}`)).status, 404);
+
+  // @@MORE@@
 
   // isolation: another user can't see Ada's notes
   token = (await call('POST', '/auth/register', { name: 'Bob', email: 'bob@example.com', password: 'password123' })).data.token;
