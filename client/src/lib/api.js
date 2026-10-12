@@ -103,7 +103,16 @@ export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),
   me: () => request('GET', '/auth/me'),
-  changePassword: (currentPassword, newPassword) => request('PATCH', '/auth/password', { currentPassword, newPassword }),
+  async changePassword(currentPassword, newPassword) {
+    const r = await request('PATCH', '/auth/password', { currentPassword, newPassword });
+    if (r?.token) localStorage.setItem(TOKEN_KEY, r.token); // other devices are signed out; keep this one
+    return r;
+  },
+  async logoutAll() {
+    const r = await request('POST', '/auth/logout-all');
+    if (r?.token) localStorage.setItem(TOKEN_KEY, r.token);
+    return r;
+  },
   deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
 
   async listNotes({ search, tag, view = 'active' } = {}) {

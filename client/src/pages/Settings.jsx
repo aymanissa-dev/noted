@@ -61,7 +61,7 @@ function PasswordSection() {
     try {
       await api.changePassword(form.current, form.next);
       setForm({ current: '', next: '', confirm: '' });
-      setMsg({ text: 'Password updated.' });
+      setMsg({ text: 'Password updated. Other devices have been signed out.' });
     } catch (err) { setMsg({ error: true, text: err.message }); } finally { setBusy(false); }
   };
 
@@ -74,6 +74,23 @@ function PasswordSection() {
         {msg && <p className={`text-sm ${msg.error ? 'text-red-600' : 'text-emerald-600'}`}>{msg.text}</p>}
         <button className="btn-primary" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button>
       </form>
+    </Card>
+  );
+}
+
+function SessionsSection() {
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    if (!window.confirm('Sign out of noted. on every other device and browser?')) return;
+    setBusy(true); setMsg(null);
+    try { await api.logoutAll(); setMsg({ text: 'Signed out everywhere else. You’re still signed in here.' }); }
+    catch (e) { setMsg({ error: true, text: e.message }); } finally { setBusy(false); }
+  };
+  return (
+    <Card title="Sessions" description="Lost a device or used a shared computer? Sign out everywhere except this browser.">
+      <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={run}>{busy ? 'Signing out…' : 'Sign out of all other devices'}</button>
+      {msg && <p className={`mt-3 text-sm ${msg.error ? 'text-red-600' : 'text-emerald-600'}`}>{msg.text}</p>}
     </Card>
   );
 }
@@ -120,6 +137,7 @@ export default function Settings() {
       </div>
       <DataSection />
       <PasswordSection />
+      <SessionsSection />
       <DeleteAccountSection />
     </div>
   );

@@ -19,7 +19,7 @@ router.post('/register', asyncHandler(async (req, res) => {
   if (await User.exists({ email })) throw new HttpError(409, 'Email already registered');
 
   const user = await User.create({ name, email, password: await bcrypt.hash(password, 12) });
-  res.status(201).json({ token: signToken(user._id), user });
+  res.status(201).json({ token: signToken(user), user });
 }));
 
 router.post('/login', asyncHandler(async (req, res) => {
@@ -30,7 +30,7 @@ router.post('/login', asyncHandler(async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.password))) {
     throw new HttpError(401, 'Invalid email or password');
   }
-  res.json({ token: signToken(user._id), user });
+  res.json({ token: signToken(user), user });
 }));
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
@@ -54,8 +54,16 @@ router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
     throw new HttpError(400, 'New password must be at least 8 characters');
   }
   user.password = await bcrypt.hash(newPassword, 12);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1; // sign out other devices
   await user.save();
-  res.json({ ok: true });
+  res.json({ ok: true, token: signToken(user) }); // keep this session
+}));
+
+// Sign out of all devices: revokes every existing token, then issues a fresh one for this session.
+router.post('/logout-all', requireAuth, asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(req.userId, { $inc: { tokenVersion: 1 } }, { new: true });
+  if (!user) throw new HttpError(401, 'User not found');
+  res.json({ ok: true, token: signToken(user) });
 }));
 
 // Permanently delete the account and every note it owns. Requires the password.

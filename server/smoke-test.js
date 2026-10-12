@@ -156,6 +156,24 @@ try {
   await call('DELETE', `/notes/${r.data.note._id}?permanent=true`);
   assert.equal((await call('POST', '/notes', { title: 'x'.repeat(201) })).status, 400);
 
+  // sign out of all devices
+  {
+    const login = async () => (await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' })).data.token;
+    const deviceA = token; const deviceB = await login();
+    const asToken = async (t, m, p, b) => { const keep = token; token = t; const out = await call(m, p, b); token = keep; return out; };
+    assert.equal((await asToken(deviceB, 'GET', '/auth/me')).status, 200);
+    r = await asToken(deviceA, 'POST', '/auth/logout-all'); assert.equal(r.status, 200); assert.ok(r.data.token);
+    const fresh = r.data.token;
+    assert.equal((await asToken(deviceA, 'GET', '/auth/me')).status, 401);   // old tokens revoked
+    assert.equal((await asToken(deviceB, 'GET', '/auth/me')).status, 401);
+    assert.equal((await asToken(fresh, 'GET', '/auth/me')).status, 200);     // current session kept
+    // a token without a version (issued before this feature) only works while tokenVersion is 0
+    const jwt = (await import('jsonwebtoken')).default;
+    const legacy = jwt.sign({ sub: String((await asToken(fresh, 'GET', '/auth/me')).data.user.id) }, process.env.JWT_SECRET);
+    assert.equal((await asToken(legacy, 'GET', '/auth/me')).status, 401);
+    token = fresh;
+  }
+
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes
@@ -172,7 +190,12 @@ try {
   assert.equal((await call('GET', `/notes/${a._id}/versions`)).status, 404);
   assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'wrong-pass', newPassword: 'newpassword1' })).status, 403);
   assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'short' })).status, 400);
-  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'newpassword1' })).status, 200);
+  const bobOther = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).data.token;
+  r = await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'newpassword1' });
+  assert.equal(r.status, 200); assert.ok(r.data.token);
+  assert.equal((await call('GET', '/auth/me')).status, 401);           // this request's old token is revoked…
+  token = r.data.token; assert.equal((await call('GET', '/auth/me')).status, 200); // …but the fresh one works
+  { const keep = token; token = bobOther; assert.equal((await call('GET', '/auth/me')).status, 401); token = keep; }
   assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).status, 401);
   token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'newpassword1' })).data.token;
   assert.equal((await call('DELETE', '/auth/me', {})).status, 400);
