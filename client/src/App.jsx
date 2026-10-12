@@ -15,7 +15,9 @@ export default function App() {
       </Route>
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard view="active" />} />
+          <Route path="/archive" element={<Dashboard view="archive" key="archive" />} />
+          <Route path="/trash" element={<Dashboard view="trash" key="trash" />} />
           <Route path="/notes/new" element={<NoteEditor />} />
           <Route path="/notes/:id" element={<NoteEditor />} />
         </Route>

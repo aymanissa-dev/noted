@@ -26,8 +26,9 @@ export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),
   me: () => request('GET', '/auth/me'),
-  listNotes: ({ search, tag } = {}) => {
+  listNotes: ({ search, tag, view } = {}) => {
     const q = new URLSearchParams();
+    if (view && view !== 'active') q.set('view', view);
     if (search) q.set('search', search);
     if (tag) q.set('tag', tag);
     const qs = q.toString();
@@ -38,5 +39,9 @@ export const api = {
   createNote: (body) => request('POST', '/notes', body),
   updateNote: (id, body) => request('PUT', `/notes/${id}`, body),
   togglePin: (id) => request('PATCH', `/notes/${id}/pin`),
-  deleteNote: (id) => request('DELETE', `/notes/${id}`),
+  deleteNote: (id) => request('DELETE', `/notes/${id}`), // moves to trash
+  deleteForever: (id) => request('DELETE', `/notes/${id}?permanent=true`),
+  toggleArchive: (id) => request('PATCH', `/notes/${id}/archive`),
+  restoreNote: (id) => request('POST', `/notes/${id}/restore`),
+  emptyTrash: () => request('DELETE', '/notes/trash'),
 };

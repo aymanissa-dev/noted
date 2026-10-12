@@ -2,16 +2,29 @@ import { Link } from 'react-router-dom';
 import { timeAgo } from '../lib/format.js';
 import PinIcon from './PinIcon.jsx';
 
-export default function NoteCard({ note, onTogglePin }) {
+export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever }) {
+  if (note.deletedAt) {
+    return (
+      <div className="flex flex-col rounded-xl border border-dashed border-stone-300 bg-white/60 p-4">
+        <h3 className="font-semibold text-stone-700 line-clamp-1">{note.title || 'Untitled'}</h3>
+        <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-500 line-clamp-3">{note.content}</p>
+        <div className="mt-3 flex items-center gap-1">
+          <span className="text-xs text-stone-400">Deleted {timeAgo(note.deletedAt)}</span>
+          <button className="btn-ghost ml-auto px-2 py-1 text-xs" onClick={() => onRestore(note)}>Restore</button>
+          <button className="btn-danger px-2 py-1 text-xs" onClick={() => onDeleteForever(note)}>Delete forever</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <Link to={`/notes/${note._id}`}
       className="group relative flex flex-col rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <button
+      {onTogglePin && <button
         onClick={(e) => { e.preventDefault(); onTogglePin(note); }}
         title={note.pinned ? 'Unpin' : 'Pin'}
         className={`absolute right-3 top-3 rounded p-1 transition ${note.pinned ? 'text-amber-500' : 'text-stone-300 opacity-0 hover:text-stone-600 group-hover:opacity-100'}`}>
         <PinIcon filled={note.pinned} />
-      </button>
+      </button>}
       <h3 className="pr-6 font-semibold text-stone-900 line-clamp-1">{note.title || 'Untitled'}</h3>
       <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-600 line-clamp-4">{note.content}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">

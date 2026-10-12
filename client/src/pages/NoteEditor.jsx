@@ -12,7 +12,7 @@ const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tag
 export default function NoteEditor() {
   const { id: routeId } = useParams();
   const navigate = useNavigate();
-  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false });
+  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null });
   const [noteId, setNoteId] = useState(routeId || null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(Boolean(routeId));
@@ -31,7 +31,7 @@ export default function NoteEditor() {
     if (!routeId || routeId === idRef.current && !loading) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
-        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned };
+        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt };
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
       })
@@ -92,7 +92,7 @@ export default function NoteEditor() {
     return () => window.removeEventListener('keydown', onKey);
   }, [save]);
 
-  const done = async () => { await save(); navigate('/'); };
+  const done = async () => { await save(); navigate(note.deletedAt ? '/trash' : note.archived ? '/archive' : '/'); };
 
   const togglePin = async () => {
     if (!noteId) return setNote((n) => ({ ...n, pinned: !n.pinned }));
@@ -102,11 +102,33 @@ export default function NoteEditor() {
     } catch (e) { setError(e.message); }
   };
 
-  const remove = async () => {
+  const toggleArchive = async () => {
+    try {
+      await save();
+      const { note: updated } = await api.toggleArchive(idRef.current);
+      setNote((n) => ({ ...n, archived: updated.archived, pinned: updated.pinned }));
+      if (updated.archived) navigate('/');
+    } catch (e) { setError(e.message); }
+  };
+
+  const moveToTrash = async () => {
+    try {
+      await save();
+      await api.deleteNote(idRef.current);
+      navigate('/');
+    } catch (e) { setError(e.message); }
+  };
+
+  const restore = async () => {
+    try { await api.restoreNote(noteId); setNote((n) => ({ ...n, deletedAt: null })); }
+    catch (e) { setError(e.message); }
+  };
+
+  const deleteForever = async () => {
     try {
       lastSaved.current = snapshot(noteRef.current); // nothing to flush
-      await api.deleteNote(noteId);
-      navigate('/');
+      await api.deleteForever(noteId);
+      navigate('/trash');
     } catch (e) { setError(e.message); setConfirmDelete(false); }
   };
 
@@ -122,11 +144,24 @@ export default function NoteEditor() {
             className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
             <PinIcon filled={note.pinned} /><span className="ml-1.5">{note.pinned ? 'Pinned' : 'Pin'}</span>
           </button>
-          {noteId && <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete</button>}
+          {noteId && !note.deletedAt && (
+            <button type="button" className="btn-ghost" onClick={toggleArchive}>{note.archived ? 'Unarchive' : 'Archive'}</button>
+          )}
+          {noteId && !note.deletedAt && <button type="button" className="btn-danger" onClick={moveToTrash}>Delete</button>}
+          {note.deletedAt && <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete forever</button>}
           <button type="button" className="btn-primary ml-1" onClick={done}>Done</button>
         </div>
       </div>
 
+      {note.deletedAt && (
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <span>This note is in the trash.</span>
+          <button type="button" className="font-medium underline" onClick={restore}>Restore</button>
+        </div>
+      )}
+      {note.archived && !note.deletedAt && (
+        <div className="mb-3 rounded-xl bg-stone-100 px-4 py-2 text-sm text-stone-600">Archived</div>
+      )}
       <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
         <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300"
           placeholder="Title" value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
@@ -145,11 +180,11 @@ export default function NoteEditor() {
       {confirmDelete && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 px-4" onClick={() => setConfirmDelete(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-semibold">Delete this note?</h2>
+            <h2 className="font-semibold">Delete this note forever?</h2>
             <p className="mt-1 text-sm text-stone-500">This can't be undone.</p>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
-              <button type="button" className="btn bg-red-600 text-white hover:bg-red-700" onClick={remove}>Delete</button>
+              <button type="button" className="btn bg-red-600 text-white hover:bg-red-700" onClick={deleteForever}>Delete forever</button>
             </div>
           </div>
         </div>
