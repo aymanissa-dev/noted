@@ -17,7 +17,7 @@ class ApiError extends Error {
 // fetch rejects with a TypeError when the network is unavailable.
 export const isNetworkError = (err) => err instanceof TypeError || err?.offline === true;
 
-async function request(method, path, body) {
+async function request(method, path, body, { headers: extra } = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
   const res = await fetch(BASE + path, {
@@ -25,6 +25,7 @@ async function request(method, path, body) {
     headers: {
       ...(body && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...extra,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -44,7 +45,7 @@ function cacheNotes(notes, { replaceView } = {}) {
     if (replaceView) { // drop stale notes of a fully-fetched view
       cache = Object.fromEntries(Object.entries(cache).filter(([, n]) => viewOf(n) !== replaceView));
     }
-    for (const n of notes) cache[n._id] = n;
+    for (const n of notes) cache[n._id] = n.locked ? { ...n, title: '', content: '', tags: [], redacted: true } : n;
     const entries = Object.entries(cache).sort((a, b) => new Date(b[1].updatedAt) - new Date(a[1].updatedAt)).slice(0, CACHE_LIMIT);
     localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
   } catch { /* storage full: offline cache is best-effort */ }
@@ -69,6 +70,8 @@ export function clearLocalData() {
   queue.clear();
 }
 
+const unlockHeaders = (t) => (t ? { headers: { 'X-Unlock-Token': t } } : {});
+
 // ---- Sync ----
 const sendEntry = async (e) => {
   if (e.op === 'create') return (await request('POST', '/notes', e.body)).note;
@@ -88,9 +91,9 @@ export function syncQueue() {
 const queued = () => window.dispatchEvent(new Event('noted:queue-changed'));
 
 // Downloads a file from an authenticated endpoint.
-async function download(path, fallbackName) {
+async function download(path, fallbackName, extraHeaders = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
-  const res = await fetch(BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const res = await fetch(BASE + path, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extraHeaders } });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `Download failed (${res.status})`);
   const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || fallbackName;
   const url = URL.createObjectURL(await res.blob());
@@ -197,10 +200,24 @@ export const api = {
   toggleArchive: async (id) => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return r; },
   restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return r; },
   emptyTrash: () => request('DELETE', '/notes/trash'),
-  exportJson: () => download('/notes/export?format=json', 'noted.json'),
-  exportMarkdown: () => download('/notes/export?format=md', 'noted.zip'),
+  exportJson: (pin) => download('/notes/export?format=json', 'noted.json', pin ? { 'X-Lock-Pin': pin } : {}),
+  exportMarkdown: (pin) => download('/notes/export?format=md', 'noted.zip', pin ? { 'X-Lock-Pin': pin } : {}),
   importNotes: (data) => request('POST', '/notes/import', data),
-  listVersions: (id) => request('GET', `/notes/${id}/versions`),
-  getVersion: (id, vid) => request('GET', `/notes/${id}/versions/${vid}`),
-  restoreVersion: async (id, vid) => { const r = await request('POST', `/notes/${id}/versions/${vid}/restore`); cacheNotes([r.note]); return r; },
+  listVersions: (id, { unlockToken } = {}) => request('GET', `/notes/${id}/versions`, undefined, unlockHeaders(unlockToken)),
+  getVersion: (id, vid, { unlockToken } = {}) => request('GET', `/notes/${id}/versions/${vid}`, undefined, unlockHeaders(unlockToken)),
+  restoreVersion: async (id, vid, { unlockToken } = {}) => {
+    const r = await request('POST', `/notes/${id}/versions/${vid}/restore`, undefined, unlockHeaders(unlockToken));
+    cacheNotes([r.note]); return r;
+  },
+
+  // ---- Lock PIN & locked notes (never queued offline, never cached with contents) ----
+  setLockPin: (password, pin) => request('PUT', '/auth/lock-pin', { password, pin }),
+  removeLockPin: (password) => request('DELETE', '/auth/lock-pin', { password }),
+  unlockNote: (id, pin) => request('POST', `/notes/${id}/unlock`, { pin }),
+  lockNote: async (id) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return r; },
+  removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return r; },
+  updateLockedNote: async (id, body, unlockToken) => {
+    const r = await request('PUT', `/notes/${id}`, body, unlockHeaders(unlockToken));
+    cacheNotes([r.note]); return r;
+  },
 };

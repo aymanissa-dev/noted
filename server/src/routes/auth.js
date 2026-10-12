@@ -5,6 +5,7 @@ import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
+import { hashPin, PIN_RE } from '../lib/lockPin.js';
 
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -73,6 +74,30 @@ router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();
   res.json({ ok: true, deletedNotes: deletedCount });
+}));
+
+// Set or change the lock PIN. Requires the account password.
+router.put('/lock-pin', requireAuth, asyncHandler(async (req, res) => {
+  const { password, pin } = req.body || {};
+  const user = await verifyPassword(req.userId, password);
+  if (typeof pin !== 'string' || !PIN_RE.test(pin)) throw new HttpError(400, 'PIN must be 4 to 6 digits');
+  user.lockPinHash = await hashPin(pin);
+  user.hasLockPin = true;
+  user.lockPinVersion = (user.lockPinVersion ?? 0) + 1; // expire outstanding unlock tokens
+  user.set({ lockPinFailures: 0, lockPinBlockedUntil: null });
+  await user.save();
+  res.json({ user });
+}));
+
+// Remove the lock PIN. Requires the password; every locked note becomes unlocked.
+router.delete('/lock-pin', requireAuth, asyncHandler(async (req, res) => {
+  const user = await verifyPassword(req.userId, req.body?.password);
+  user.lockPinHash = null;
+  user.hasLockPin = false;
+  user.lockPinVersion = (user.lockPinVersion ?? 0) + 1;
+  await user.save();
+  const { modifiedCount } = await Note.updateMany({ user: user._id, locked: true }, { locked: false }, { timestamps: false });
+  res.json({ user, unlockedNotes: modifiedCount });
 }));
 
 export default router;

@@ -7,7 +7,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   if (note.deletedAt) {
     return (
       <div className="flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4">
-        <h3 className="font-semibold text-stone-700 dark:text-stone-200 line-clamp-1">{note.title || 'Untitled'}</h3>
+        <h3 className="font-semibold text-stone-700 dark:text-stone-200 line-clamp-1">{note.locked ? '🔒 Locked note' : note.title || 'Untitled'}</h3>
         <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-500 dark:text-stone-400 line-clamp-3">{note.content}</p>
         <div className="mt-3 flex items-center gap-1">
           <span className="text-xs text-stone-400">Deleted {timeAgo(note.deletedAt)}</span>
@@ -26,8 +26,8 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         className={`absolute right-3 top-3 rounded p-1 transition ${note.pinned ? 'text-amber-500' : 'text-stone-300 opacity-0 hover:text-stone-600 group-hover:opacity-100'}`}>
         <PinIcon filled={note.pinned} />
       </button>}
-      <h3 className="pr-6 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1">{note.emoji && <span className="mr-1.5">{note.emoji}</span>}{note.title || 'Untitled'}</h3>
-      <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-600 dark:text-stone-300 line-clamp-4">{note.content}</p>
+      <h3 className="pr-6 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1">{note.locked ? <span>🔒 Locked note</span> : <>{note.emoji && <span className="mr-1.5">{note.emoji}</span>}{note.title || 'Untitled'}</>}</h3>
+      <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-600 dark:text-stone-300 line-clamp-4">{note.locked ? <span className="italic text-stone-400">Enter your PIN to view.</span> : note.content}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {note.tags.map((t) => (
           <span key={t} className="rounded-full bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs text-stone-600 dark:text-stone-300">#{t}</span>

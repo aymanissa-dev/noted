@@ -7,12 +7,18 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, select: false },
     // Bumped to invalidate every issued token (sign out everywhere, password change).
     tokenVersion: { type: Number, default: 0 },
+    // Optional PIN for locked notes (bcrypt hash). Version is bumped on change so unlock tokens expire.
+    lockPinHash: { type: String, select: false, default: null },
+    hasLockPin: { type: Boolean, default: false },
+    lockPinVersion: { type: Number, default: 0 },
+    lockPinFailures: { type: Number, default: 0, select: false },
+    lockPinBlockedUntil: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 );
 
 userSchema.methods.toJSON = function () {
-  return { id: this._id, name: this.name, email: this.email, createdAt: this.createdAt };
+  return { id: this._id, name: this.name, email: this.email, hasLockPin: Boolean(this.hasLockPin), createdAt: this.createdAt };
 };
 
 export default mongoose.model('User', userSchema);

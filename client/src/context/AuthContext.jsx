@@ -34,11 +34,12 @@ export function AuthProvider({ children }) {
     setUser(user);
   };
 
+  const updateUser = (u) => { localStorage.setItem(USER_KEY, JSON.stringify(u)); setUser(u); };
   const login = async (creds) => handleAuth(await api.login(creds));
   const register = async (data) => handleAuth(await api.register(data));
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

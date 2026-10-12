@@ -2,6 +2,13 @@ import { useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
+// If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
+const askPin = (user) => {
+  if (!user?.hasLockPin) return undefined;
+  const pin = window.prompt('Enter your PIN to include locked notes, or leave empty to export them as locked placeholders.');
+  return pin && /^\d{4,6}$/.test(pin.trim()) ? pin.trim() : undefined;
+};
+
 export function Card({ title, description, children }) {
   return (
     <section className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-6 shadow-sm">
@@ -13,6 +20,7 @@ export function Card({ title, description, children }) {
 }
 
 function DataSection() {
+  const { user } = useAuth();
   const fileRef = useRef(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -29,16 +37,16 @@ function DataSection() {
     run(async () => {
       let data;
       try { data = JSON.parse(await file.text()); } catch { throw new Error('That file is not valid JSON.'); }
-      const { imported } = await api.importNotes(data);
-      setMsg({ text: `Imported ${imported} note${imported === 1 ? '' : 's'}.` });
+      const { imported, skippedLocked } = await api.importNotes(data);
+      setMsg({ text: `Imported ${imported} note${imported === 1 ? '' : 's'}.${skippedLocked ? ` Skipped ${skippedLocked} locked note${skippedLocked === 1 ? '' : 's'} without content.` : ''}` });
     });
   };
 
   return (
-    <Card title="Your data" description="Download a copy of your notes, or import notes from a noted. JSON export. Trashed notes are not exported.">
+    <Card title="Your data" description="Download a copy of your notes, or import notes from a noted. JSON export. Trashed notes are not exported; locked notes are included only if you enter your PIN.">
       <div className="flex flex-wrap gap-2">
-        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => run(api.exportJson)}>Export JSON</button>
-        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => run(api.exportMarkdown)}>Export Markdown (.zip)</button>
+        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => run(() => api.exportJson(askPin(user)))}>Export JSON</button>
+        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => run(() => api.exportMarkdown(askPin(user)))}>Export Markdown (.zip)</button>
         <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => fileRef.current?.click()}>Import JSON…</button>
         <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
       </div>
@@ -74,6 +82,64 @@ function PasswordSection() {
         {msg && <p className={`text-sm ${msg.error ? 'text-red-600' : 'text-emerald-600'}`}>{msg.text}</p>}
         <button className="btn-primary" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button>
       </form>
+    </Card>
+  );
+}
+
+function LockPinSection() {
+  const { user, updateUser } = useAuth();
+  const [mode, setMode] = useState(null); // 'set' | 'remove'
+  const [form, setForm] = useState({ password: '', pin: '', confirm: '' });
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm({ ...form, [k]: k === 'password' ? e.target.value : e.target.value.replace(/\D/g, '').slice(0, 6) });
+  const close = () => { setMode(null); setForm({ password: '', pin: '', confirm: '' }); };
+
+  const submit = async (e) => {
+    e.preventDefault(); setMsg(null);
+    if (mode === 'set') {
+      if (!/^\d{4,6}$/.test(form.pin)) return setMsg({ error: true, text: 'PIN must be 4 to 6 digits.' });
+      if (form.pin !== form.confirm) return setMsg({ error: true, text: 'PINs do not match.' });
+    }
+    setBusy(true);
+    try {
+      if (mode === 'set') {
+        const { user: u } = await api.setLockPin(form.password, form.pin);
+        updateUser(u); setMsg({ text: user?.hasLockPin ? 'PIN changed.' : 'PIN set. You can now lock notes from the editor.' });
+      } else {
+        const { user: u, unlockedNotes } = await api.removeLockPin(form.password);
+        updateUser(u); setMsg({ text: `PIN removed. ${unlockedNotes} note${unlockedNotes === 1 ? ' was' : 's were'} unlocked.` });
+      }
+      close();
+    } catch (err) { setMsg({ error: true, text: err.message }); } finally { setBusy(false); }
+  };
+
+  return (
+    <Card title="Note lock PIN" description="Lock individual notes behind a 4–6 digit PIN. Locked notes are hidden in lists, search, and offline storage until you enter it.">
+      {!mode && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-2 text-sm text-stone-500 dark:text-stone-400">{user?.hasLockPin ? 'PIN is set.' : 'No PIN set.'}</span>
+          <button className="btn-ghost border border-stone-300 dark:border-stone-700" onClick={() => { setMode('set'); setMsg(null); }}>{user?.hasLockPin ? 'Change PIN' : 'Set PIN'}</button>
+          {user?.hasLockPin && <button className="btn-danger" onClick={() => { setMode('remove'); setMsg(null); }}>Remove PIN</button>}
+        </div>
+      )}
+      {mode && (
+        <form onSubmit={submit} className="space-y-3">
+          <input className="input" type="password" placeholder="Account password" autoComplete="current-password" required autoFocus value={form.password} onChange={set('password')} />
+          {mode === 'set' && <>
+            <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="New PIN (4–6 digits)" autoComplete="off" required value={form.pin} onChange={set('pin')} />
+            <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="Confirm PIN" autoComplete="off" required value={form.confirm} onChange={set('confirm')} />
+          </>}
+          {mode === 'remove' && <p className="text-sm text-stone-500 dark:text-stone-400">All locked notes will be unlocked.</p>}
+          <div className="flex gap-2">
+            <button type="button" className="btn-ghost" onClick={close}>Cancel</button>
+            <button className={mode === 'remove' ? 'btn bg-red-600 text-white hover:bg-red-700' : 'btn-primary'} disabled={busy}>
+              {busy ? 'Saving…' : mode === 'remove' ? 'Remove PIN' : 'Save PIN'}
+            </button>
+          </div>
+        </form>
+      )}
+      {msg && <p className={`mt-3 text-sm ${msg.error ? 'text-red-600' : 'text-emerald-600'}`}>{msg.text}</p>}
     </Card>
   );
 }
@@ -136,6 +202,7 @@ export default function Settings() {
         <p className="text-sm text-stone-500 dark:text-stone-400">{user?.name} · {user?.email}</p>
       </div>
       <DataSection />
+      <LockPinSection />
       <PasswordSection />
       <SessionsSection />
       <DeleteAccountSection />

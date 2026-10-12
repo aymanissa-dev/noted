@@ -15,11 +15,12 @@ export async function requireAuth(req, res, next) {
   }
   if (payload.typ && payload.typ !== 'access') return next(new HttpError(401, 'Invalid token'));
   try {
-    const user = await User.findById(payload.sub).select('tokenVersion').lean();
+    const user = await User.findById(payload.sub).select('tokenVersion lockPinVersion').lean();
     if (!user) return next(new HttpError(401, 'User not found'));
     if ((payload.tv ?? 0) !== (user.tokenVersion ?? 0)) return next(new HttpError(401, 'Session expired, please log in again'));
     req.userId = payload.sub;
     req.tokenVersion = user.tokenVersion ?? 0;
+    req.lockPinVersion = user.lockPinVersion ?? 0;
     next();
   } catch (err) {
     next(err);

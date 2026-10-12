@@ -4,7 +4,10 @@ import { NOTE_COLORS } from '../models/Note.js';
 export const EXPORT_VERSION = 1;
 export const MAX_IMPORT = 5000;
 
-export const toExportNote = (n) => ({
+export const toExportNote = (n) => (n.locked && n.$locals?.redacted
+  ? { locked: true, redacted: true, title: '', content: '', tags: [], pinned: n.pinned, archived: n.archived, color: n.color || '', emoji: n.emoji || '', createdAt: n.createdAt, updatedAt: n.updatedAt }
+  : {
+  ...(n.locked && { locked: true }),
   title: n.title,
   content: n.content,
   tags: n.tags,
@@ -22,6 +25,9 @@ const slugify = (s) =>
 const yamlString = (s) => JSON.stringify(String(s)); // JSON strings are valid YAML
 
 export function toMarkdown(n) {
+  if (n.locked && n.$locals?.redacted) {
+    return `---\nlocked: true\ncreated: ${new Date(n.createdAt).toISOString()}\nupdated: ${new Date(n.updatedAt).toISOString()}\n---\n\n🔒 This note is locked. Export with your PIN to include its contents.\n`;
+  }
   const front = [
     '---',
     `title: ${yamlString(n.title || 'Untitled')}`,
@@ -42,8 +48,9 @@ export async function toMarkdownZip(notes) {
   const zip = new JSZip();
   const used = new Set();
   for (const n of notes) {
-    let name = slugify(n.title);
-    for (let i = 2; used.has(name); i++) name = `${slugify(n.title)}-${i}`;
+    const base = n.locked && n.$locals?.redacted ? 'locked-note' : slugify(n.title);
+    let name = base;
+    for (let i = 2; used.has(name); i++) name = `${base}-${i}`;
     used.add(name);
     zip.file(`${name}.md`, toMarkdown(n), { date: new Date(n.updatedAt) });
   }
@@ -63,7 +70,12 @@ export function parseImport(body) {
   if (list.length === 0) throw 'No notes to import';
   if (list.length > MAX_IMPORT) throw `Too many notes (max ${MAX_IMPORT})`;
 
-  return list.map((raw, i) => {
+  let skipped = 0;
+  const notes = list.filter((raw) => {
+    // Redacted locked notes from an export without PIN have no content to import.
+    if (raw && typeof raw === 'object' && (raw.redacted || raw.locked) && !raw.title && !raw.content) { skipped++; return false; }
+    return true;
+  }).map((raw, i) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw `Note ${i + 1} is not an object`;
     const { title = '', content = '', tags = [], pinned = false, archived = false } = raw;
     if (typeof title !== 'string' || typeof content !== 'string') throw `Note ${i + 1}: title and content must be strings`;
@@ -87,4 +99,6 @@ export function parseImport(body) {
       updatedAt: validDate(raw.updatedAt) || createdAt,
     };
   });
+  if (!notes.length) throw 'No importable notes (locked notes exported without a PIN have no content)';
+  return { notes, skipped };
 }

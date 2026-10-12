@@ -6,6 +6,8 @@ import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
 import AppearancePicker from '../components/AppearancePicker.jsx';
 import HistoryPanel from '../components/HistoryPanel.jsx';
+import PinPrompt from '../components/PinPrompt.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { cardClass } from '../lib/colors.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -16,7 +18,8 @@ const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tag
 export default function NoteEditor() {
   const { id: routeId } = useParams();
   const navigate = useNavigate();
-  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '' });
+  const { user } = useAuth();
+  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false });
   const [noteId, setNoteId] = useState(routeId || null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(Boolean(routeId));
@@ -24,6 +27,10 @@ export default function NoteEditor() {
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Locked notes: content is only available after PIN entry; the unlock token authorizes saves for 15 min.
+  const [needsPin, setNeedsPin] = useState(false);
+  const [removeLockOpen, setRemoveLockOpen] = useState(false);
+  const unlockToken = useRef(null);
 
   const lastSaved = useRef(snapshot(note));
   const inflight = useRef(null);
@@ -36,9 +43,10 @@ export default function NoteEditor() {
     if (!routeId || routeId === idRef.current && !loading) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
-        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '' };
+        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked) };
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
+        if (n.locked) setNeedsPin(true);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -52,9 +60,13 @@ export default function NoteEditor() {
     const snap = snapshot(current);
     if (snap === lastSaved.current) { setStatus((s) => (s === 'dirty' ? 'saved' : s)); return; }
     if (!idRef.current && isEmpty(current)) return;
+    if (current.locked && !unlockToken.current) return; // wait for PIN
     setStatus('saving'); setError('');
     const run = (async () => {
-      const { note: saved, queued } = idRef.current
+      const fields = { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji };
+      const { note: saved, queued } = current.locked
+        ? await api.updateLockedNote(idRef.current, fields, unlockToken.current)
+        : idRef.current
         ? await api.updateNote(idRef.current, { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji })
         : await api.createNote(current);
       lastSaved.current = snap;
@@ -67,7 +79,11 @@ export default function NoteEditor() {
       setStatus(snapshot(noteRef.current) !== snap ? 'dirty' : queued ? 'queued' : 'saved');
     })();
     inflight.current = run;
-    try { await run; } catch (e) { setStatus('error'); setError(e.message); }
+    try { await run; } catch (e) {
+      setStatus('error');
+      if (e.status === 423) { unlockToken.current = null; setNeedsPin(true); setError('Your unlock expired. Enter your PIN to keep saving.'); }
+      else setError(e.message);
+    }
     finally { if (inflight.current === run) inflight.current = null; }
   }, [navigate]);
 
@@ -104,7 +120,7 @@ export default function NoteEditor() {
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
-      if (e.key === 'Escape' && document.querySelector('[data-modal]')) { e.preventDefault(); setConfirmDelete(false); setHistoryOpen(false); }
+      if (e.key === 'Escape' && document.querySelector('[data-modal]')) { e.preventDefault(); setConfirmDelete(false); setHistoryOpen(false); setRemoveLockOpen(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -118,6 +134,39 @@ export default function NoteEditor() {
       const { note: updated } = await api.togglePin(noteId);
       setNote((n) => ({ ...n, pinned: updated.pinned }));
     } catch (e) { setError(e.message); }
+  };
+
+  const unlock = async (pin) => {
+    const { note: n, unlockToken: token } = await api.unlockNote(idRef.current, pin);
+    unlockToken.current = token;
+    setNeedsPin(false); setError('');
+    if (snapshot(noteRef.current) === lastSaved.current && !noteRef.current.content && !noteRef.current.title) {
+      const loaded = { ...noteRef.current, title: n.title, content: n.content, tags: n.tags };
+      lastSaved.current = snapshot(loaded);
+      setNote(loaded);
+    } else {
+      save(); // re-unlocked mid-edit: keep local edits and save them
+    }
+  };
+
+  const lockNote = async () => {
+    if (!user?.hasLockPin) {
+      if (window.confirm('Set a lock PIN in Settings first. Go to Settings now?')) { await save(); navigate('/settings'); }
+      return;
+    }
+    try {
+      await save();
+      await api.lockNote(idRef.current);
+      navigate('/');
+    } catch (e) { setError(e.message); }
+  };
+
+  const removeLock = async (pin) => {
+    await save();
+    await api.removeNoteLock(idRef.current, pin);
+    unlockToken.current = null;
+    setNote((n) => ({ ...n, locked: false }));
+    setRemoveLockOpen(false);
   };
 
   const openHistory = async () => { await save(); setHistoryOpen(true); };
@@ -159,6 +208,15 @@ export default function NoteEditor() {
 
   if (loading) return <p className="mt-16 text-center text-stone-400">Loading…</p>;
 
+  if (needsPin && !unlockToken.current && snapshot(note) === lastSaved.current && !note.content && !note.title) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Link to="/" className="btn-ghost -ml-3">← Back</Link>
+        <PinPrompt inline onSubmit={unlock} />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center justify-between">
@@ -170,6 +228,11 @@ export default function NoteEditor() {
             className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
             <PinIcon filled={note.pinned} /><span className="ml-1.5">{note.pinned ? 'Pinned' : 'Pin'}</span>
           </button>
+          {noteId && !isTempId(noteId) && !note.deletedAt && (
+            note.locked
+              ? <button type="button" className="btn-ghost" onClick={() => setRemoveLockOpen(true)} title="Remove lock">🔓 Unlock</button>
+              : <button type="button" className="btn-ghost" onClick={lockNote} title="Lock with PIN">🔒 Lock</button>
+          )}
           {noteId && !isTempId(noteId) && (
             <button type="button" className="btn-ghost" onClick={openHistory} title="Version history">History</button>
           )}
@@ -206,7 +269,14 @@ export default function NoteEditor() {
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
-      {historyOpen && <HistoryPanel noteId={noteId} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
+      {historyOpen && <HistoryPanel noteId={noteId} unlockToken={unlockToken.current} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
+      {needsPin && unlockToken.current === null && (snapshot(note) !== lastSaved.current || note.content || note.title) && (
+        <PinPrompt title="Unlock expired" description="Enter your PIN to keep saving this note." onSubmit={unlock} />
+      )}
+      {removeLockOpen && (
+        <PinPrompt title="Remove lock?" description="Enter your PIN. The note will be readable without a PIN." submitLabel="Remove lock"
+          onSubmit={removeLock} onCancel={() => setRemoveLockOpen(false)} />
+      )}
       {confirmDelete && (
         <div data-modal className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={() => setConfirmDelete(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>

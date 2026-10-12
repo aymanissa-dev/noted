@@ -5,6 +5,8 @@ import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 import NoteVersion from '../models/NoteVersion.js';
 import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
+import User from '../models/User.js';
+import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
 import { EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
 const router = Router();
@@ -59,7 +61,13 @@ async function findOwnNote(req) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(400, 'Invalid id');
   const note = await Note.findOne({ _id: req.params.id, user: req.userId });
   if (!note) throw new HttpError(404, 'Note not found');
+  if (note.locked && hasUnlock(req, note)) note.$locals.unlocked = true;
   return note;
+}
+
+// Reading or editing a locked note's contents (or its history) needs a valid unlock token.
+function requireUnlocked(note) {
+  if (note.locked && !note.$locals.unlocked) throw new HttpError(423, 'This note is locked');
 }
 
 router.get('/', asyncHandler(async (req, res) => {
@@ -77,19 +85,26 @@ router.get('/', asyncHandler(async (req, res) => {
     filter.$or = [{ title: re }, { content: re }];
   }
   if (tag) filter.tags = tag;
+  // Locked notes can't match on their hidden title/content/tags (that would leak them).
+  if (search || tag) filter.locked = { $ne: true };
   const sort = view === 'trash' ? { deletedAt: -1 } : { pinned: -1, updatedAt: -1 };
   const notes = await Note.find(filter).sort(sort);
   res.json({ notes });
 }));
 
 router.get('/tags', asyncHandler(async (req, res) => {
-  const tags = await Note.distinct('tags', { user: req.userId, deletedAt: null, archived: false });
+  const tags = await Note.distinct('tags', { user: req.userId, deletedAt: null, archived: false, locked: { $ne: true } });
   res.json({ tags: tags.sort() });
 }));
 
 // Export all non-trashed notes as JSON (default) or a zip of Markdown files.
 router.get('/export', asyncHandler(async (req, res) => {
   const notes = await Note.find({ user: req.userId, deletedAt: null }).sort({ updatedAt: -1 });
+  // Locked notes are exported only if the correct PIN is supplied (header X-Lock-Pin); otherwise flagged and redacted.
+  let includeLocked = false;
+  const pin = req.get('x-lock-pin');
+  if (pin && notes.some((n) => n.locked)) { await verifyLockPin(req.userId, pin); includeLocked = true; }
+  for (const n of notes) if (n.locked && !includeLocked) Object.assign(n, { title: '', content: '', tags: [], $locals: { redacted: true } });
   const stamp = new Date().toISOString().slice(0, 10);
   if (req.query.format === 'md') {
     const buf = await toMarkdownZip(notes);
@@ -105,8 +120,8 @@ router.get('/export', asyncHandler(async (req, res) => {
 router.post('/import', asyncHandler(async (req, res) => {
   let docs;
   try { docs = parseImport(req.body); } catch (msg) { throw new HttpError(400, String(msg)); }
-  const inserted = await Note.insertMany(docs.map((d) => ({ ...d, user: req.userId })), { timestamps: false });
-  res.status(201).json({ imported: inserted.length });
+  const inserted = await Note.insertMany(docs.notes.map((d) => ({ ...d, user: req.userId })), { timestamps: false });
+  res.status(201).json({ imported: inserted.length, skippedLocked: docs.skipped });
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
@@ -119,11 +134,38 @@ router.post('/', asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
-  res.json({ note: await findOwnNote(req) });
+  res.json({ note: await findOwnNote(req) }); // redacted if locked and not unlocked
+}));
+
+// Unlock a note with the PIN: returns its full contents and a short-lived unlock token.
+router.post('/:id/unlock', asyncHandler(async (req, res) => {
+  const note = await findOwnNote(req);
+  if (!note.locked) throw new HttpError(400, 'Note is not locked');
+  const user = await verifyLockPin(req.userId, req.body?.pin);
+  note.$locals.unlocked = true;
+  res.json({ note, unlockToken: signUnlockToken(user, note._id) });
+}));
+
+// Lock ({ locked: true }) needs a PIN to be set; removing a lock ({ locked: false, pin }) needs the PIN.
+router.patch('/:id/lock', asyncHandler(async (req, res) => {
+  const note = await findOwnNote(req);
+  const locked = Boolean(req.body?.locked);
+  if (locked) {
+    const user = await User.findById(req.userId).select('hasLockPin');
+    if (!user?.hasLockPin) throw new HttpError(400, 'Set a lock PIN in Settings first');
+    note.locked = true;
+    note.$locals.unlocked = false;
+  } else if (note.locked) {
+    await verifyLockPin(req.userId, req.body?.pin);
+    note.locked = false;
+  }
+  await note.save({ timestamps: false });
+  res.json({ note });
 }));
 
 const update = asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
+  requireUnlocked(note);
   const prev = pickVersionFields(note);
   Object.assign(note, pickNoteFields(req.body));
   await maybeSnapshot(note, prev);
@@ -188,17 +230,20 @@ async function findOwnVersion(req, note) {
 
 router.get('/:id/versions', asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
+  requireUnlocked(note);
   const versions = await NoteVersion.find({ note: note._id, user: req.userId }).sort({ createdAt: -1, _id: -1 });
   res.json({ versions: versions.map(versionSummary) });
 }));
 
 router.get('/:id/versions/:vid', asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
+  requireUnlocked(note);
   res.json({ version: await findOwnVersion(req, note) });
 }));
 
 router.post('/:id/versions/:vid/restore', asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
+  requireUnlocked(note);
   const version = await findOwnVersion(req, note);
   await snapshotForRestore(note);
   Object.assign(note, pickVersionFields(version));
