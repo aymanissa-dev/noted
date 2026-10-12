@@ -19,6 +19,10 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Export / import**: download everything as JSON or a zip of Markdown files; import a JSON export
 - **Account settings**: change password, delete your account and all notes
 - **Colors & emoji**: optional color and emoji per note
+- **Note history**: versions are saved as you edit (at most one per 5 minutes, or on large changes; 50 per note); preview and restore
+- **Quick capture**: type a line on the dashboard and press Enter (first line = title, `#tags` become tags); works offline
+- **Sign out everywhere**: revoke every session from Settings; changing your password also signs out other devices
+- **PIN-locked notes**: lock individual notes behind a 4–6 digit PIN; the server never returns their contents without it
 - **Works offline (PWA)**: installable; read saved notes offline, and new notes and edits made offline sync when you reconnect
 
 ## Tech stack
@@ -94,7 +98,10 @@ Errors are returned as `{ "error": "message" }`.
 | POST   | `/auth/register` | `{ name, email, password }`   | `201 { token, user }`    |
 | POST   | `/auth/login`    | `{ email, password }`         | `200 { token, user }`    |
 | GET    | `/auth/me`       | –                             | `200 { user }`           |
-| PATCH  | `/auth/password` | `{ currentPassword, newPassword }` | `200 { ok }` (`403` if current password is wrong) |
+| PATCH  | `/auth/password` | `{ currentPassword, newPassword }` | `200 { ok, token }` (`403` if current password is wrong). Revokes other sessions; use the returned token |
+| POST   | `/auth/logout-all` | – | `200 { ok, token }`. Revokes every token; the returned token keeps this session |
+| PUT    | `/auth/lock-pin` | `{ password, pin }` (4–6 digits) | `200 { user }`. Set or change the lock PIN |
+| DELETE | `/auth/lock-pin` | `{ password }` | `200 { user, unlockedNotes }`. Removes the PIN and unlocks all notes |
 | DELETE | `/auth/me`       | `{ password }`                | `200 { ok, deletedNotes }`. Deletes the account and all its notes |
 
 Passwords must be at least 8 characters. Logout is handled client-side by discarding the token.
@@ -112,8 +119,13 @@ Passwords must be at least 8 characters. Logout is handled client-side by discar
 | PATCH        | `/notes/:id/archive` | Toggle archived (archiving unpins)                          |
 | DELETE       | `/notes/:id`       | Move to trash (sets `deletedAt`). `?permanent=true` deletes for good (`204`) |
 | POST         | `/notes/:id/restore` | Restore from trash                                          |
+| GET          | `/notes/:id/versions` | Version list `{ versions: [{ _id, createdAt, reason, title, preview, length }] }` |
+| GET          | `/notes/:id/versions/:vid` | Full version |
+| POST         | `/notes/:id/versions/:vid/restore` | Restore a version (the current state is saved as a new version first) |
+| PATCH        | `/notes/:id/lock`  | `{ locked: true }` (needs a PIN set) or `{ locked: false, pin }` |
+| POST         | `/notes/:id/unlock` | `{ pin }` → `{ note, unlockToken }`. Send `X-Unlock-Token` to read/edit the note or its history (valid 15 min). 5 wrong PINs block PIN checks for 5 minutes (`429`) |
 | DELETE       | `/notes/trash`     | Empty the trash → `{ deleted }`                               |
-| GET          | `/notes/export`    | `?format=json` (default) → `{ app, version, exportedAt, notes }`; `?format=md` → zip of Markdown files with front matter. Trashed notes are excluded. |
+| GET          | `/notes/export`    | Locked notes are redacted and flagged unless the `X-Lock-Pin` header has the correct PIN. `?format=json` (default) → `{ app, version, exportedAt, notes }`; `?format=md` → zip of Markdown files with front matter. Trashed notes are excluded. |
 | POST         | `/notes/import`    | Body: an export object or an array of notes (max 5000). Validated; always imported into the current user's account → `201 { imported }` |
 
 Note shape:
@@ -126,6 +138,17 @@ Note shape:
 
 Tags are trimmed, lowercased, and de-duplicated (max 20 per note).
 `color` is one of `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `gray`, or `""`. `emoji` is a single emoji or `""`.
+
+## Locked notes
+
+Locked notes are redacted on the server (empty `title`, `content`, `tags`, plus `redacted: true`) in every list,
+get, and export response unless the request carries a valid unlock token. They never match search or tag filters,
+their history needs an unlock token, and the client never stores their contents offline or queues offline edits for them.
+
+## Sessions
+
+Tokens carry a `tokenVersion`; the auth middleware rejects tokens whose version doesn't match the user's.
+"Sign out of all devices" and password changes bump it.
 
 ## Offline
 
