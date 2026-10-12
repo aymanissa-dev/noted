@@ -22,6 +22,18 @@ async function request(method, path, body) {
   return data;
 }
 
+// Downloads a file from an authenticated endpoint.
+async function download(path, fallbackName) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `Download failed (${res.status})`);
+  const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),
@@ -44,4 +56,7 @@ export const api = {
   toggleArchive: (id) => request('PATCH', `/notes/${id}/archive`),
   restoreNote: (id) => request('POST', `/notes/${id}/restore`),
   emptyTrash: () => request('DELETE', '/notes/trash'),
+  exportJson: () => download('/notes/export?format=json', 'noted.json'),
+  exportMarkdown: () => download('/notes/export?format=md', 'noted.zip'),
+  importNotes: (data) => request('POST', '/notes/import', data),
 };

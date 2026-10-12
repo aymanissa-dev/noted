@@ -26,9 +26,10 @@ export default function Layout() {
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="hidden text-stone-500 dark:text-stone-400 sm:inline">{user?.name}</span>
+            <Link to="/settings" className="hidden text-stone-500 dark:text-stone-400 hover:underline sm:inline" title="Settings">{user?.name}</Link>
             <button className="btn-ghost px-2 font-mono" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
             <ThemeToggle />
+            <Link to="/settings" className="btn-ghost sm:hidden">Settings</Link>
             <button className="btn-ghost" onClick={logout}>Log out</button>
           </div>
         </div>

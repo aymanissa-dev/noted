@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Note from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
+import { EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -63,6 +64,28 @@ router.get('/', asyncHandler(async (req, res) => {
 router.get('/tags', asyncHandler(async (req, res) => {
   const tags = await Note.distinct('tags', { user: req.userId, deletedAt: null, archived: false });
   res.json({ tags: tags.sort() });
+}));
+
+// Export all non-trashed notes as JSON (default) or a zip of Markdown files.
+router.get('/export', asyncHandler(async (req, res) => {
+  const notes = await Note.find({ user: req.userId, deletedAt: null }).sort({ updatedAt: -1 });
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (req.query.format === 'md') {
+    const buf = await toMarkdownZip(notes);
+    res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="noted-${stamp}.zip"` });
+    return res.send(buf);
+  }
+  if (req.query.format && req.query.format !== 'json') throw new HttpError(400, 'format must be json or md');
+  res.set('Content-Disposition', `attachment; filename="noted-${stamp}.json"`);
+  res.json({ app: 'noted', version: EXPORT_VERSION, exportedAt: new Date(), notes: notes.map(toExportNote) });
+}));
+
+// Import notes from a JSON export. Always scoped to the current user; ids/owners in the file are ignored.
+router.post('/import', asyncHandler(async (req, res) => {
+  let docs;
+  try { docs = parseImport(req.body); } catch (msg) { throw new HttpError(400, String(msg)); }
+  const inserted = await Note.insertMany(docs.map((d) => ({ ...d, user: req.userId })), { timestamps: false });
+  res.status(201).json({ imported: inserted.length });
 }));
 
 router.post('/', asyncHandler(async (req, res) => {

@@ -80,6 +80,29 @@ try {
   r = await call('DELETE', '/notes/trash'); assert.equal(r.data.deleted, 1);
   assert.equal((await call('GET', '/notes?view=trash')).data.notes.length, 0);
 
+  // export / import
+  r = await call('GET', '/notes/export'); assert.equal(r.status, 200);
+  assert.equal(r.data.app, 'noted'); assert.ok(r.data.notes.every((n) => !('user' in n) && !('_id' in n)));
+  const exported = r.data;
+  const zipRes = await fetch(`${base}/notes/export?format=md`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(zipRes.headers.get('content-type'), 'application/zip');
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(Buffer.from(await zipRes.arrayBuffer()));
+  const md = await zip.file('groceries.md').async('string');
+  assert.match(md, /^---\ntitle: "Groceries"/); assert.match(md, /milk, eggs/);
+  assert.equal((await call('POST', '/notes/import', { notes: 'nope' })).status, 400);
+  assert.equal((await call('POST', '/notes/import', { notes: [{ title: 5 }] })).status, 400);
+  assert.equal((await call('POST', '/notes/import', { notes: [] })).status, 400);
+  const before = (await call('GET', '/notes')).data.notes.length;
+  r = await call('POST', '/notes/import', { notes: [...exported.notes, { title: 'Imported', content: 'x', tags: ['New '], user: '000000000000000000000000', _id: 'evil' }] });
+  assert.equal(r.status, 201); assert.equal(r.data.imported, exported.notes.length + 1);
+  const afterList = (await call('GET', '/notes?search=Imported')).data.notes;
+  assert.equal(afterList.length, 1); assert.deepEqual(afterList[0].tags, ['new']);
+  assert.equal(String(afterList[0].user), String((await call('GET', '/auth/me')).data.user.id));
+  assert.equal((await call('GET', '/notes')).data.notes.length, before + exported.notes.length + 1);
+  // remove the imported copies again
+  for (const n of (await call('GET', '/notes')).data.notes.slice(1)) await call('DELETE', `/notes/${n._id}?permanent=true`);
+
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes
