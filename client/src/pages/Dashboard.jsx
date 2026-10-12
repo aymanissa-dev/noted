@@ -17,6 +17,14 @@ export default function Dashboard({ view = 'active' }) {
   const [tag, setTag] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [syncTick, setSyncTick] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setSyncTick((t) => t + 1);
+    window.addEventListener('noted:queue-changed', bump);
+    window.addEventListener('online', bump);
+    return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('online', bump); };
+  }, []);
 
   // debounce search input
   useEffect(() => {
@@ -29,10 +37,11 @@ export default function Dashboard({ view = 'active' }) {
     setLoading(true);
     api.listNotes({ search: query, tag: view === 'active' ? tag : '', view })
       .then(({ notes }) => !cancelled && setNotes(notes))
+      .then(() => !cancelled && setError(''))
       .catch((e) => !cancelled && setError(e.message))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [query, tag, view]);
+  }, [query, tag, view, syncTick]);
 
   useEffect(() => {
     api.tags().then(({ tags }) => setTags(tags)).catch(() => {});

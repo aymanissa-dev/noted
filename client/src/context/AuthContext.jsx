@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api, setUnauthorizedHandler, TOKEN_KEY } from '../lib/api.js';
+import { api, clearLocalData, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
 
 const AuthContext = createContext(null);
 
@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    clearLocalData();
     setUser(null);
   }, []);
 
@@ -16,13 +17,20 @@ export function AuthProvider({ children }) {
     setUnauthorizedHandler(logout);
     if (!localStorage.getItem(TOKEN_KEY)) return;
     api.me()
-      .then(({ user }) => setUser(user))
-      .catch(logout)
+      .then(({ user }) => { localStorage.setItem(USER_KEY, JSON.stringify(user)); setUser(user); })
+      .catch((err) => {
+        // Offline: keep the session using the cached profile. Otherwise the token is bad.
+        const cached = localStorage.getItem(USER_KEY);
+        if (isNetworkError(err) && cached) setUser(JSON.parse(cached));
+        else logout();
+      })
       .finally(() => setLoading(false));
   }, [logout]);
 
   const handleAuth = ({ token, user }) => {
+    clearLocalData(); // never mix another account's cached notes
     localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
     setUser(user);
   };
 

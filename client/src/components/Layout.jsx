@@ -5,11 +5,13 @@ import ThemeToggle from './ThemeToggle.jsx';
 import ShortcutsHelp from './ShortcutsHelp.jsx';
 import { useState } from 'react';
 import { useShortcuts } from '../lib/useShortcuts.js';
+import { useOnline } from '../lib/useOnline.js';
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const [helpOpen, setHelpOpen] = useState(false);
   useShortcuts({ helpOpen, setHelpOpen });
+  const { online, pending } = useOnline();
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-stone-200 dark:border-stone-800 bg-stone-50/90 dark:bg-stone-950/90 backdrop-blur">
@@ -34,6 +36,12 @@ export default function Layout() {
           </div>
         </div>
       </header>
+      {(!online || pending > 0) && (
+        <div className="border-b border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-1.5 text-center text-xs text-amber-800 dark:text-amber-200" role="status">
+          {!online ? 'You’re offline. Showing saved notes; new notes and edits will sync when you reconnect.' : 'Syncing offline changes…'}
+          {pending > 0 && ` (${pending} pending)`}
+        </div>
+      )}
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Outlet />
       </main>

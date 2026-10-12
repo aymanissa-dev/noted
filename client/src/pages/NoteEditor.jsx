@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { isTempId } from '../lib/offlineQueue.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
 import AppearancePicker from '../components/AppearancePicker.jsx';
@@ -51,7 +52,7 @@ export default function NoteEditor() {
     if (!idRef.current && isEmpty(current)) return;
     setStatus('saving'); setError('');
     const run = (async () => {
-      const { note: saved } = idRef.current
+      const { note: saved, queued } = idRef.current
         ? await api.updateNote(idRef.current, { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji })
         : await api.createNote(current);
       lastSaved.current = snap;
@@ -61,11 +62,23 @@ export default function NoteEditor() {
         setNoteId(saved._id);
         navigate(`/notes/${saved._id}`, { replace: true });
       }
-      setStatus(snapshot(noteRef.current) === snap ? 'saved' : 'dirty');
+      setStatus(snapshot(noteRef.current) !== snap ? 'dirty' : queued ? 'queued' : 'saved');
     })();
     inflight.current = run;
     try { await run; } catch (e) { setStatus('error'); setError(e.message); }
     finally { if (inflight.current === run) inflight.current = null; }
+  }, [navigate]);
+
+  // When an offline-created note syncs, switch to its real id.
+  useEffect(() => {
+    const onMapped = (e) => {
+      if (e.detail.tempId !== idRef.current) return;
+      idRef.current = e.detail.realId;
+      setNoteId(e.detail.realId);
+      navigate(`/notes/${e.detail.realId}`, { replace: true });
+    };
+    window.addEventListener('noted:id-mapped', onMapped);
+    return () => window.removeEventListener('noted:id-mapped', onMapped);
   }, [navigate]);
 
   // Mark dirty immediately, autosave after a pause in typing.
@@ -98,7 +111,7 @@ export default function NoteEditor() {
   const done = async () => { await save(); navigate(note.deletedAt ? '/trash' : note.archived ? '/archive' : '/'); };
 
   const togglePin = async () => {
-    if (!noteId) return setNote((n) => ({ ...n, pinned: !n.pinned }));
+    if (!noteId || isTempId(noteId)) return setNote((n) => ({ ...n, pinned: !n.pinned }));
     try {
       const { note: updated } = await api.togglePin(noteId);
       setNote((n) => ({ ...n, pinned: updated.pinned }));
@@ -148,10 +161,10 @@ export default function NoteEditor() {
             className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
             <PinIcon filled={note.pinned} /><span className="ml-1.5">{note.pinned ? 'Pinned' : 'Pin'}</span>
           </button>
-          {noteId && !note.deletedAt && (
+          {noteId && !isTempId(noteId) && !note.deletedAt && (
             <button type="button" className="btn-ghost" onClick={toggleArchive}>{note.archived ? 'Unarchive' : 'Archive'}</button>
           )}
-          {noteId && !note.deletedAt && <button type="button" className="btn-danger" onClick={moveToTrash}>Delete</button>}
+          {noteId && !isTempId(noteId) && !note.deletedAt && <button type="button" className="btn-danger" onClick={moveToTrash}>Delete</button>}
           {note.deletedAt && <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete forever</button>}
           <button type="button" className="btn-primary ml-1" onClick={done}>Done</button>
         </div>
@@ -203,6 +216,7 @@ function SaveStatus({ status }) {
     saving: ['Saving…', 'bg-amber-400 animate-pulse'],
     saved: ['Saved', 'bg-emerald-500'],
     error: ['Not saved', 'bg-red-500'],
+    queued: ['Saved offline', 'bg-sky-400'],
   };
   if (!map[status]) return null;
   const [label, dot] = map[status];

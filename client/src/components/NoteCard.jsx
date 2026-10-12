@@ -21,7 +21,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
     <Link to={`/notes/${note._id}`}
       className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}>
       {onTogglePin && <button
-        onClick={(e) => { e.preventDefault(); onTogglePin(note); }}
+        onClick={(e) => { e.preventDefault(); if (!note.pending) onTogglePin(note); }}
         title={note.pinned ? 'Unpin' : 'Pin'}
         className={`absolute right-3 top-3 rounded p-1 transition ${note.pinned ? 'text-amber-500' : 'text-stone-300 opacity-0 hover:text-stone-600 group-hover:opacity-100'}`}>
         <PinIcon filled={note.pinned} />
@@ -32,7 +32,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         {note.tags.map((t) => (
           <span key={t} className="rounded-full bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs text-stone-600 dark:text-stone-300">#{t}</span>
         ))}
-        <span className="ml-auto text-xs text-stone-400">{timeAgo(note.updatedAt)}</span>
+        <span className="ml-auto text-xs text-stone-400">{note.pending ? 'Not synced' : timeAgo(note.updatedAt)}</span>
       </div>
     </Link>
   );
