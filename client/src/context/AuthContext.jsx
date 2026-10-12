@@ -16,15 +16,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
 
   // `flash` is shown once on the login page (e.g. after deleting the account).
-  const logout = useCallback(({ flash } = {}) => {
+  // Intentional logouts land on a clean /login (no "return to" page). Only an expired session remembers where you were.
+  const [returnable, setReturnable] = useState(false);
+  const logout = useCallback(({ flash, expired = false } = {}) => {
     if (flash) sessionStorage.setItem(FLASH_KEY, flash);
+    setReturnable(expired === true);
+    if (expired) sessionStorage.removeItem('noted.loggedOut'); else sessionStorage.setItem('noted.loggedOut', '1');
     localStorage.removeItem(TOKEN_KEY);
     clearLocalData();
     setUser(null);
   }, []);
 
   useEffect(() => {
-    setUnauthorizedHandler(logout);
+    setUnauthorizedHandler(() => logout({ expired: true, flash: 'Your session expired. Please log in again.' }));
     if (!localStorage.getItem(TOKEN_KEY)) return;
     api.me()
       .then(({ user }) => { localStorage.setItem(USER_KEY, JSON.stringify(user)); setUser(user); })
@@ -32,13 +36,14 @@ export function AuthProvider({ children }) {
         // Offline: keep the session using the cached profile. Otherwise the token is bad.
         const cached = localStorage.getItem(USER_KEY);
         if (isNetworkError(err) && cached) setUser(JSON.parse(cached));
-        else logout();
+        else logout({ expired: true });
       })
       .finally(() => setLoading(false));
   }, [logout]);
 
   const handleAuth = ({ token, user }) => {
     clearLocalData(); // never mix another account's cached notes
+    sessionStorage.removeItem('noted.loggedOut');
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     setUser(user);
@@ -49,7 +54,7 @@ export function AuthProvider({ children }) {
   const register = async (data) => handleAuth(await api.register(data));
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser, returnable }}>
       {children}
     </AuthContext.Provider>
   );

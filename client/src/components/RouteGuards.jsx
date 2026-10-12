@@ -4,10 +4,13 @@ import { useAuth } from '../context/AuthContext.jsx';
 const Splash = () => <div className="grid min-h-screen place-items-center text-stone-400">Loading…</div>;
 
 export function ProtectedRoute() {
-  const { user, loading } = useAuth();
+  const { user, loading, returnable } = useAuth();
   const location = useLocation();
   if (loading) return <Splash />;
-  return user ? <Outlet /> : <Navigate to="/login" replace state={{ from: location }} />;
+  if (user) return <Outlet />;
+  // First visit / expired session: come back here after login. Deliberate logout: no stale return page.
+  const fresh = !sessionStorage.getItem('noted.loggedOut');
+  return <Navigate to="/login" replace state={returnable || fresh ? { from: location } : undefined} />;
 }
 
 export function GuestRoute() {

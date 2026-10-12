@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { takeFlash, useAuth } from '../context/AuthContext.jsx';
 import AuthCard from '../components/AuthCard.jsx';
@@ -10,6 +10,8 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [flash] = useState(() => takeFlash());
+  // The logout→login redirect has happened; later deep links should return to their page again.
+  useEffect(() => { sessionStorage.removeItem('noted.loggedOut'); }, []);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
@@ -17,7 +19,9 @@ export default function Login() {
     setError(''); setBusy(true);
     try {
       await login(form);
-      navigate(location.state?.from?.pathname || '/', { replace: true });
+      const from = location.state?.from;
+      const target = from && from.pathname !== '/login' ? `${from.pathname}${from.search || ''}` : '/';
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
