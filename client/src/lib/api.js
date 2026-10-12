@@ -104,6 +104,23 @@ async function download(path, fallbackName, extraHeaders = {}) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Last-chance save while the page unloads. keepalive lets the request outlive the page;
+// offline or unsynced notes go to the (synchronous, persistent) offline queue instead.
+export function saveOnUnload(id, body, unlockToken) {
+  if (!id) return false;
+  if (!unlockToken && (isTempId(id) || !navigator.onLine)) { queue.enqueueUpdate(id, body); return true; }
+  if (!navigator.onLine) return false;
+  const token = localStorage.getItem(TOKEN_KEY);
+  try {
+    fetch(`${BASE}/notes/${id}`, {
+      method: 'PATCH', keepalive: true, cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }), ...(unlockToken && { 'X-Unlock-Token': unlockToken }) },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+    return true;
+  } catch { return false; }
+}
+
 export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),

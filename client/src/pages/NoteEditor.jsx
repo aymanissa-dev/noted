@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../lib/api.js';
+import { api, saveOnUnload } from '../lib/api.js';
 import { isTempId } from '../lib/offlineQueue.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
@@ -111,9 +111,29 @@ export default function NoteEditor() {
   // Flush pending changes when leaving the page.
   useEffect(() => () => { save(); }, [save]);
   useEffect(() => {
-    const warn = (e) => { if (snapshot(noteRef.current) !== lastSaved.current) { e.preventDefault(); e.returnValue = ''; } };
+    const dirty = () => snapshot(noteRef.current) !== lastSaved.current;
+    const fieldsOf = (n) => ({ title: n.title, content: n.content, tags: n.tags, color: n.color, emoji: n.emoji });
+    // Fire a keepalive save of the latest state when the page is hidden or unloaded.
+    const flush = () => {
+      if (!dirty() || !idRef.current) return;
+      if (noteRef.current.locked && !unlockToken.current) return;
+      if (saveOnUnload(idRef.current, fieldsOf(noteRef.current), unlockToken.current)) lastSaved.current = snapshot(noteRef.current);
+    };
+    // Only prompt if there are changes that are neither saved, in flight, nor handed to a keepalive save.
+    const warn = (e) => {
+      if (!dirty() || inflight.current) return;
+      flush();
+      if (dirty()) { e.preventDefault(); e.returnValue = ''; }
+    };
+    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
     window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+    };
   }, []);
 
   // Ctrl/Cmd+S saves immediately.
