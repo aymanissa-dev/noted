@@ -1,12 +1,18 @@
 import JSZip from 'jszip';
+import { createHash } from 'node:crypto';
 import { NOTE_COLORS } from '../models/Note.js';
 
 export const EXPORT_VERSION = 1;
 export const MAX_IMPORT = 5000;
 
+// Stable identity of a note's content, used to skip duplicates on import.
+export const fingerprint = (n) => createHash('sha1')
+  .update(`${n.title || ''}\u0000${n.content || ''}\u0000${new Date(n.createdAt).toISOString()}`).digest('hex');
+
 export const toExportNote = (n) => (n.locked && n.$locals?.redacted
-  ? { locked: true, redacted: true, title: '', content: '', tags: [], pinned: n.pinned, archived: n.archived, color: n.color || '', emoji: n.emoji || '', createdAt: n.createdAt, updatedAt: n.updatedAt }
+  ? { id: String(n._id), locked: true, redacted: true, title: '', content: '', tags: [], pinned: n.pinned, archived: n.archived, color: n.color || '', emoji: n.emoji || '', createdAt: n.createdAt, updatedAt: n.updatedAt }
   : {
+  id: String(n._id),
   ...(n.locked && { locked: true }),
   title: n.title,
   content: n.content,
@@ -97,6 +103,7 @@ export function parseImport(body) {
       emoji,
       createdAt,
       updatedAt: validDate(raw.updatedAt) || createdAt,
+      sourceId: typeof raw.id === 'string' ? raw.id : typeof raw._id === 'string' ? raw._id : null,
     };
   });
   if (!notes.length) throw 'No importable notes (locked notes exported without a PIN have no content)';

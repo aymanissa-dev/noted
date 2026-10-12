@@ -37,8 +37,12 @@ function DataSection() {
     run(async () => {
       let data;
       try { data = JSON.parse(await file.text()); } catch { throw new Error('That file is not valid JSON.'); }
-      const { imported, skippedLocked } = await api.importNotes(data);
-      setMsg({ text: `Imported ${imported} note${imported === 1 ? '' : 's'}.${skippedLocked ? ` Skipped ${skippedLocked} locked note${skippedLocked === 1 ? '' : 's'} without content.` : ''}` });
+      const { imported, skippedDuplicates = 0, skippedLocked = 0 } = await api.importNotes(data);
+      const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+      const parts = [`Imported ${plural(imported, 'note')}.`];
+      if (skippedDuplicates) parts.push(`Skipped ${plural(skippedDuplicates, 'duplicate')} you already have.`);
+      if (skippedLocked) parts.push(`Skipped ${plural(skippedLocked, 'locked note')} without content.`);
+      setMsg({ text: parts.join(' ') });
     });
   };
 

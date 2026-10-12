@@ -96,8 +96,15 @@ try {
   assert.equal((await call('POST', '/notes/import', { notes: [{ title: 5 }] })).status, 400);
   assert.equal((await call('POST', '/notes/import', { notes: [] })).status, 400);
   const before = (await call('GET', '/notes')).data.notes.length;
-  r = await call('POST', '/notes/import', { notes: [...exported.notes, { title: 'Imported', content: 'x', tags: ['New '], user: '000000000000000000000000', _id: 'evil' }] });
-  assert.equal(r.status, 201); assert.equal(r.data.imported, exported.notes.length + 1);
+  // re-importing your own export is a no-op (exact duplicates are skipped)
+  r = await call('POST', '/notes/import', exported);
+  assert.equal(r.status, 200); assert.equal(r.data.imported, 0); assert.equal(r.data.skippedDuplicates, exported.notes.length);
+  // same content without ids is still detected by fingerprint; duplicates inside the file are skipped too
+  r = await call('POST', '/notes/import', { notes: exported.notes.map(({ id, ...n }) => n) });
+  assert.equal(r.data.imported, 0);
+  const strip = ({ id, ...n }) => ({ ...n, createdAt: new Date(Date.now() - 864e5).toISOString() }); // same text, other date → new
+  r = await call('POST', '/notes/import', { notes: [...exported.notes.map(strip), { title: 'Imported', content: 'x', tags: ['New '], user: '000000000000000000000000', _id: 'evil' }, { title: 'Imported', content: 'x', tags: ['New '] }] });
+  assert.equal(r.status, 201); assert.equal(r.data.imported, exported.notes.length + 1); assert.equal(r.data.skippedDuplicates, 0);
   const afterList = (await call('GET', '/notes?search=Imported')).data.notes;
   assert.equal(afterList.length, 1); assert.deepEqual(afterList[0].tags, ['new']);
   assert.equal(String(afterList[0].user), String((await call('GET', '/auth/me')).data.user.id));

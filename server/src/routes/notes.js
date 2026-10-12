@@ -7,7 +7,7 @@ import NoteVersion from '../models/NoteVersion.js';
 import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
 import User from '../models/User.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
-import { EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
+import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -120,8 +120,21 @@ router.get('/export', asyncHandler(async (req, res) => {
 router.post('/import', asyncHandler(async (req, res) => {
   let docs;
   try { docs = parseImport(req.body); } catch (msg) { throw new HttpError(400, String(msg)); }
-  const inserted = await Note.insertMany(docs.notes.map((d) => ({ ...d, user: req.userId })), { timestamps: false });
-  res.status(201).json({ imported: inserted.length, skippedLocked: docs.skipped });
+  // Skip exact duplicates: same source id as an existing note, or same title+content+createdAt
+  // (against the user's existing notes and within the file itself).
+  const existing = await Note.find({ user: req.userId }).select('title content createdAt').lean();
+  const ids = new Set(existing.map((n) => String(n._id)));
+  const seen = new Set(existing.map(fingerprint));
+  let skippedDuplicates = 0;
+  const fresh = [];
+  for (const { sourceId, ...d } of docs.notes) {
+    const fp = fingerprint(d);
+    if ((sourceId && ids.has(sourceId)) || seen.has(fp)) { skippedDuplicates++; continue; }
+    seen.add(fp);
+    fresh.push({ ...d, user: req.userId });
+  }
+  const inserted = fresh.length ? await Note.insertMany(fresh, { timestamps: false }) : [];
+  res.status(fresh.length ? 201 : 200).json({ imported: inserted.length, skippedDuplicates, skippedLocked: docs.skipped });
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
