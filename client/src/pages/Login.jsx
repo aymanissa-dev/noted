@@ -25,7 +25,7 @@ export default function Login() {
   };
 
   return (
-    <AuthCard title="Welcome back" footer={<>No account? <Link className="font-medium text-stone-800 underline" to="/register">Create one</Link></>}>
+    <AuthCard title="Welcome back" footer={<>No account? <Link className="font-medium text-stone-800 dark:text-stone-100 underline" to="/register">Create one</Link></>}>
       <form onSubmit={submit} className="space-y-3">
         <input className="input" type="email" placeholder="Email" autoComplete="email" required
           value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />

@@ -154,21 +154,21 @@ export default function NoteEditor() {
       </div>
 
       {note.deletedAt && (
-        <div className="mb-3 flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-sm text-amber-800 dark:text-amber-200">
           <span>This note is in the trash.</span>
           <button type="button" className="font-medium underline" onClick={restore}>Restore</button>
         </div>
       )}
       {note.archived && !note.deletedAt && (
-        <div className="mb-3 rounded-xl bg-stone-100 px-4 py-2 text-sm text-stone-600">Archived</div>
+        <div className="mb-3 rounded-xl bg-stone-100 dark:bg-stone-800 px-4 py-2 text-sm text-stone-600 dark:text-stone-300">Archived</div>
       )}
-      <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300"
+      <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-6 shadow-sm">
+        <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
           placeholder="Title" value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
-        <div className="mt-3 border-b border-stone-100 pb-3">
+        <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
           <TagInput tags={note.tags} onChange={(tags) => setNote({ ...note, tags })} />
         </div>
-        <textarea className="mt-4 min-h-[50vh] w-full resize-none bg-transparent leading-relaxed outline-none placeholder:text-stone-300"
+        <textarea className="mt-4 min-h-[50vh] w-full resize-none bg-transparent leading-relaxed outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
           placeholder="Write it down…" value={note.content} onChange={(e) => setNote({ ...note, content: e.target.value })} />
       </div>
       <div className="mt-2 flex justify-between text-xs text-stone-400">
@@ -178,10 +178,10 @@ export default function NoteEditor() {
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 px-4" onClick={() => setConfirmDelete(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={() => setConfirmDelete(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-semibold">Delete this note forever?</h2>
-            <p className="mt-1 text-sm text-stone-500">This can't be undone.</p>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">This can't be undone.</p>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
               <button type="button" className="btn bg-red-600 text-white hover:bg-red-700" onClick={deleteForever}>Delete forever</button>
@@ -203,7 +203,7 @@ function SaveStatus({ status }) {
   if (!map[status]) return null;
   const [label, dot] = map[status];
   return (
-    <span className="mr-2 inline-flex items-center gap-1.5 text-xs text-stone-500" aria-live="polite">
+    <span className="mr-2 inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400" aria-live="polite">
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />{label}
     </span>
   );

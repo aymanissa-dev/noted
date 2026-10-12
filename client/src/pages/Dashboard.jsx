@@ -81,10 +81,10 @@ export default function Dashboard({ view = 'active' }) {
       {isActive && tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           <button onClick={() => setTag('')}
-            className={`chip ${!tag ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-600 hover:border-stone-500'}`}>All</button>
+            className={`chip ${!tag ? 'chip-on' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-500 dark:hover:border-stone-500'}`}>All</button>
           {tags.map((t) => (
             <button key={t} onClick={() => setTag(tag === t ? '' : t)}
-              className={`chip ${tag === t ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-600 hover:border-stone-500'}`}>#{t}</button>
+              className={`chip ${tag === t ? 'chip-on' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-500 dark:hover:border-stone-500'}`}>#{t}</button>
           ))}
         </div>
       )}
@@ -95,8 +95,8 @@ export default function Dashboard({ view = 'active' }) {
         <p className="mt-16 text-center text-stone-400">Loading…</p>
       ) : notes.length === 0 ? (
         <div className="mt-20 text-center">
-          <p className="text-lg font-medium text-stone-700">{query || tag ? 'No matching notes.' : copy.empty}</p>
-          <p className="mt-1 text-sm text-stone-500">{query || tag ? 'Try a different search or tag.' : copy.hint}</p>
+          <p className="text-lg font-medium text-stone-700 dark:text-stone-200">{query || tag ? 'No matching notes.' : copy.empty}</p>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{query || tag ? 'Try a different search or tag.' : copy.hint}</p>
           {isActive && !query && !tag && <Link to="/notes/new" className="btn-primary mt-5">Write your first note</Link>}
         </div>
       ) : (

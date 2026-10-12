@@ -27,7 +27,7 @@ export default function Register() {
   };
 
   return (
-    <AuthCard title="Create your account" footer={<>Already have one? <Link className="font-medium text-stone-800 underline" to="/login">Log in</Link></>}>
+    <AuthCard title="Create your account" footer={<>Already have one? <Link className="font-medium text-stone-800 dark:text-stone-100 underline" to="/login">Log in</Link></>}>
       <form onSubmit={submit} className="space-y-3">
         <input className="input" placeholder="Name" autoComplete="name" required value={form.name} onChange={set('name')} />
         <input className="input" type="email" placeholder="Email" autoComplete="email" required value={form.email} onChange={set('email')} />

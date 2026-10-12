@@ -2,11 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
 @layer components {
-  .input { @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-stone-500 focus:ring-2 focus:ring-stone-200; }
+  .input { @apply w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-3 py-2 text-sm outline-none transition focus:border-stone-500 focus:ring-2 focus:ring-stone-200 dark:focus:ring-stone-700; }
   .btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50; }
-  .btn-primary { @apply btn bg-stone-900 text-white hover:bg-stone-700; }
-  .btn-ghost { @apply btn text-stone-600 hover:bg-stone-200/60; }
-  .btn-danger { @apply btn text-red-600 hover:bg-red-50; }
+  .btn-primary { @apply btn bg-stone-900 text-white hover:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300; }
+  .btn-ghost { @apply btn text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800; }
+  .btn-danger { @apply btn text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40; }
   .chip { @apply rounded-full border px-3 py-1 text-xs transition; }
+}
+
+@layer components {
+  .chip-on { @apply border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900; }
+  .chip-off { @apply border-stone-300 text-stone-600 hover:border-stone-500 dark:border-stone-700 dark:text-stone-300; }
 }

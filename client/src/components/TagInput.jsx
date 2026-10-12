@@ -17,9 +17,9 @@ export default function TagInput({ tags, onChange }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {tags.map((t) => (
-        <span key={t} className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700">
+        <span key={t} className="inline-flex items-center gap-1 rounded-full bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs text-stone-700 dark:text-stone-200">
           #{t}
-          <button type="button" className="text-stone-400 hover:text-stone-700" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button>
+          <button type="button" className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button>
         </span>
       ))}
       <input className="min-w-[8rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-stone-400"
