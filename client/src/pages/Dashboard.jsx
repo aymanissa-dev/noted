@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { latestOnly } from '../lib/latest.js';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import NoteCard from '../components/NoteCard.jsx';
@@ -27,22 +28,30 @@ export default function Dashboard({ view = 'active' }) {
     return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('online', bump); };
   }, []);
 
-  // debounce search input
+  // debounce search input; clearing it applies immediately
   useEffect(() => {
-    const t = setTimeout(() => setQuery(search.trim()), 250);
+    const q = search.trim();
+    if (!q) { setQuery(''); return; }
+    const t = setTimeout(() => setQuery(q), 250);
     return () => clearTimeout(t);
   }, [search]);
 
+  // Only the newest list request may update the UI (older ones are aborted / discarded).
+  const fetchList = useMemo(() => latestOnly((params, signal) => api.listNotes(params, signal)), []);
+  useEffect(() => () => fetchList.cancel(), [fetchList]);
+
   useEffect(() => {
-    let cancelled = false;
     setLoading(true);
-    api.listNotes({ search: query, tag: view === 'active' ? tag : '', view })
-      .then(({ notes }) => !cancelled && setNotes(notes))
-      .then(() => !cancelled && setError(''))
-      .catch((e) => !cancelled && setError(e.message))
-      .finally(() => !cancelled && setLoading(false));
-    return () => { cancelled = true; };
-  }, [query, tag, view, syncTick]);
+    fetchList({ search: query, tag: view === 'active' ? tag : '', view })
+      .then(({ result, stale }) => {
+        if (stale) return;
+        setNotes(result.notes); setError(''); setLoading(false);
+      })
+      .catch((e) => { setError(e.message); setLoading(false); });
+  }, [query, tag, view, syncTick, fetchList]);
+
+  // Reset a tag filter whose tag no longer exists.
+  useEffect(() => { if (tag && tags.length && !tags.includes(tag)) setTag(''); }, [tags, tag]);
 
   useEffect(() => {
     api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
@@ -104,7 +113,13 @@ export default function Dashboard({ view = 'active' }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-          <input id="search" className="input pl-9" placeholder="Search notes…  ( / )" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input id="search" type="search" className="input pl-9 pr-8" placeholder="Search notes…" value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); e.stopPropagation(); setSearch(''); } }} />
+          {search && (
+            <button type="button" onClick={() => setSearch('')} aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200">✕</button>
+          )}
         </div>
         {isActive && <Link to="/notes/new" className="btn-primary">+ New note</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}

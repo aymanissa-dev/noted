@@ -17,11 +17,12 @@ class ApiError extends Error {
 // fetch rejects with a TypeError when the network is unavailable.
 export const isNetworkError = (err) => err instanceof TypeError || err?.offline === true;
 
-async function request(method, path, body, { headers: extra } = {}) {
+async function request(method, path, body, { headers: extra, signal } = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
   const res = await fetch(BASE + path, {
     method,
+    signal,
     cache: 'no-store',
     headers: {
       ...(body && { 'Content-Type': 'application/json' }),
@@ -119,7 +120,7 @@ export const api = {
   },
   deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
 
-  async listNotes({ search, tag, view = 'active' } = {}) {
+  async listNotes({ search, tag, view = 'active' } = {}, signal) {
     const q = new URLSearchParams();
     if (view !== 'active') q.set('view', view);
     if (search) q.set('search', search);
@@ -127,10 +128,10 @@ export const api = {
     const qs = q.toString();
     let notes, offline = false;
     try {
-      ({ notes } = await request('GET', `/notes${qs ? `?${qs}` : ''}`));
+      ({ notes } = await request('GET', `/notes${qs ? `?${qs}` : ''}`, undefined, { signal }));
       cacheNotes(notes, { replaceView: !search && !tag ? view : undefined });
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (err?.name === 'AbortError' || !isNetworkError(err)) throw err;
       offline = true;
       notes = filterLocal(Object.values(readCache()), { search, tag, view });
     }
