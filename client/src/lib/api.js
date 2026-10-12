@@ -38,6 +38,8 @@ export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),
   me: () => request('GET', '/auth/me'),
+  changePassword: (currentPassword, newPassword) => request('PATCH', '/auth/password', { currentPassword, newPassword }),
+  deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
   listNotes: ({ search, tag, view } = {}) => {
     const q = new URLSearchParams();
     if (view && view !== 'active') q.set('view', view);

@@ -111,6 +111,26 @@ try {
   assert.equal((await call('GET', '/notes')).data.notes.length, 0);
   token = 'bad'; assert.equal((await call('GET', '/notes')).status, 401);
 
+  // account: change password, delete account + notes
+  token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).data.token;
+  await call('POST', '/notes', { title: 'Bob note' });
+  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'wrong-pass', newPassword: 'newpassword1' })).status, 403);
+  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'short' })).status, 400);
+  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'newpassword1' })).status, 200);
+  assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).status, 401);
+  token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'newpassword1' })).data.token;
+  assert.equal((await call('DELETE', '/auth/me', {})).status, 400);
+  assert.equal((await call('DELETE', '/auth/me', { password: 'password123' })).status, 403);
+  const bobId = (await call('GET', '/auth/me')).data.user.id;
+  r = await call('DELETE', '/auth/me', { password: 'newpassword1' });
+  assert.equal(r.status, 200); assert.equal(r.data.deletedNotes, 1);
+  assert.equal(await Note.countDocuments({ user: bobId }), 0);
+  assert.equal((await call('GET', '/auth/me')).status, 401);
+  assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'newpassword1' })).status, 401);
+  // Ada's data is untouched
+  token = (await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' })).data.token;
+  assert.ok((await call('GET', '/notes')).data.notes.length >= 1);
+
   console.log('✅ All smoke tests passed');
 } finally {
   server.close(); await mongoose.disconnect(); await mongo.stop();

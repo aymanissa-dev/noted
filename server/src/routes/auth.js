@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
+import Note from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 
@@ -35,6 +36,33 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId);
   if (!user) throw new HttpError(401, 'User not found');
   res.json({ user });
+}));
+
+async function verifyPassword(userId, password) {
+  if (!password) throw new HttpError(400, 'Current password is required');
+  const user = await User.findById(userId).select('+password');
+  if (!user) throw new HttpError(401, 'User not found');
+  if (!(await bcrypt.compare(String(password), user.password))) throw new HttpError(403, 'Incorrect password');
+  return user;
+}
+
+router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const user = await verifyPassword(req.userId, currentPassword);
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    throw new HttpError(400, 'New password must be at least 8 characters');
+  }
+  user.password = await bcrypt.hash(newPassword, 12);
+  await user.save();
+  res.json({ ok: true });
+}));
+
+// Permanently delete the account and every note it owns. Requires the password.
+router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
+  const user = await verifyPassword(req.userId, req.body?.password);
+  const { deletedCount } = await Note.deleteMany({ user: user._id });
+  await user.deleteOne();
+  res.json({ ok: true, deletedNotes: deletedCount });
 }));
 
 export default router;
