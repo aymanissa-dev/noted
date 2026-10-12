@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   try {
     await connectDB();
   } catch (err) {
-    console.error('DB connection failed:', err.name);
+    console.error('DB connection failed:', err.name, err.code ?? '', err.codeName ?? '');
     return res.status(503).json({ error: 'Database unavailable' });
   }
   return app(req, res);
