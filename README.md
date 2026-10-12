@@ -12,6 +12,14 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Pinning**: keep important notes at the top
 - **Tags**: organize notes with simple labels, filter by tag
 - **Dashboard**: all notes, pinned first, then sorted by last updated
+- **Autosave**: saves while you type, with a saved / saving indicator (⌘/Ctrl+S still works)
+- **Archive & Trash**: archive notes out of the way; deleted notes go to Trash, can be restored, and are purged after 30 days
+- **Dark mode**: follows your system by default, with a manual toggle
+- **Keyboard shortcuts**: `N` new note, `/` search, `Esc` back, `?` help
+- **Export / import**: download everything as JSON or a zip of Markdown files; import a JSON export
+- **Account settings**: change password, delete your account and all notes
+- **Colors & emoji**: optional color and emoji per note
+- **Works offline (PWA)**: installable; read saved notes offline, and new notes and edits made offline sync when you reconnect
 
 ## Tech stack
 
@@ -54,7 +62,7 @@ npm run dev               # http://localhost:5173
 
 Production build of the client: `cd client && npm run build` (output in `client/dist`).
 
-Smoke test of the API (uses an in-memory MongoDB, no setup needed): `cd server && npm test`.
+Tests: `cd server && npm test` (API smoke test against an in-memory MongoDB, no setup needed) and `cd client && npm test` (offline queue).
 
 ## Environment variables
 
@@ -86,6 +94,8 @@ Errors are returned as `{ "error": "message" }`.
 | POST   | `/auth/register` | `{ name, email, password }`   | `201 { token, user }`    |
 | POST   | `/auth/login`    | `{ email, password }`         | `200 { token, user }`    |
 | GET    | `/auth/me`       | –                             | `200 { user }`           |
+| PATCH  | `/auth/password` | `{ currentPassword, newPassword }` | `200 { ok }` (`403` if current password is wrong) |
+| DELETE | `/auth/me`       | `{ password }`                | `200 { ok, deletedNotes }`. Deletes the account and all its notes |
 
 Passwords must be at least 8 characters. Logout is handled client-side by discarding the token.
 
@@ -93,22 +103,36 @@ Passwords must be at least 8 characters. Logout is handled client-side by discar
 
 | Method       | Endpoint           | Description                                                   |
 | ------------ | ------------------ | ------------------------------------------------------------- |
-| GET          | `/notes`           | List notes. Query: `search` (title/content), `tag`. Sorted pinned first, then `updatedAt` desc. |
+| GET          | `/notes`           | List notes. Query: `search` (title/content), `tag`, `view` = `active` (default) \| `archive` \| `trash`. Sorted pinned first, then `updatedAt` desc (trash: by `deletedAt`). Trash older than 30 days is purged on request. |
 | GET          | `/notes/tags`      | List the user's distinct tags                                 |
-| POST         | `/notes`           | Create `{ title, content, tags: string[], pinned }`           |
+| POST         | `/notes`           | Create `{ title, content, tags: string[], pinned, color, emoji }` |
 | GET          | `/notes/:id`       | Get one note                                                  |
-| PUT / PATCH  | `/notes/:id`       | Update any of `title`, `content`, `tags`, `pinned`            |
+| PUT / PATCH  | `/notes/:id`       | Update any of `title`, `content`, `tags`, `pinned`, `color`, `emoji` |
 | PATCH        | `/notes/:id/pin`   | Toggle pinned                                                 |
-| DELETE       | `/notes/:id`       | Delete (`204`)                                                |
+| PATCH        | `/notes/:id/archive` | Toggle archived (archiving unpins)                          |
+| DELETE       | `/notes/:id`       | Move to trash (sets `deletedAt`). `?permanent=true` deletes for good (`204`) |
+| POST         | `/notes/:id/restore` | Restore from trash                                          |
+| DELETE       | `/notes/trash`     | Empty the trash → `{ deleted }`                               |
+| GET          | `/notes/export`    | `?format=json` (default) → `{ app, version, exportedAt, notes }`; `?format=md` → zip of Markdown files with front matter. Trashed notes are excluded. |
+| POST         | `/notes/import`    | Body: an export object or an array of notes (max 5000). Validated; always imported into the current user's account → `201 { imported }` |
 
 Note shape:
 
 ```json
 { "_id": "...", "user": "...", "title": "Ideas", "content": "...", "tags": ["work"],
-  "pinned": false, "createdAt": "...", "updatedAt": "..." }
+  "pinned": false, "archived": false, "deletedAt": null, "color": "", "emoji": "💡",
+  "createdAt": "...", "updatedAt": "..." }
 ```
 
 Tags are trimmed, lowercased, and de-duplicated (max 20 per note).
+`color` is one of `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `gray`, or `""`. `emoji` is a single emoji or `""`.
+
+## Offline
+
+The client is a PWA (via `vite-plugin-pwa`). The service worker precaches the app shell only; API responses are
+never cached by the service worker. The app keeps its own copy of notes you've viewed in `localStorage` for
+offline reading, and queues creates/edits made offline, syncing them in order when the connection returns.
+All local data is cleared on logout. Pin/archive/delete need a connection.
 
 ## Deploying to Vercel
 
