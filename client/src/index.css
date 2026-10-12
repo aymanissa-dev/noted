@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .input { @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-stone-500 focus:ring-2 focus:ring-stone-200; }
+  .btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50; }
+  .btn-primary { @apply btn bg-stone-900 text-white hover:bg-stone-700; }
+  .btn-ghost { @apply btn text-stone-600 hover:bg-stone-200/60; }
+  .btn-danger { @apply btn text-red-600 hover:bg-red-50; }
+  .chip { @apply rounded-full border px-3 py-1 text-xs transition; }
+}

@@ -1,0 +1,30 @@
+import { useState } from 'react';
+
+export default function TagInput({ tags, onChange }) {
+  const [value, setValue] = useState('');
+
+  const add = (raw) => {
+    const t = raw.trim().toLowerCase().replace(/^#/, '');
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setValue('');
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(value); }
+    else if (e.key === 'Backspace' && !value && tags.length) onChange(tags.slice(0, -1));
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {tags.map((t) => (
+        <span key={t} className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700">
+          #{t}
+          <button type="button" className="text-stone-400 hover:text-stone-700" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button>
+        </span>
+      ))}
+      <input className="min-w-[8rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-stone-400"
+        placeholder={tags.length ? 'Add tag…' : 'Add tags (press Enter)'}
+        value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKeyDown} onBlur={() => value && add(value)} />
+    </div>
+  );
+}
