@@ -5,6 +5,7 @@ import { createApp } from './src/app.js';
 import Note from './src/models/Note.js';
 import NoteVersion from './src/models/NoteVersion.js';
 import { versionConfig, MAX_VERSIONS } from './src/lib/versions.js';
+import { resetPurgeThrottle, EXCERPT_CHARS } from './src/routes/notes.js';
 import assert from 'node:assert/strict';
 
 process.env.JWT_SECRET = 'test-secret';
@@ -77,6 +78,7 @@ try {
   const fresh = (await call('POST', '/notes', { title: 'Fresh trash' })).data.note;
   await call('DELETE', `/notes/${old._id}`); await call('DELETE', `/notes/${fresh._id}`);
   await Note.updateOne({ _id: old._id }, { deletedAt: new Date(Date.now() - 31 * 864e5) });
+  resetPurgeThrottle(); // purge is throttled per instance; force it for the test
   assert.deepEqual((await call('GET', '/notes?view=trash')).data.notes.map((n) => n.title), ['Fresh trash']);
   assert.equal(await Note.countDocuments({ _id: old._id }), 0);
   r = await call('DELETE', '/notes/trash'); assert.equal(r.data.deleted, 1);
@@ -274,6 +276,29 @@ try {
   // API responses are never cacheable
   { const res0 = await fetch(`${base}/notes`, { headers: { Authorization: `Bearer ${token}` } });
     assert.equal(res0.headers.get('cache-control'), 'no-store'); assert.equal(res0.headers.get('etag'), null); }
+
+  // list responses send excerpts; the full note comes from GET /notes/:id
+  {
+    const long = (await call('POST', '/notes', { title: 'Long', content: 'z'.repeat(EXCERPT_CHARS + 500) })).data.note;
+    const item = (await call('GET', '/notes?search=Long')).data.notes[0];
+    assert.equal(item.content.length, EXCERPT_CHARS); assert.equal(item.excerpt, true); assert.equal(item.__v, undefined);
+    assert.equal((await call('GET', `/notes/${long._id}`)).data.note.content.length, EXCERPT_CHARS + 500);
+    await call('DELETE', `/notes/${long._id}?permanent=true`);
+    // Server-Timing header present
+    const st = (await fetch(`${base}/notes`, { headers: { Authorization: `Bearer ${token}` } })).headers.get('server-timing');
+    assert.match(st, /app;dur=/);
+    // indexes exist
+    const idx = (await Note.collection.indexes()).map((i) => Object.keys(i.key).join(','));
+    for (const k of ['user,deletedAt,archived,pinned,updatedAt', 'user,updatedAt', 'user,tags', 'user,deletedAt']) assert.ok(idx.includes(k), k);
+    // bcrypt cost 10; old cost-12 hashes are upgraded on login
+    const bcrypt = (await import('bcryptjs')).default;
+    const U = (await import('./src/models/User.js')).default;
+    const ada = await U.findOne({ email: 'ada@example.com' }).select('+password');
+    assert.equal(bcrypt.getRounds(ada.password), 10);
+    await U.updateOne({ _id: ada._id }, { password: await bcrypt.hash('password123', 12) });
+    assert.equal((await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' })).status, 200);
+    assert.equal(bcrypt.getRounds((await U.findById(ada._id).select('+password')).password), 10);
+  }
 
   // @@MORE@@
 

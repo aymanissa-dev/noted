@@ -47,7 +47,13 @@ function cacheNotes(notes, { replaceView } = {}) {
     if (replaceView) { // drop stale notes of a fully-fetched view
       cache = Object.fromEntries(Object.entries(cache).filter(([, n]) => viewOf(n) !== replaceView));
     }
-    for (const n of notes) cache[n._id] = n.locked ? { ...n, title: '', content: '', tags: [], redacted: true } : n;
+    for (const n of notes) {
+      if (n.locked) { cache[n._id] = { ...n, title: '', content: '', tags: [], redacted: true }; continue; }
+      const prev = cache[n._id];
+      // Never replace a full cached note with a list excerpt of the same version.
+      if (n.excerpt && prev && !prev.excerpt && prev.updatedAt === n.updatedAt) continue;
+      cache[n._id] = n;
+    }
     const entries = Object.entries(cache).sort((a, b) => new Date(b[1].updatedAt) - new Date(a[1].updatedAt)).slice(0, CACHE_LIMIT);
     localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
   } catch { /* storage full: offline cache is best-effort */ }

@@ -11,7 +11,18 @@ export function createApp() {
   app.use(cors({ origin: process.env.CLIENT_URL?.split(',') || '*' }));
   app.use(express.json({ limit: '10mb' }));
   // API responses are per-user and change constantly: never let browsers, proxies, or the SW cache them.
-  app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+  app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    // Server-Timing: total app time (+ any entries added earlier, e.g. db-connect in the serverless entry).
+    const start = performance.now();
+    const writeHead = res.writeHead;
+    res.writeHead = function (...args) {
+      const parts = [...(res.serverTiming || []), `app;dur=${(performance.now() - start).toFixed(1)}`];
+      res.setHeader('Server-Timing', parts.join(', '));
+      return writeHead.apply(this, args);
+    };
+    next();
+  });
   app.set('etag', false);
   app.get('/api/health', (req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRoutes);

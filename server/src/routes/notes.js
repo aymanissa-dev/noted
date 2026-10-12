@@ -13,9 +13,22 @@ const router = Router();
 router.use(requireAuth);
 
 export const TRASH_DAYS = 30;
+export const EXCERPT_CHARS = 300;
+export const resetPurgeThrottle = () => lastPurge.clear();
+
+// Shape a lean note for list responses: locked notes redacted, long content cut to an excerpt.
+export function toListItem(n) {
+  if (n.locked) return { ...n, title: '', content: '', tags: [], redacted: true };
+  if (n.content.length > EXCERPT_CHARS) return { ...n, content: n.content.slice(0, EXCERPT_CHARS), excerpt: true };
+  return n;
+}
 
 // Lazily purge notes that have sat in the trash longer than TRASH_DAYS.
+const lastPurge = new Map(); // userId -> ms; purge at most every 10 minutes per warm instance
 async function purgeTrash(userId) {
+  const now = Date.now();
+  if (now - (lastPurge.get(String(userId)) || 0) < 10 * 60 * 1000) return;
+  lastPurge.set(String(userId), now);
   const cutoff = new Date(Date.now() - TRASH_DAYS * 24 * 60 * 60 * 1000);
   await deleteNotesWithHistory({ user: userId, deletedAt: { $ne: null, $lt: cutoff } });
 }
@@ -88,8 +101,9 @@ router.get('/', asyncHandler(async (req, res) => {
   // Locked notes can't match on their hidden title/content/tags (that would leak them).
   if (search || tag) filter.locked = { $ne: true };
   const sort = view === 'trash' ? { deletedAt: -1 } : { pinned: -1, updatedAt: -1 };
-  const notes = await Note.find(filter).sort(sort);
-  res.json({ notes });
+  // Lists send excerpts (the editor fetches the full note), as lean objects without Mongoose overhead.
+  const notes = await Note.find(filter).sort(sort).select('-__v').lean();
+  res.json({ notes: notes.map(toListItem) });
 }));
 
 router.get('/tags', asyncHandler(async (req, res) => {

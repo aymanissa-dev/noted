@@ -7,6 +7,9 @@ import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { hashPin, PIN_RE } from '../lib/lockPin.js';
 
+// Cost 10 is ~4x faster than 12 and still strong; older cost-12 hashes are upgraded on login.
+export const BCRYPT_COST = 10;
+
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,7 +22,7 @@ router.post('/register', asyncHandler(async (req, res) => {
   if (password.length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
   if (await User.exists({ email })) throw new HttpError(409, 'Email already registered');
 
-  const user = await User.create({ name, email, password: await bcrypt.hash(password, 12) });
+  const user = await User.create({ name, email, password: await bcrypt.hash(password, BCRYPT_COST) });
   res.status(201).json({ token: signToken(user), user });
 }));
 
@@ -30,6 +33,9 @@ router.post('/login', asyncHandler(async (req, res) => {
   const user = await User.findOne({ email }).select('+password');
   if (!user || !(await bcrypt.compare(password, user.password))) {
     throw new HttpError(401, 'Invalid email or password');
+  }
+  if (bcrypt.getRounds(user.password) !== BCRYPT_COST) {
+    await User.updateOne({ _id: user._id }, { password: await bcrypt.hash(password, BCRYPT_COST) });
   }
   res.json({ token: signToken(user), user });
 }));
@@ -54,7 +60,7 @@ router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
   if (typeof newPassword !== 'string' || newPassword.length < 8) {
     throw new HttpError(400, 'New password must be at least 8 characters');
   }
-  user.password = await bcrypt.hash(newPassword, 12);
+  user.password = await bcrypt.hash(newPassword, BCRYPT_COST);
   user.tokenVersion = (user.tokenVersion ?? 0) + 1; // sign out other devices
   await user.save();
   res.json({ ok: true, token: signToken(user) }); // keep this session

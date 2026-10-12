@@ -33,6 +33,9 @@ export default function NoteEditor() {
   const [needsPin, setNeedsPin] = useState(false);
   const [removeLockOpen, setRemoveLockOpen] = useState(false);
   const unlockToken = useRef(null);
+  const [previewOnly, setPreviewOnly] = useState(false);
+  const previewOnlyRef = useRef(false);
+  previewOnlyRef.current = previewOnly;
 
   const lastSaved = useRef(snapshot(note));
   const inflight = useRef(null);
@@ -49,6 +52,7 @@ export default function NoteEditor() {
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
         if (n.locked) setNeedsPin(true);
+        setPreviewOnly(Boolean(n.excerpt)); // offline and only a list excerpt is cached
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -63,6 +67,7 @@ export default function NoteEditor() {
     if (snap === lastSaved.current) { setStatus((s) => (s === 'dirty' ? 'saved' : s)); return; }
     if (!idRef.current && isEmpty(current)) return;
     if (current.locked && !unlockToken.current) return; // wait for PIN
+    if (previewOnlyRef.current) return; // never save a truncated excerpt over the real note
     setStatus('saving'); setError('');
     const run = (async () => {
       const fields = { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji };
@@ -290,17 +295,22 @@ export default function NoteEditor() {
           <button type="button" className="font-medium underline" onClick={restore}>Restore</button>
         </div>
       )}
+      {previewOnly && (
+        <div className="mb-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 px-4 py-2 text-sm text-sky-800 dark:text-sky-200">
+          You’re offline and only a preview of this note is saved on this device. Reconnect to view and edit the full note.
+        </div>
+      )}
       {note.archived && !note.deletedAt && (
         <div className="mb-3 rounded-xl bg-stone-100 dark:bg-stone-800 px-4 py-2 text-sm text-stone-600 dark:text-stone-300">Archived</div>
       )}
       <div className={`rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
         <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
-          placeholder="Title" value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
+          placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
           <TagInput tags={note.tags} onChange={(tags) => setNote({ ...note, tags })} />
         </div>
         <textarea className="mt-4 min-h-[50vh] w-full resize-none bg-transparent leading-relaxed outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
-          placeholder="Write it down…" value={note.content} onChange={(e) => setNote({ ...note, content: e.target.value })} />
+          placeholder="Write it down…" readOnly={previewOnly} value={note.content} onChange={(e) => setNote({ ...note, content: e.target.value })} />
       </div>
       <div className="mt-2 flex justify-between text-xs text-stone-400">
         <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>
