@@ -2,9 +2,14 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Logo from './Logo.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
+import ShortcutsHelp from './ShortcutsHelp.jsx';
+import { useState } from 'react';
+import { useShortcuts } from '../lib/useShortcuts.js';
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const [helpOpen, setHelpOpen] = useState(false);
+  useShortcuts({ helpOpen, setHelpOpen });
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-stone-200 dark:border-stone-800 bg-stone-50/90 dark:bg-stone-950/90 backdrop-blur">
@@ -22,6 +27,7 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-stone-500 dark:text-stone-400 sm:inline">{user?.name}</span>
+            <button className="btn-ghost px-2 font-mono" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
             <ThemeToggle />
             <button className="btn-ghost" onClick={logout}>Log out</button>
           </div>
@@ -30,6 +36,7 @@ export default function Layout() {
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Outlet />
       </main>
+      {helpOpen && <ShortcutsHelp onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

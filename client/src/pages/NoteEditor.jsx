@@ -87,6 +87,7 @@ export default function NoteEditor() {
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+      if (e.key === 'Escape' && document.querySelector('[data-modal]')) { e.preventDefault(); setConfirmDelete(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -178,7 +179,7 @@ export default function NoteEditor() {
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={() => setConfirmDelete(false)}>
+        <div data-modal className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={() => setConfirmDelete(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-semibold">Delete this note forever?</h2>
             <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">This can't be undone.</p>
