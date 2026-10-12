@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { NOTE_COLORS } from '../models/Note.js';
 
 export const EXPORT_VERSION = 1;
 export const MAX_IMPORT = 5000;
@@ -9,6 +10,8 @@ export const toExportNote = (n) => ({
   tags: n.tags,
   pinned: n.pinned,
   archived: n.archived,
+  color: n.color || '',
+  emoji: n.emoji || '',
   createdAt: n.createdAt,
   updatedAt: n.updatedAt,
 });
@@ -25,6 +28,8 @@ export function toMarkdown(n) {
     `tags: [${n.tags.map(yamlString).join(', ')}]`,
     `pinned: ${n.pinned}`,
     `archived: ${n.archived}`,
+    ...(n.color ? [`color: ${n.color}`] : []),
+    ...(n.emoji ? [`emoji: ${yamlString(n.emoji)}`] : []),
     `created: ${new Date(n.createdAt).toISOString()}`,
     `updated: ${new Date(n.updatedAt).toISOString()}`,
     '---',
@@ -66,6 +71,8 @@ export function parseImport(body) {
     if (!title.trim() && !content.trim()) throw `Note ${i + 1} has no title or content`;
     if (title.length > 200) throw `Note ${i + 1}: title is longer than 200 characters`;
     if (content.length > 100000) throw `Note ${i + 1}: content is too long`;
+    const color = NOTE_COLORS.includes(raw.color) ? raw.color : '';
+    const emoji = typeof raw.emoji === 'string' && raw.emoji.length <= 16 ? raw.emoji.trim() : '';
     const now = new Date();
     const createdAt = validDate(raw.createdAt) || now;
     return {
@@ -74,6 +81,8 @@ export function parseImport(body) {
       tags: [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 20),
       pinned: Boolean(pinned),
       archived: Boolean(archived),
+      color,
+      emoji,
       createdAt,
       updatedAt: validDate(raw.updatedAt) || createdAt,
     };

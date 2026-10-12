@@ -103,6 +103,18 @@ try {
   // remove the imported copies again
   for (const n of (await call('GET', '/notes')).data.notes.slice(1)) await call('DELETE', `/notes/${n._id}?permanent=true`);
 
+  // colors and emoji
+  r = await call('PATCH', `/notes/${a._id}`, { color: 'blue', emoji: '🛒' });
+  assert.equal(r.data.note.color, 'blue'); assert.equal(r.data.note.emoji, '🛒');
+  assert.equal((await call('PATCH', `/notes/${a._id}`, { color: 'chartreuse' })).status, 400);
+  assert.equal((await call('PATCH', `/notes/${a._id}`, { emoji: 'abc' })).status, 400);
+  assert.equal((await call('PATCH', `/notes/${a._id}`, { emoji: '🛒🛒' })).status, 400);
+  assert.equal((await call('PATCH', `/notes/${a._id}`, { emoji: '👩‍💻' })).data.note.emoji, '👩‍💻');
+  r = await call('POST', '/notes', { title: 'Plain' }); assert.equal(r.data.note.color, ''); assert.equal(r.data.note.emoji, '');
+  await call('DELETE', `/notes/${r.data.note._id}?permanent=true`);
+  r = await call('GET', '/notes/export'); assert.equal(r.data.notes.find((n) => n.title === 'Groceries').color, 'blue');
+  r = await call('PATCH', `/notes/${a._id}`, { color: '', emoji: '' }); assert.equal(r.data.note.color, ''); assert.equal(r.data.note.emoji, '');
+
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes

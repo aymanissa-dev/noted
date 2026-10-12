@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+export const NOTE_COLORS = ['', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray'];
+
 const noteSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -8,6 +10,8 @@ const noteSchema = new mongoose.Schema(
     tags: { type: [String], default: [] },
     pinned: { type: Boolean, default: false },
     archived: { type: Boolean, default: false },
+    color: { type: String, enum: NOTE_COLORS, default: '' },
+    emoji: { type: String, default: '', maxlength: 16 },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

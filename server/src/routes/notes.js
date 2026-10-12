@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import Note from '../models/Note.js';
+import Note, { NOTE_COLORS } from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 import { EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
@@ -24,6 +24,23 @@ function normalizeTags(tags) {
   return [...new Set(list.map((t) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 20);
 }
 
+export function parseColor(c) {
+  const color = c === null ? '' : String(c);
+  if (!NOTE_COLORS.includes(color)) throw new HttpError(400, `color must be one of: ${NOTE_COLORS.filter(Boolean).join(', ')} (or empty)`);
+  return color;
+}
+
+// A single emoji (may include modifiers / ZWJ sequences), or empty to clear.
+export function parseEmoji(e) {
+  const emoji = e === null ? '' : String(e).trim();
+  if (!emoji) return '';
+  const graphemes = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(emoji)];
+  if (emoji.length > 16 || graphemes.length !== 1 || !/\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(emoji)) {
+    throw new HttpError(400, 'emoji must be a single emoji');
+  }
+  return emoji;
+}
+
 function pickNoteFields(body = {}) {
   const out = {};
   if (body.title !== undefined) out.title = String(body.title);
@@ -31,6 +48,8 @@ function pickNoteFields(body = {}) {
   if (body.pinned !== undefined) out.pinned = Boolean(body.pinned);
   const tags = normalizeTags(body.tags);
   if (tags) out.tags = tags;
+  if (body.color !== undefined) out.color = parseColor(body.color);
+  if (body.emoji !== undefined) out.emoji = parseEmoji(body.emoji);
   return out;
 }
 

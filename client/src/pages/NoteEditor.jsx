@@ -3,16 +3,18 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
+import AppearancePicker from '../components/AppearancePicker.jsx';
+import { cardClass } from '../lib/colors.js';
 import { timeAgo } from '../lib/format.js';
 
 const AUTOSAVE_MS = 800;
 const isEmpty = (n) => !n.title.trim() && !n.content.trim();
-const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tags: n.tags });
+const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tags: n.tags, color: n.color, emoji: n.emoji });
 
 export default function NoteEditor() {
   const { id: routeId } = useParams();
   const navigate = useNavigate();
-  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null });
+  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '' });
   const [noteId, setNoteId] = useState(routeId || null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(Boolean(routeId));
@@ -31,7 +33,7 @@ export default function NoteEditor() {
     if (!routeId || routeId === idRef.current && !loading) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
-        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt };
+        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '' };
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
       })
@@ -50,7 +52,7 @@ export default function NoteEditor() {
     setStatus('saving'); setError('');
     const run = (async () => {
       const { note: saved } = idRef.current
-        ? await api.updateNote(idRef.current, { title: current.title, content: current.content, tags: current.tags })
+        ? await api.updateNote(idRef.current, { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji })
         : await api.createNote(current);
       lastSaved.current = snap;
       setUpdatedAt(saved.updatedAt);
@@ -73,7 +75,7 @@ export default function NoteEditor() {
     setStatus('dirty');
     const t = setTimeout(save, AUTOSAVE_MS);
     return () => clearTimeout(t);
-  }, [note.title, note.content, note.tags, loading, save]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [note.title, note.content, note.tags, note.color, note.emoji, loading, save]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Flush pending changes when leaving the page.
   useEffect(() => () => { save(); }, [save]);
@@ -141,6 +143,7 @@ export default function NoteEditor() {
         <button type="button" onClick={done} className="btn-ghost -ml-3">← Back</button>
         <div className="flex items-center gap-1">
           <SaveStatus status={status} />
+          <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
           <button type="button" onClick={togglePin} title={note.pinned ? 'Unpin' : 'Pin'}
             className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
             <PinIcon filled={note.pinned} /><span className="ml-1.5">{note.pinned ? 'Pinned' : 'Pin'}</span>
@@ -163,7 +166,7 @@ export default function NoteEditor() {
       {note.archived && !note.deletedAt && (
         <div className="mb-3 rounded-xl bg-stone-100 dark:bg-stone-800 px-4 py-2 text-sm text-stone-600 dark:text-stone-300">Archived</div>
       )}
-      <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-6 shadow-sm">
+      <div className={`rounded-2xl border p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
         <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
           placeholder="Title" value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
