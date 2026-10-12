@@ -174,7 +174,7 @@ function DeleteAccountSection() {
 
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);
-    try { await api.deleteAccount(password); logout(); }
+    try { await api.deleteAccount(password); logout({ flash: 'Your account and all of your notes were deleted.' }); }
     catch (err) { setError(err.message); setBusy(false); }
   };
 
@@ -184,11 +184,11 @@ function DeleteAccountSection() {
         <button className="btn-danger border border-red-200 dark:border-red-900" onClick={() => setOpen(true)}>Delete my account…</button>
       ) : (
         <form onSubmit={submit} className="space-y-3">
-          <input className="input" type="password" placeholder="Enter your password to confirm" autoComplete="current-password" required autoFocus
+          <input className="input" type="password" placeholder="Enter your password to confirm" autoComplete="current-password" required autoFocus disabled={busy}
             value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <button type="button" className="btn-ghost" onClick={() => { setOpen(false); setPassword(''); setError(''); }}>Cancel</button>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => { setOpen(false); setPassword(''); setError(''); }}>Cancel</button>
             <button className="btn bg-red-600 text-white hover:bg-red-700" disabled={busy || !password}>{busy ? 'Deleting…' : 'Delete account and notes'}</button>
           </div>
         </form>

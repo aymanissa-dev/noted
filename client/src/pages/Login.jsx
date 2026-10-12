@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { takeFlash, useAuth } from '../context/AuthContext.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 
 export default function Login() {
@@ -9,6 +9,7 @@ export default function Login() {
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [flash] = useState(() => takeFlash());
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
@@ -26,6 +27,7 @@ export default function Login() {
 
   return (
     <AuthCard title="Welcome back" footer={<>No account? <Link className="font-medium text-stone-800 dark:text-stone-100 underline" to="/register">Create one</Link></>}>
+      {flash && <p role="status" className="mb-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">{flash}</p>}
       <form onSubmit={submit} className="space-y-3">
         <input className="input" type="email" placeholder="Email" autoComplete="email" required
           value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />

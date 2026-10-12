@@ -2,12 +2,22 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { api, clearLocalData, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
 
 const AuthContext = createContext(null);
+export const FLASH_KEY = 'noted.flash';
+
+// Reads and clears the one-time login-page message.
+export function takeFlash() {
+  const msg = sessionStorage.getItem(FLASH_KEY);
+  if (msg) sessionStorage.removeItem(FLASH_KEY);
+  return msg;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
 
-  const logout = useCallback(() => {
+  // `flash` is shown once on the login page (e.g. after deleting the account).
+  const logout = useCallback(({ flash } = {}) => {
+    if (flash) sessionStorage.setItem(FLASH_KEY, flash);
     localStorage.removeItem(TOKEN_KEY);
     clearLocalData();
     setUser(null);
