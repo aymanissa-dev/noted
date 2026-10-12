@@ -3,6 +3,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { createApp } from './src/app.js';
 import Note from './src/models/Note.js';
+import NoteVersion from './src/models/NoteVersion.js';
+import { versionConfig, MAX_VERSIONS } from './src/lib/versions.js';
 import assert from 'node:assert/strict';
 
 process.env.JWT_SECRET = 'test-secret';
@@ -115,6 +117,39 @@ try {
   r = await call('GET', '/notes/export'); assert.equal(r.data.notes.find((n) => n.title === 'Groceries').color, 'blue');
   r = await call('PATCH', `/notes/${a._id}`, { color: '', emoji: '' }); assert.equal(r.data.note.color, ''); assert.equal(r.data.note.emoji, '');
 
+  // version history
+  {
+    const h = (await call('POST', '/notes', { title: 'History', content: 'v1' })).data.note;
+    const versions = async () => (await call('GET', `/notes/${h._id}/versions`)).data.versions;
+    await call('PATCH', `/notes/${h._id}`, { content: 'v2' });       // first edit snapshots v1
+    await call('PATCH', `/notes/${h._id}`, { content: 'v3' });       // throttled
+    await call('PATCH', `/notes/${h._id}`, { content: 'v4' });       // throttled
+    let vs = await versions();
+    assert.equal(vs.length, 1); assert.equal(vs[0].preview, 'v1');
+    await call('PATCH', `/notes/${h._id}`, { pinned: true });        // non-content change: no snapshot
+    assert.equal((await versions()).length, 1);
+    await call('PATCH', `/notes/${h._id}`, { content: 'x'.repeat(400) }); // significant change snapshots v4
+    vs = await versions(); assert.equal(vs.length, 2); assert.equal(vs[0].preview, 'v4');
+    // after the interval passes, the next edit snapshots again
+    await NoteVersion.updateMany({ note: h._id }, { createdAt: new Date(Date.now() - versionConfig.intervalMs - 1000) });
+    await call('PATCH', `/notes/${h._id}`, { content: 'v6' });
+    vs = await versions(); assert.equal(vs.length, 3);
+    // preview + restore (restore snapshots the current state first)
+    const v1 = vs.find((v) => v.preview === 'v1');
+    r = await call('GET', `/notes/${h._id}/versions/${v1._id}`); assert.equal(r.data.version.content, 'v1');
+    r = await call('POST', `/notes/${h._id}/versions/${v1._id}/restore`); assert.equal(r.data.note.content, 'v1');
+    vs = await versions(); assert.equal(vs.length, 4); assert.equal(vs[0].reason, 'restore'); assert.equal(vs[0].preview, 'v6');
+    assert.equal((await call('GET', `/notes/${h._id}/versions/000000000000000000000000`)).status, 404);
+    // cap per note
+    const prev = versionConfig.intervalMs; versionConfig.intervalMs = 0;
+    for (let i = 0; i < MAX_VERSIONS + 5; i++) await call('PATCH', `/notes/${h._id}`, { content: `rev ${i}` });
+    versionConfig.intervalMs = prev;
+    assert.equal(await NoteVersion.countDocuments({ note: h._id }), MAX_VERSIONS);
+    // permanent delete removes history
+    await call('DELETE', `/notes/${h._id}`); await call('DELETE', `/notes/${h._id}?permanent=true`);
+    assert.equal(await NoteVersion.countDocuments({ note: h._id }), 0);
+  }
+
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes
@@ -125,7 +160,10 @@ try {
 
   // account: change password, delete account + notes
   token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).data.token;
-  await call('POST', '/notes', { title: 'Bob note' });
+  const bobNote = (await call('POST', '/notes', { title: 'Bob note' })).data.note;
+  await call('PATCH', `/notes/${bobNote._id}`, { title: 'Bob note edited' }); // creates a version
+  // Bob cannot see Ada's versions
+  assert.equal((await call('GET', `/notes/${a._id}/versions`)).status, 404);
   assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'wrong-pass', newPassword: 'newpassword1' })).status, 403);
   assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'short' })).status, 400);
   assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'newpassword1' })).status, 200);
@@ -137,6 +175,7 @@ try {
   r = await call('DELETE', '/auth/me', { password: 'newpassword1' });
   assert.equal(r.status, 200); assert.equal(r.data.deletedNotes, 1);
   assert.equal(await Note.countDocuments({ user: bobId }), 0);
+  assert.equal(await NoteVersion.countDocuments({ user: bobId }), 0);
   assert.equal((await call('GET', '/auth/me')).status, 401);
   assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'newpassword1' })).status, 401);
   // Ada's data is untouched

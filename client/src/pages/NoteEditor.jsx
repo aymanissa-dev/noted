@@ -5,6 +5,7 @@ import { isTempId } from '../lib/offlineQueue.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
 import AppearancePicker from '../components/AppearancePicker.jsx';
+import HistoryPanel from '../components/HistoryPanel.jsx';
 import { cardClass } from '../lib/colors.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -22,6 +23,7 @@ export default function NoteEditor() {
   const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const lastSaved = useRef(snapshot(note));
   const inflight = useRef(null);
@@ -102,7 +104,7 @@ export default function NoteEditor() {
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
-      if (e.key === 'Escape' && document.querySelector('[data-modal]')) { e.preventDefault(); setConfirmDelete(false); }
+      if (e.key === 'Escape' && document.querySelector('[data-modal]')) { e.preventDefault(); setConfirmDelete(false); setHistoryOpen(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -116,6 +118,13 @@ export default function NoteEditor() {
       const { note: updated } = await api.togglePin(noteId);
       setNote((n) => ({ ...n, pinned: updated.pinned }));
     } catch (e) { setError(e.message); }
+  };
+
+  const openHistory = async () => { await save(); setHistoryOpen(true); };
+  const applyRestored = (n) => {
+    const restored = { ...noteRef.current, title: n.title, content: n.content, tags: n.tags, color: n.color || '', emoji: n.emoji || '' };
+    lastSaved.current = snapshot(restored);
+    setNote(restored); setUpdatedAt(n.updatedAt); setStatus('saved');
   };
 
   const toggleArchive = async () => {
@@ -161,6 +170,9 @@ export default function NoteEditor() {
             className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
             <PinIcon filled={note.pinned} /><span className="ml-1.5">{note.pinned ? 'Pinned' : 'Pin'}</span>
           </button>
+          {noteId && !isTempId(noteId) && (
+            <button type="button" className="btn-ghost" onClick={openHistory} title="Version history">History</button>
+          )}
           {noteId && !isTempId(noteId) && !note.deletedAt && (
             <button type="button" className="btn-ghost" onClick={toggleArchive}>{note.archived ? 'Unarchive' : 'Archive'}</button>
           )}
@@ -194,6 +206,7 @@ export default function NoteEditor() {
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
+      {historyOpen && <HistoryPanel noteId={noteId} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
       {confirmDelete && (
         <div data-modal className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={() => setConfirmDelete(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>

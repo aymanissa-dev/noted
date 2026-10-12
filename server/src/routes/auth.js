@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Note from '../models/Note.js';
+import NoteVersion from '../models/NoteVersion.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 
@@ -60,6 +61,7 @@ router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
 // Permanently delete the account and every note it owns. Requires the password.
 router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await verifyPassword(req.userId, req.body?.password);
+  await NoteVersion.deleteMany({ user: user._id });
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();
   res.json({ ok: true, deletedNotes: deletedCount });

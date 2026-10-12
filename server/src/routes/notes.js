@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import Note, { NOTE_COLORS } from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
+import NoteVersion from '../models/NoteVersion.js';
+import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
 import { EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
 const router = Router();
@@ -13,7 +15,7 @@ export const TRASH_DAYS = 30;
 // Lazily purge notes that have sat in the trash longer than TRASH_DAYS.
 async function purgeTrash(userId) {
   const cutoff = new Date(Date.now() - TRASH_DAYS * 24 * 60 * 60 * 1000);
-  await Note.deleteMany({ user: userId, deletedAt: { $ne: null, $lt: cutoff } });
+  await deleteNotesWithHistory({ user: userId, deletedAt: { $ne: null, $lt: cutoff } });
 }
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -122,7 +124,9 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 const update = asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
+  const prev = pickVersionFields(note);
   Object.assign(note, pickNoteFields(req.body));
+  await maybeSnapshot(note, prev);
   await note.save();
   res.json({ note });
 });
@@ -153,19 +157,52 @@ router.post('/:id/restore', asyncHandler(async (req, res) => {
 
 // Empty the trash (permanently delete all trashed notes).
 router.delete('/trash', asyncHandler(async (req, res) => {
-  const { deletedCount } = await Note.deleteMany({ user: req.userId, deletedAt: { $ne: null } });
-  res.json({ deleted: deletedCount });
+  const deleted = await deleteNotesWithHistory({ user: req.userId, deletedAt: { $ne: null } });
+  res.json({ deleted });
 }));
 
 // Soft delete (move to trash). ?permanent=true deletes for good.
 router.delete('/:id', asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
   if (req.query.permanent === 'true') {
-    await note.deleteOne();
+    await deleteNotesWithHistory({ _id: note._id, user: req.userId });
     return res.status(204).end();
   }
   note.deletedAt = new Date();
   await note.save({ timestamps: false });
+  res.json({ note });
+}));
+
+// ---- Version history ----
+const versionSummary = (v) => ({
+  _id: v._id, createdAt: v.createdAt, reason: v.reason, title: v.title,
+  preview: v.content.slice(0, 140), length: v.content.length,
+});
+
+async function findOwnVersion(req, note) {
+  if (!mongoose.isValidObjectId(req.params.vid)) throw new HttpError(400, 'Invalid version id');
+  const version = await NoteVersion.findOne({ _id: req.params.vid, note: note._id, user: req.userId });
+  if (!version) throw new HttpError(404, 'Version not found');
+  return version;
+}
+
+router.get('/:id/versions', asyncHandler(async (req, res) => {
+  const note = await findOwnNote(req);
+  const versions = await NoteVersion.find({ note: note._id, user: req.userId }).sort({ createdAt: -1, _id: -1 });
+  res.json({ versions: versions.map(versionSummary) });
+}));
+
+router.get('/:id/versions/:vid', asyncHandler(async (req, res) => {
+  const note = await findOwnNote(req);
+  res.json({ version: await findOwnVersion(req, note) });
+}));
+
+router.post('/:id/versions/:vid/restore', asyncHandler(async (req, res) => {
+  const note = await findOwnNote(req);
+  const version = await findOwnVersion(req, note);
+  await snapshotForRestore(note);
+  Object.assign(note, pickVersionFields(version));
+  await note.save();
   res.json({ note });
 }));
 

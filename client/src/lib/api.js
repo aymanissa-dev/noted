@@ -191,4 +191,7 @@ export const api = {
   exportJson: () => download('/notes/export?format=json', 'noted.json'),
   exportMarkdown: () => download('/notes/export?format=md', 'noted.zip'),
   importNotes: (data) => request('POST', '/notes/import', data),
+  listVersions: (id) => request('GET', `/notes/${id}/versions`),
+  getVersion: (id, vid) => request('GET', `/notes/${id}/versions/${vid}`),
+  restoreVersion: async (id, vid) => { const r = await request('POST', `/notes/${id}/versions/${vid}/restore`); cacheNotes([r.note]); return r; },
 };
