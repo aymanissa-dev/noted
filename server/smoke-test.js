@@ -103,8 +103,8 @@ try {
   r = await call('POST', '/notes/import', { notes: exported.notes.map(({ id, ...n }) => n) });
   assert.equal(r.data.imported, 0);
   const strip = ({ id, ...n }) => ({ ...n, createdAt: new Date(Date.now() - 864e5).toISOString() }); // same text, other date → new
-  r = await call('POST', '/notes/import', { notes: [...exported.notes.map(strip), { title: 'Imported', content: 'x', tags: ['New '], user: '000000000000000000000000', _id: 'evil' }, { title: 'Imported', content: 'x', tags: ['New '] }] });
-  assert.equal(r.status, 201); assert.equal(r.data.imported, exported.notes.length + 1); assert.equal(r.data.skippedDuplicates, 0);
+  r = await call('POST', '/notes/import', { notes: [...exported.notes.map(strip), { title: 'Imported', content: 'x', tags: ['New '], user: '000000000000000000000000', _id: 'evil', createdAt: '2026-01-01T00:00:00Z' }, { title: 'Imported', content: 'x', tags: ['New '], createdAt: '2026-01-01T00:00:00Z' }] });
+  assert.equal(r.status, 201); assert.equal(r.data.imported, exported.notes.length + 1); assert.equal(r.data.skippedDuplicates, 1); // in-file duplicate
   const afterList = (await call('GET', '/notes?search=Imported')).data.notes;
   assert.equal(afterList.length, 1); assert.deepEqual(afterList[0].tags, ['new']);
   assert.equal(String(afterList[0].user), String((await call('GET', '/auth/me')).data.user.id));
