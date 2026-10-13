@@ -153,7 +153,7 @@ export default function NoteEditor() {
     return () => window.removeEventListener('keydown', onKey);
   }, [save]);
 
-  const done = async () => { await save(); navigate(note.deletedAt ? '/trash' : note.archived ? '/archive' : '/'); };
+  const done = async () => { await save(); navigate(note.deletedAt ? '/trash' : note.archived ? '/archive' : '/notes'); };
 
   const togglePin = async () => {
     if (!noteId || isTempId(noteId)) return setNote((n) => ({ ...n, pinned: !n.pinned }));
@@ -184,7 +184,7 @@ export default function NoteEditor() {
     try {
       await save();
       await api.lockNote(idRef.current);
-      navigate('/');
+      navigate('/notes');
     } catch (e) { setError(e.message); }
   };
 
@@ -214,7 +214,7 @@ export default function NoteEditor() {
       return;
     }
     const req = api.toggleArchive(id, true);
-    navigate('/');
+    navigate('/notes');
     toast.show('Note archived.', { action: { label: 'Undo', onClick: () => req.then(() => api.toggleArchive(id, false)).then(() => toast.show('Note restored.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
     req.catch((e) => toast.show(`Couldn’t archive the note: ${e.message}`));
   };
@@ -223,7 +223,7 @@ export default function NoteEditor() {
     const id = idRef.current;
     await save();
     const req = api.deleteNote(id);
-    navigate('/');
+    navigate('/notes');
     toast.show('Note moved to trash.', { action: { label: 'Undo', onClick: () => req.then(() => api.restoreNote(id)).then(() => { toast.show('Note restored.'); window.dispatchEvent(new Event('noted:queue-changed')); }).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
     req.catch((e) => toast.show(`Couldn’t delete the note: ${e.message}`));
   };
@@ -246,7 +246,7 @@ export default function NoteEditor() {
   if (needsPin && !unlockToken.current && snapshot(note) === lastSaved.current && !note.content && !note.title) {
     return (
       <div className="mx-auto max-w-3xl">
-        <Link to="/" className="btn-ghost -ml-3">← Back</Link>
+        <Link to="/notes" className="btn-ghost -ml-3">← Back</Link>
         <PinPrompt inline onSubmit={unlock} />
       </div>
     );

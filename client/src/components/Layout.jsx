@@ -8,7 +8,7 @@ import { useShortcuts } from '../lib/useShortcuts.js';
 import { useOnline } from '../lib/useOnline.js';
 import { useTheme } from '../lib/theme.js';
 
-const NAV = [['/', 'Notes'], ['/archive', 'Archive'], ['/trash', 'Trash']];
+const NAV = [['/notes', 'Notes'], ['/archive', 'Archive'], ['/trash', 'Trash']];
 
 // Small-screen menu: settings, shortcuts, theme, log out.
 function MobileMenu({ onHelp }) {
@@ -56,7 +56,7 @@ export default function Layout() {
       <header className="sticky top-0 z-10 border-b border-stone-200 dark:border-stone-800 bg-stone-50/90 dark:bg-stone-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-3 sm:gap-6">
-            <Link to="/" className="shrink-0"><Logo className="text-xl sm:text-2xl" /></Link>
+            <Link to="/notes" className="shrink-0"><Logo className="text-xl sm:text-2xl" /></Link>
             <nav className="flex gap-0.5 text-sm sm:gap-1">
               {NAV.map(([to, label]) => (
                 <NavLink key={to} to={to} end

@@ -15,7 +15,12 @@ export default defineConfig({
         theme_color: '#1c1917',
         background_color: '#fafaf9',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/notes',
+        scope: '/',
+        shortcuts: [
+          { name: 'New note', short_name: 'New', url: '/notes/new', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Archive', url: '/archive' },
+        ],
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },

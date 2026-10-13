@@ -16,5 +16,5 @@ export function ProtectedRoute() {
 export function GuestRoute() {
   const { user, loading } = useAuth();
   if (loading) return <Splash />;
-  return user ? <Navigate to="/" replace /> : <Outlet />;
+  return user ? <Navigate to="/notes" replace /> : <Outlet />;
 }

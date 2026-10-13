@@ -18,7 +18,7 @@ export default function Register() {
     setBusy(true);
     try {
       await register(form);
-      navigate('/', { replace: true });
+      navigate('/notes', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

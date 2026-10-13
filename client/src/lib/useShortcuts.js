@@ -27,10 +27,10 @@ export function useShortcuts({ helpOpen, setHelpOpen }) {
         if (helpOpen) return setHelpOpen(false);
         if (document.querySelector('[data-modal]')) return; // let modals handle their own Esc
         if (typing && !pathname.startsWith('/notes/')) return document.activeElement.blur();
-        if (pathname !== '/') {
+        if (pathname !== '/notes') {
           e.preventDefault();
           if (window.history.state?.idx > 0) navigate(-1);
-          else navigate('/');
+          else navigate('/notes');
         }
         return;
       }
@@ -43,7 +43,7 @@ export function useShortcuts({ helpOpen, setHelpOpen }) {
         e.preventDefault();
         const focusSearch = () => document.getElementById('search')?.focus();
         if (document.getElementById('search')) focusSearch();
-        else { navigate('/'); setTimeout(focusSearch, 50); }
+        else { navigate('/notes'); setTimeout(focusSearch, 50); }
       } else if (e.key === 'q' || e.key === 'Q') {
         const el = document.getElementById('quick-capture');
         if (el) { e.preventDefault(); el.focus(); }

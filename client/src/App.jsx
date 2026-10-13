@@ -6,17 +6,28 @@ import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import NoteEditor from './pages/NoteEditor.jsx';
 import Settings from './pages/Settings.jsx';
+import Landing from './pages/Landing.jsx';
+import { useAuth } from './context/AuthContext.jsx';
+
+// Public landing page for visitors; signed-in users go straight to their notes.
+function Home() {
+  const { user, loading } = useAuth();
+  if (user) return <Navigate to="/notes" replace />;
+  if (loading && localStorage.getItem('noted.token')) return null;
+  return <Landing />;
+}
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Home />} />
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
       </Route>
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard view="active" />} />
+          <Route path="/notes" element={<Dashboard view="active" />} />
           <Route path="/archive" element={<Dashboard view="archive" key="archive" />} />
           <Route path="/trash" element={<Dashboard view="trash" key="trash" />} />
           <Route path="/settings" element={<Settings />} />

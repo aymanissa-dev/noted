@@ -20,7 +20,7 @@ export default function Login() {
     try {
       await login(form);
       const from = location.state?.from;
-      const target = from && from.pathname !== '/login' ? `${from.pathname}${from.search || ''}` : '/';
+      const target = from && !['/login', '/'].includes(from.pathname) ? `${from.pathname}${from.search || ''}` : '/notes';
       navigate(target, { replace: true });
     } catch (err) {
       setError(err.message);

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import Logo from './Logo.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 
@@ -7,7 +8,7 @@ export default function AuthCard({ title, children, footer }) {
       <div className="absolute right-4 top-4"><ThemeToggle /></div>
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Logo className="text-4xl" />
+          <Link to="/" aria-label="noted. home"><Logo className="text-4xl" /></Link>
           <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">Write it down. Find it later.</p>
         </div>
         <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-6 shadow-sm">
