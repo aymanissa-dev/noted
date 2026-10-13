@@ -8,6 +8,7 @@ import AppearancePicker from '../components/AppearancePicker.jsx';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import PinPrompt from '../components/PinPrompt.jsx';
 import FolderPicker from '../components/FolderPicker.jsx';
+import VoiceNotes from '../components/VoiceNotes.jsx';
 import { EditorSkeleton, Bar } from '../components/Skeleton.jsx';
 import EditorTools from '../editor/EditorTools.jsx';
 import { toHtml } from '../lib/markdown.js';
@@ -355,6 +356,10 @@ export default function NoteEditor() {
             persist={persist} focusMode={focusMode} onReady={setEditorApi}
             onChange={(content) => setNote((n) => ({ ...n, content }))} />
         </Suspense>
+        {!focusMode && !previewOnly && !note.deletedAt && (!note.locked || unlockToken.current) && (
+          <VoiceNotes noteId={noteId && !isTempId(noteId) ? noteId : null} unlockToken={unlockToken.current}
+            ensureSaved={async () => { await save(); return idRef.current && !isTempId(idRef.current) ? idRef.current : null; }} />
+        )}
         </div>
       </div>
       <div className="print-area" aria-hidden="true">

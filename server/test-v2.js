@@ -173,6 +173,50 @@ test('login activity', async () => {
   assert.equal(await LoginEvent.countDocuments({}), await LoginEvent.countDocuments({ user: { $ne: null } }));
 });
 
+test('voice notes', async () => {
+  token = (await call('POST', '/auth/register', { name: 'Aud', email: 'aud@example.com', password: 'password123' })).data.token;
+  const n = (await call('POST', '/notes', { title: 'Voice', content: 'v' })).data.note;
+  const audio = Buffer.from(Array.from({ length: 5000 }, (_, i) => i % 256));
+  const up = (id, body, type = 'audio/webm;codecs=opus', dur = '3') => fetch(`${base}/notes/${id}/audio`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': type, 'X-Audio-Duration': dur }, body });
+  let r = await up(n._id, audio); assert.equal(r.status, 201);
+  const clip = (await r.json()).clip;
+  assert.equal(clip.size, 5000); assert.equal(clip.mime, 'audio/webm'); assert.equal(clip.duration, 3); assert.equal(clip.data, undefined);
+  assert.equal((await up(n._id, audio, 'video/mp4')).status, 415);
+  assert.equal((await up(n._id, audio, 'audio/webm', '999')).status, 400);
+  assert.equal((await up(n._id, Buffer.alloc(4 * 1024 * 1024 + 10))).status, 413);
+  r = await call('GET', `/notes/${n._id}/audio`); assert.equal(r.data.clips.length, 1);
+  // streaming (full + range), owner only
+  let s = await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(s.status, 200); assert.equal(s.headers.get('content-type'), 'audio/webm'); assert.ok(Buffer.from(await s.arrayBuffer()).equals(audio));
+  s = await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}`, Range: 'bytes=100-199' } });
+  assert.equal(s.status, 206); assert.equal(s.headers.get('content-range'), 'bytes 100-199/5000'); assert.ok(Buffer.from(await s.arrayBuffer()).equals(audio.subarray(100, 200)));
+  assert.equal((await fetch(`${base}/audio/${clip._id}`)).status, 401);
+  const mine = token;
+  token = (await call('POST', '/auth/register', { name: 'Thief', email: 'thief@example.com', password: 'password123' })).data.token;
+  assert.equal((await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}` } })).status, 404);
+  assert.equal((await up(n._id, audio)).status, 404);
+  token = mine;
+  // locked notes hide their audio until unlocked
+  await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' });
+  await call('PATCH', `/notes/${n._id}/lock`, { locked: true });
+  assert.equal((await call('GET', `/notes/${n._id}/audio`)).status, 423);
+  assert.equal((await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}` } })).status, 423);
+  const unlock = (await call('POST', `/notes/${n._id}/unlock`, { pin: '1234' })).data.unlockToken;
+  assert.equal((await call('GET', `/notes/${n._id}/audio`, undefined, { 'X-Unlock-Token': unlock })).data.clips.length, 1);
+  assert.equal((await call('GET', '/stats')).data.audio.count, 1);
+  // deleted with the note
+  const AudioClip = (await import('./src/models/AudioClip.js')).default;
+  await call('PATCH', `/notes/${n._id}/lock`, { locked: false, pin: '1234' });
+  const n2 = (await call('POST', '/notes', { title: 'V2', content: 'v' })).data.note;
+  await up(n2._id, audio);
+  await call('DELETE', `/notes/${n._id}?permanent=true`);
+  assert.equal(await AudioClip.countDocuments({ note: n._id }), 0);
+  // ...and with the account
+  await call('DELETE', '/auth/me', { password: 'password123' });
+  assert.equal(await AudioClip.countDocuments({ note: n2._id }), 0);
+  // clip deletion
+});
+
 // @@MORE@@
 
 try {

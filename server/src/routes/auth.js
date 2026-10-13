@@ -5,6 +5,7 @@ import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import Folder from '../models/Folder.js';
 import LoginEvent, { ACTIVITY_LIMIT } from '../models/LoginEvent.js';
+import AudioClip from '../models/AudioClip.js';
 import { maskIp, parseUserAgent } from '../lib/useragent.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
@@ -124,6 +125,7 @@ router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   await NoteVersion.deleteMany({ user: user._id });
   await Folder.deleteMany({ user: user._id });
   await LoginEvent.deleteMany({ user: user._id });
+  await AudioClip.deleteMany({ user: user._id });
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();
   res.json({ ok: true, deletedNotes: deletedCount });

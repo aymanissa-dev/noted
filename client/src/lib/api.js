@@ -148,6 +148,27 @@ export function saveOnUnload(id, body, unlockToken) {
   } catch { return false; }
 }
 
+// ---- Voice notes (never queued offline; fetched with auth, played from a blob URL) ----
+async function rawFetch(method, path, { body, headers = {} } = {}) {
+  if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(BASE + path, { method, body, cache: 'no-store', headers: { ...(token && { Authorization: `Bearer ${token}` }), ...headers } });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    if (res.status === 401 && token) onUnauthorized();
+    throw new ApiError(data?.error || (res.status === 413 ? 'That recording is too large (max 4 MB).' : `Request failed (${res.status})`), res.status);
+  }
+  return res;
+}
+export const audioApi = {
+  list: (id, unlockToken) => request('GET', `/notes/${id}/audio`, undefined, unlockHeaders(unlockToken)),
+  upload: async (id, blob, duration, unlockToken) => (await rawFetch('POST', `/notes/${id}/audio`, {
+    body: blob, headers: { 'Content-Type': blob.type || 'audio/webm', 'X-Audio-Duration': String(Math.round(duration)), ...(unlockToken && { 'X-Unlock-Token': unlockToken }) },
+  })).json(),
+  blobUrl: async (clipId, unlockToken) => URL.createObjectURL(await (await rawFetch('GET', `/audio/${clipId}`, { headers: unlockToken ? { 'X-Unlock-Token': unlockToken } : {} })).blob()),
+  remove: (clipId, unlockToken) => rawFetch('DELETE', `/audio/${clipId}`, { headers: unlockToken ? { 'X-Unlock-Token': unlockToken } : {} }),
+};
+
 export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),

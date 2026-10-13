@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.js';
 import noteRoutes from './routes/notes.js';
 import folderRoutes from './routes/folders.js';
 import statsRoutes from './routes/stats.js';
+import audioRoutes from './routes/audio.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 export function createApp() {
@@ -29,6 +30,7 @@ export function createApp() {
   app.set('etag', false);
   app.get('/api/health', (req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRoutes);
+  app.use('/api', audioRoutes); // /api/notes/:id/audio, /api/audio/:clipId
   app.use('/api/notes', noteRoutes);
   app.use('/api/folders', folderRoutes);
   app.use('/api/stats', statsRoutes);

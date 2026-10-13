@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Note from '../models/Note.js';
 import Folder from '../models/Folder.js';
 import NoteVersion from '../models/NoteVersion.js';
+import AudioClip from '../models/AudioClip.js';
 import { asyncHandler } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 import { plainText } from '../lib/plain.js';
@@ -19,7 +20,7 @@ router.get('/', asyncHandler(async (req, res) => {
     Note.find({ user: req.userId }).select('title content tags locked archived deletedAt emoji').lean(),
     Folder.countDocuments({ user: req.userId }),
     NoteVersion.countDocuments({ user: req.userId }),
-    req.app.locals.extraStats ? req.app.locals.extraStats(user) : {},
+    AudioClip.aggregate([{ $match: { user } }, { $group: { _id: null, count: { $sum: 1 }, bytes: { $sum: '$size' } } }]),
   ]);
   let words = 0; let chars = 0;
   const sized = [];
@@ -43,7 +44,7 @@ router.get('/', asyncHandler(async (req, res) => {
     tags: new Set(active.filter((n) => !n.locked).flatMap((n) => n.tags)).size,
     versions,
     biggest: sized.sort((a, b) => b.chars - a.chars).slice(0, 5),
-    ...extra,
+    audio: { count: extra[0]?.count || 0, bytes: extra[0]?.bytes || 0 },
   });
 }));
 
