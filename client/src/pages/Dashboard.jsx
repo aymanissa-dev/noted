@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
+import { ListSkeleton } from '../components/Skeleton.jsx';
 
 const VIEWS = {
-  active: { empty: 'Nothing here yet.', hint: 'Write it down. Find it later.' },
-  archive: { empty: 'No archived notes.', hint: 'Archive notes you want to keep but not see every day.' },
-  trash: { empty: 'Trash is empty.', hint: 'Deleted notes stay here for 30 days.' },
+  active: { empty: 'No notes yet. Press N to write one.' },
+  archive: { empty: 'Nothing archived. Archive a note to tuck it away.' },
+  trash: { empty: 'Trash is empty. Deleted notes stay here for 30 days.' },
 };
 
 export default function Dashboard({ view = 'active' }) {
@@ -141,12 +142,14 @@ export default function Dashboard({ view = 'active' }) {
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {loading && notes.length === 0 ? (
-        <p className="mt-16 text-center text-stone-400">Loading…</p>
+        <ListSkeleton />
       ) : notes.length === 0 ? (
         <div className="mt-20 text-center">
-          <p className="text-lg font-medium text-stone-700 dark:text-stone-200">{query || tag ? 'No matching notes.' : copy.empty}</p>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{query || tag ? 'Try a different search or tag.' : copy.hint}</p>
-          {isActive && !query && !tag && <Link to="/notes/new" className="btn-primary mt-5">Write your first note</Link>}
+          <p className="text-muted">{query || tag ? `No notes match ${query ? `“${query}”` : `#${tag}`}.` : copy.empty}</p>
+          {(query || tag)
+            ? <button type="button" className="btn-ghost mt-3" onClick={() => { setSearch(''); setTag(''); }}>Clear filters</button>
+            : view === 'active' ? <Link to="/notes/new" className="btn-primary mt-4">New note</Link>
+            : <Link to="/notes" className="btn-ghost mt-3">Back to notes</Link>}
         </div>
       ) : (
         <>

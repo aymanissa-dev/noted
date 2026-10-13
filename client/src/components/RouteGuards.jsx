@@ -1,7 +1,8 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { AppSkeleton } from './Skeleton.jsx';
 
-const Splash = () => <div className="grid min-h-screen place-items-center text-stone-400">Loading…</div>;
+const Splash = AppSkeleton;
 
 export function ProtectedRoute() {
   const { user, loading, returnable } = useAuth();

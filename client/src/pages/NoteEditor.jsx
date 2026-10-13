@@ -7,6 +7,7 @@ import PinIcon from '../components/PinIcon.jsx';
 import AppearancePicker from '../components/AppearancePicker.jsx';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import PinPrompt from '../components/PinPrompt.jsx';
+import { EditorSkeleton } from '../components/Skeleton.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { cardClass } from '../lib/colors.js';
@@ -241,7 +242,7 @@ export default function NoteEditor() {
     } catch (e) { setError(e.message); setConfirmDelete(false); }
   };
 
-  if (loading) return <p className="mt-16 text-center text-stone-400">Loading…</p>;
+  if (loading) return <EditorSkeleton />;
 
   if (needsPin && !unlockToken.current && snapshot(note) === lastSaved.current && !note.content && !note.title) {
     return (

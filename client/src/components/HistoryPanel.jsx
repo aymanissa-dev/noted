@@ -1,3 +1,4 @@
+import { Bar } from './Skeleton.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { api } from '../lib/api.js';
@@ -44,7 +45,7 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken 
         ) : (
           <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
             <ul className="max-h-40 overflow-y-auto border-b border-stone-200 dark:border-stone-800 sm:max-h-none sm:w-60 sm:border-b-0 sm:border-r">
-              {!versions && <li className="p-4 text-sm text-stone-400">Loading…</li>}
+              {!versions && [0, 1, 2].map((i) => <li key={i} className="p-4"><Bar className="h-3.5 w-2/3" /><Bar className="mt-2 h-3 w-1/3" /></li>)}
               {versions?.map((v) => (
                 <li key={v._id}>
                   <button onClick={() => setSelected(v._id)}
@@ -65,7 +66,7 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken 
                     {preview.tags.length > 0 && <p className="mt-1 text-xs text-stone-500">{preview.tags.map((t) => `#${t}`).join(' ')}</p>}
                     <p className="mt-4 whitespace-pre-wrap leading-relaxed text-stone-700 dark:text-stone-200">{preview.content}</p>
                   </>
-                ) : selected && <p className="text-sm text-stone-400">Loading…</p>}
+                ) : selected && <div><Bar className="h-5 w-1/2" /><Bar className="mt-4 h-3 w-full" /><Bar className="mt-2 h-3 w-4/5" /></div>}
               </div>
               {preview && (
                 <div className="flex justify-end gap-2 border-t border-stone-200 dark:border-stone-800 px-5 py-3">
