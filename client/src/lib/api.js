@@ -153,6 +153,7 @@ export const api = {
     if (r?.token) localStorage.setItem(TOKEN_KEY, r.token);
     return r;
   },
+  updatePreferences: (prefs) => request('PATCH', '/auth/preferences', prefs),
   deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
 
   async listNotes({ search, tag, view = 'active' } = {}, signal) {

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { ACCENTS, applyAccent, storedAccent } from '../lib/accent.js';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 const askPin = (user) => {
@@ -16,6 +17,30 @@ export function Card({ title, description, children }) {
       {description && <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>}
       <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+function AccentSection() {
+  const { user, updateUser } = useAuth();
+  const [current, setCurrent] = useState(user?.preferences?.accent || storedAccent());
+  const [msg, setMsg] = useState('');
+  const choose = async (key) => {
+    const prev = current;
+    setCurrent(key); applyAccent(key); setMsg('');
+    try { const { user: u } = await api.updatePreferences({ accent: key }); updateUser(u); }
+    catch (e) { setMsg(`Saved on this device only (${e.message}).`); if (!navigator.onLine) return; setCurrent(prev); applyAccent(prev); }
+  };
+  return (
+    <Card title="Accent color" description="Used for the logo dot, highlights, and focus rings. Synced to your account.">
+      <div role="radiogroup" aria-label="Accent color" className="flex flex-wrap gap-3">
+        {Object.entries(ACCENTS).map(([key, a]) => (
+          <button key={key} type="button" role="radio" aria-checked={current === key} aria-label={a.label} title={a.label} onClick={() => choose(key)}
+            className={`h-8 w-8 rounded-full transition ${current === key ? 'ring-2 ring-offset-2 ring-stone-900 dark:ring-stone-100 ring-offset-white dark:ring-offset-stone-900' : 'hover:scale-110'}`}
+            style={{ background: `rgb(${a.rgb})` }} />
+        ))}
+      </div>
+      {msg && <p className="mt-3 text-sm text-muted">{msg}</p>}
+    </Card>
   );
 }
 
@@ -205,6 +230,7 @@ export default function Settings() {
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="text-sm text-stone-500 dark:text-stone-400">{user?.name} · {user?.email}</p>
       </div>
+      <AccentSection />
       <DataSection />
       <LockPinSection />
       <PasswordSection />

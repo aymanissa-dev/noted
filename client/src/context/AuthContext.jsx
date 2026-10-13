@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api, clearLocalData, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
 
+import { applyAccent } from '../lib/accent.js';
+
 const AuthContext = createContext(null);
 export const FLASH_KEY = 'noted.flash';
 
@@ -48,6 +50,10 @@ export function AuthProvider({ children }) {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     setUser(user);
   };
+
+  // The account's accent wins over the device fallback once the profile loads.
+  const accent = user?.preferences?.accent;
+  useEffect(() => { if (accent) applyAccent(accent); }, [accent]);
 
   const updateUser = (u) => { localStorage.setItem(USER_KEY, JSON.stringify(u)); setUser(u); };
   const login = async (creds) => handleAuth(await api.login(creds));

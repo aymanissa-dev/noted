@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import User from '../models/User.js';
+import User, { ACCENTS } from '../models/User.js';
 import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
@@ -42,6 +42,18 @@ router.post('/login', asyncHandler(async (req, res) => {
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId);
+  if (!user) throw new HttpError(401, 'User not found');
+  res.json({ user });
+}));
+
+// Per-user UI preferences (synced across devices).
+router.patch('/preferences', requireAuth, asyncHandler(async (req, res) => {
+  const set = {};
+  if (req.body?.accent !== undefined) {
+    if (!ACCENTS.includes(req.body.accent)) throw new HttpError(400, `accent must be one of: ${ACCENTS.join(', ')}`);
+    set['preferences.accent'] = req.body.accent;
+  }
+  const user = await User.findByIdAndUpdate(req.userId, { $set: set }, { new: true });
   if (!user) throw new HttpError(401, 'User not found');
   res.json({ user });
 }));

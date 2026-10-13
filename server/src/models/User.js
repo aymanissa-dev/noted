@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+export const ACCENTS = ['amber', 'rose', 'emerald', 'sky', 'violet', 'stone'];
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 80 },
@@ -13,12 +15,15 @@ const userSchema = new mongoose.Schema(
     lockPinVersion: { type: Number, default: 0 },
     lockPinFailures: { type: Number, default: 0, select: false },
     lockPinBlockedUntil: { type: Date, default: null, select: false },
+    preferences: {
+      accent: { type: String, enum: ACCENTS, default: 'amber' },
+    },
   },
   { timestamps: true }
 );
 
 userSchema.methods.toJSON = function () {
-  return { id: this._id, name: this.name, email: this.email, hasLockPin: Boolean(this.hasLockPin), createdAt: this.createdAt };
+  return { id: this._id, name: this.name, email: this.email, hasLockPin: Boolean(this.hasLockPin), preferences: { accent: this.preferences?.accent || 'amber' }, createdAt: this.createdAt };
 };
 
 export default mongoose.model('User', userSchema);
