@@ -130,6 +130,23 @@ test('merge notes', async () => {
   assert.equal((await call('POST', '/notes/merge', { ids: [a._id, b._id] })).status, 423);
 });
 
+test('storage stats', async () => {
+  token = (await call('POST', '/auth/register', { name: 'Sta', email: 'sta@example.com', password: 'password123' })).data.token;
+  await call('POST', '/folders', { name: 'F' });
+  await call('POST', '/notes', { title: 'Big one', content: '# Heading\n' + 'word '.repeat(50), tags: ['t1', 't2'] });
+  await call('POST', '/notes', { title: 'Small', content: 'two **words**', tags: ['t1'] });
+  const s3 = (await call('POST', '/notes', { title: 'Secret', content: 'x '.repeat(500) })).data.note;
+  await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' });
+  await call('PATCH', `/notes/${s3._id}/lock`, { locked: true });
+  const r = await call('GET', '/stats');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.notes, { total: 3, active: 3, archived: 0, trashed: 0, locked: 1 });
+  assert.equal(r.data.words, 2 + 51 + 1 + 2); // titles + bodies, locked excluded
+  assert.equal(r.data.folders, 1); assert.equal(r.data.tags, 2);
+  assert.deepEqual(r.data.biggest.map((n) => n.title), ['Big one', 'Small']);
+  assert.ok(!r.data.biggest.some((n) => n.title === 'Secret'));
+});
+
 // @@MORE@@
 
 try {

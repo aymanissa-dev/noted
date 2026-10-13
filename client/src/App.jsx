@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import NoteRoute from './pages/NoteRoute.jsx';
 import Settings from './pages/Settings.jsx';
 import Landing from './pages/Landing.jsx';
+import Stats from './pages/Stats.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 
 // Public landing page for visitors; signed-in users go straight to their notes.
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/archive" element={<Dashboard view="archive" key="archive" />} />
           <Route path="/trash" element={<Dashboard view="trash" key="trash" />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/stats" element={<Stats />} />
           <Route path="/notes/new" element={<NoteRoute />} />
           <Route path="/notes/:id" element={<NoteRoute />} />
         </Route>

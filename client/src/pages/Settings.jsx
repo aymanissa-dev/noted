@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -229,6 +230,7 @@ export default function Settings() {
       <div>
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="text-sm text-stone-500 dark:text-stone-400">{user?.name} · {user?.email}</p>
+        <Link to="/stats" className="mt-2 inline-block text-sm underline-offset-4 hover:underline">View storage stats →</Link>
       </div>
       <AccentSection />
       <DataSection />

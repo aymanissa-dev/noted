@@ -196,6 +196,7 @@ export const api = {
     return { notes, offline };
   },
 
+  stats: () => request('GET', '/stats'),
   mergeNotes: async (ids, title) => { const r = await request('POST', '/notes/merge', { ids, title }); cacheNotes([r.note]); return r; },
 
   // ---- Folders ----

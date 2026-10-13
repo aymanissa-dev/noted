@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import authRoutes from './routes/auth.js';
 import noteRoutes from './routes/notes.js';
 import folderRoutes from './routes/folders.js';
+import statsRoutes from './routes/stats.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 export function createApp() {
@@ -29,6 +30,7 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/notes', noteRoutes);
   app.use('/api/folders', folderRoutes);
+  app.use('/api/stats', statsRoutes);
   app.use(notFound);
   app.use(errorHandler);
   return app;
