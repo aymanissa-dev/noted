@@ -273,6 +273,7 @@ export const api = {
   },
   exportJson: (pin) => download('/notes/export?format=json', 'noted.json', pin ? { 'X-Lock-Pin': pin } : {}),
   exportMarkdown: (pin) => download('/notes/export?format=md', 'noted.zip', pin ? { 'X-Lock-Pin': pin } : {}),
+  exportData: (pin) => request('GET', '/notes/export?format=json', undefined, pin ? { headers: { 'X-Lock-Pin': pin } } : {}),
   importNotes: (data) => request('POST', '/notes/import', data),
   listVersions: (id, { unlockToken } = {}) => request('GET', `/notes/${id}/versions`, undefined, unlockHeaders(unlockToken)),
   getVersion: (id, vid, { unlockToken } = {}) => request('GET', `/notes/${id}/versions/${vid}`, undefined, unlockHeaders(unlockToken)),

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ACCENTS, applyAccent, storedAccent } from '../lib/accent.js';
+import { decryptBackup, encryptBackup, isBackup } from '../lib/backup.js';
+import PasswordDialog from '../components/PasswordDialog.jsx';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 const askPin = (user) => {
@@ -79,6 +81,32 @@ function DataSection() {
   const fileRef = useRef(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [dialog, setDialog] = useState(null); // 'encrypt' | { backup } (decrypt)
+
+  const report = ({ imported, skippedDuplicates = 0, skippedLocked = 0 }) => {
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    const parts = [`Imported ${plural(imported, 'note')}.`];
+    if (skippedDuplicates) parts.push(`Skipped ${plural(skippedDuplicates, 'duplicate')} you already have.`);
+    if (skippedLocked) parts.push(`Skipped ${plural(skippedLocked, 'locked note')} without content.`);
+    setMsg({ text: parts.join(' ') });
+    window.dispatchEvent(new Event('noted:folders-changed'));
+  };
+
+  const makeBackup = async (password) => {
+    const data = await api.exportData(askPin(user));
+    const file = await encryptBackup(data, password);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: 'application/octet-stream' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `noted-${new Date().toISOString().slice(0, 10)}.noted-backup` });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setDialog(null);
+    setMsg({ text: `Encrypted backup of ${data.notes.length} notes downloaded. Keep the password safe: it can’t be recovered.` });
+  };
+  const restoreBackup = async (password) => {
+    const data = await decryptBackup(dialog.backup, password);
+    const result = await api.importNotes(data);
+    setDialog(null); report(result);
+  };
 
   const run = async (fn) => {
     setBusy(true); setMsg(null);
@@ -91,25 +119,28 @@ function DataSection() {
     if (!file) return;
     run(async () => {
       let data;
-      try { data = JSON.parse(await file.text()); } catch { throw new Error('That file is not valid JSON.'); }
-      const { imported, skippedDuplicates = 0, skippedLocked = 0 } = await api.importNotes(data);
-      const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-      const parts = [`Imported ${plural(imported, 'note')}.`];
-      if (skippedDuplicates) parts.push(`Skipped ${plural(skippedDuplicates, 'duplicate')} you already have.`);
-      if (skippedLocked) parts.push(`Skipped ${plural(skippedLocked, 'locked note')} without content.`);
-      setMsg({ text: parts.join(' ') });
+      try { data = JSON.parse(await file.text()); } catch { throw new Error('That file is not a noted. export or backup.'); }
+      if (isBackup(data)) { setDialog({ backup: data }); return; }
+      report(await api.importNotes(data));
     });
   };
 
   return (
-    <Card title="Your data" description="Download a copy of your notes, or import notes from a noted. JSON export. Trashed notes are not exported; locked notes are included only if you enter your PIN.">
+    <Card title="Your data" description="Download a copy of your notes, or import a noted. JSON export or encrypted backup. Trashed notes are not exported; locked notes are included only if you enter your PIN.">
       <div className="flex flex-wrap gap-2">
         <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => run(() => api.exportJson(askPin(user)))}>Export JSON</button>
         <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => run(() => api.exportMarkdown(askPin(user)))}>Export Markdown (.zip)</button>
-        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => fileRef.current?.click()}>Import JSON…</button>
-        <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
+        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => setDialog('encrypt')}>Encrypted backup…</button>
+        <button className="btn-ghost border border-stone-300 dark:border-stone-700" disabled={busy} onClick={() => fileRef.current?.click()}>Import…</button>
+        <input ref={fileRef} data-testid="import-file" type="file" accept="application/json,.json,.noted-backup" className="hidden" onChange={onImport} />
       </div>
-      {msg && <p className={`mt-3 text-sm ${msg.error ? 'text-red-600' : 'text-emerald-600'}`}>{msg.text}</p>}
+      {msg && <p role="status" className={`mt-3 text-sm ${msg.error ? 'text-red-600' : 'text-emerald-600'}`}>{msg.text}</p>}
+      {dialog === 'encrypt' && <PasswordDialog confirm title="Encrypted backup" submitLabel="Encrypt & download"
+        description="Your notes are encrypted on this device (AES-256) with a password you choose. Without it the backup can’t be opened."
+        onSubmit={makeBackup} onCancel={() => setDialog(null)} />}
+      {dialog?.backup && <PasswordDialog title="Restore encrypted backup" submitLabel="Decrypt & import"
+        description="Enter the password you used for this backup. Notes you already have are skipped."
+        onSubmit={restoreBackup} onCancel={() => setDialog(null)} />}
     </Card>
   );
 }
