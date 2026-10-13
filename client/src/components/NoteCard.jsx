@@ -4,7 +4,7 @@ import PinIcon from './PinIcon.jsx';
 import { cardClass } from '../lib/colors.js';
 import { plainText } from '../lib/markdown.js';
 
-export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active }) {
+export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active, selecting, selectedIndex = -1, onSelect }) {
   if (note.deletedAt) {
     return (
       <div className="flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4">
@@ -23,7 +23,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   // The card is a real link (stretched over the card via ::after), so it works with touch, keyboard, and
   // middle-click. The pin button is a sibling stacked above the link, not nested inside it.
   return (
-    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active ? 'ring-2 ring-accent' : ''} shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
+    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active || selectedIndex >= 0 ? 'ring-2 ring-accent' : ''} shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
       <h3 className="pr-7 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1 break-words">
         {optimistic ? (
           <span>{title}</span>
@@ -33,7 +33,14 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
           </Link>
         )}
       </h3>
-      {onTogglePin && (
+      {selecting && (
+        <button type="button" onClick={() => onSelect(note)} aria-pressed={selectedIndex >= 0}
+          aria-label={`${selectedIndex >= 0 ? 'Deselect' : 'Select'} ${note.title || 'Untitled'}`}
+          className="absolute inset-0 z-20 flex items-start justify-end rounded-xl p-2 outline-none">
+          <span className={`grid h-6 w-6 place-items-center rounded-full border text-xs font-semibold transition ${selectedIndex >= 0 ? 'border-accent bg-accent text-white' : 'border-stone-300 bg-white/80 dark:border-stone-600 dark:bg-stone-900/80'}`}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</span>
+        </button>
+      )}
+      {onTogglePin && !selecting && (
         <button type="button"
           onClick={() => { if (!note.pending) onTogglePin(note); }}
           title={note.pinned ? 'Unpin' : 'Pin'} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={note.pinned}

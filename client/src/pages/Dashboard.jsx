@@ -6,6 +6,8 @@ import { api } from '../lib/api.js';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
+import MergeDialog from '../components/MergeDialog.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 
 const VIEWS = {
   active: { empty: 'No notes yet. Press N to write one.' },
@@ -34,6 +36,29 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncTick, setSyncTick] = useState(0);
+  // Multi-select (for merging). `selected` keeps click order.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [merging, setMerging] = useState(false);
+  const toast = useToast();
+  const toggleSelect = (n) => setSelected((s) => (s.some((x) => x._id === n._id) ? s.filter((x) => x._id !== n._id) : [...s, n]));
+  const stopSelecting = () => { setSelecting(false); setSelected([]); };
+  useEffect(() => { stopSelecting(); }, [view, folder, smart, tag]); // eslint-disable-line react-hooks/exhaustive-deps
+  const merge = async (ids, title) => {
+    const { note, trashed } = await api.mergeNotes(ids, title);
+    setMerging(false); stopSelecting(); setSyncTick((t) => t + 1);
+    window.dispatchEvent(new Event('noted:notes-changed'));
+    toast.show(`Merged ${trashed.length} notes. Originals are in the trash.`, {
+      action: { label: 'Undo', onClick: async () => {
+        try {
+          await Promise.all(trashed.map((id) => api.restoreNote(id)));
+          await api.deleteNote(note._id);
+          toast.show('Merge undone.'); setSyncTick((t) => t + 1); window.dispatchEvent(new Event('noted:notes-changed'));
+        } catch (e) { toast.show(`Couldn’t undo: ${e.message}`); }
+      } },
+    });
+    navigate(`/notes/${note._id}`);
+  };
 
   useEffect(() => {
     const bump = () => setSyncTick((t) => t + 1);
@@ -154,6 +179,9 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         </div>
         {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'px-3' : ''}`} aria-label="New note">{compact ? '+' : '+ New note'}</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}
+        {view !== 'trash' && !compact && notes.length > 1 && (
+          <button type="button" className="btn-ghost" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : 'Select'}</button>
+        )}
       </div>
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
@@ -169,6 +197,13 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         </div>
       )}
 
+      {selecting && (
+        <div role="status" className="sticky top-[calc(var(--header-h)+0.5rem)] z-[6] mt-4 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white/95 px-4 py-2 text-sm shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/95">
+          <span>{selected.length ? `${selected.length} selected` : 'Select notes to merge'}</span>
+          <button type="button" className="btn-primary py-1.5" disabled={selected.length < 2} onClick={() => setMerging(true)}>Merge{selected.length > 1 ? ` ${selected.length}` : ''}</button>
+        </div>
+      )}
+      {merging && <MergeDialog notes={selected} onMerge={merge} onCancel={() => setMerging(false)} />}
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {loading && notes.length === 0 ? (
@@ -184,9 +219,9 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         </div>
       ) : (
         <>
-          {pinned.length > 0 && <Section compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
+          {pinned.length > 0 && <Section selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
-            <Section compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
+            <Section selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
               notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} />
           )}
         </>
@@ -195,12 +230,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   );
 }
 
-function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compact, activeId }) {
+function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compact, activeId, selecting, selected = [], onSelect }) {
   return (
     <section className="mt-6">
       <h2 className="mb-3 section-label">{title}</h2>
       <div className={`grid ${compact ? 'gap-2' : 'gap-4 sm:grid-cols-2 lg:grid-cols-3'}`}>
-        {notes.map((n) => <NoteCard key={n._id} note={n} compact={compact} active={n._id === activeId} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
+        {notes.map((n) => <NoteCard key={n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
       </div>
     </section>
   );

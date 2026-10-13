@@ -196,6 +196,8 @@ export const api = {
     return { notes, offline };
   },
 
+  mergeNotes: async (ids, title) => { const r = await request('POST', '/notes/merge', { ids, title }); cacheNotes([r.note]); return r; },
+
   // ---- Folders ----
   folders: () => request('GET', '/folders'),
   createFolder: (name) => request('POST', '/folders', { name }),

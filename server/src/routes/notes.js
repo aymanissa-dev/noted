@@ -195,6 +195,32 @@ router.post('/import', asyncHandler(async (req, res) => {
   res.status(fresh.length ? 201 : 200).json({ imported: inserted.length, skippedDuplicates, skippedLocked: docs.skipped });
 }));
 
+// Merge 2+ notes (in the given order) into a new note. Tags are combined; the originals go to the
+// trash, so the merge can be undone by restoring them. Locked notes can't be merged.
+export const MAX_MERGE = 50;
+router.post('/merge', asyncHandler(async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(String))] : [];
+  if (ids.length < 2) throw new HttpError(400, 'Choose at least two notes to merge');
+  if (ids.length > MAX_MERGE) throw new HttpError(400, `You can merge at most ${MAX_MERGE} notes at once`);
+  if (!ids.every((id) => mongoose.isValidObjectId(id))) throw new HttpError(400, 'Invalid id');
+  const found = await Note.find({ _id: { $in: ids }, user: req.userId, deletedAt: null });
+  if (found.length !== ids.length) throw new HttpError(404, 'Some notes were not found');
+  if (found.some((n) => n.locked)) throw new HttpError(423, 'Locked notes can’t be merged. Remove the lock first.');
+  const byId = new Map(found.map((n) => [String(n._id), n]));
+  const notes = ids.map((id) => byId.get(id));
+  const title = String(req.body?.title ?? '').trim().slice(0, 200) || `${notes[0].title || 'Untitled'} (merged)`;
+  const content = notes.map((n) => `## ${n.title || 'Untitled'}\n\n${n.content.trim()}`).join('\n\n').slice(0, 100000);
+  const tags = [...new Set(notes.flatMap((n) => n.tags))].slice(0, 20);
+  const first = notes[0];
+  const merged = await Note.create({
+    user: req.userId, title, content, tags,
+    color: first.color, emoji: first.emoji, folderId: first.folderId, pinned: notes.some((n) => n.pinned),
+  });
+  const now = new Date();
+  await Note.updateMany({ _id: { $in: ids }, user: req.userId }, { $set: { deletedAt: now } }, { timestamps: false });
+  res.status(201).json({ note: merged, trashed: ids });
+}));
+
 router.post('/', asyncHandler(async (req, res) => {
   const fields = pickNoteFields(req.body);
   if (!fields.title?.trim() && !fields.content?.trim()) {

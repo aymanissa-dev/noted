@@ -105,6 +105,31 @@ test('markdown search matches plain text', async () => {
   r = await call('GET', '/notes?search=glowing'); assert.equal(r.data.notes.length, 0);
 });
 
+test('merge notes', async () => {
+  token = (await call('POST', '/auth/register', { name: 'Mer', email: 'mer@example.com', password: 'password123' })).data.token;
+  const a = (await call('POST', '/notes', { title: 'A', content: 'alpha', tags: ['x'] })).data.note;
+  const b = (await call('POST', '/notes', { title: 'B', content: 'beta', tags: ['y', 'x'] })).data.note;
+  const c = (await call('POST', '/notes', { title: 'C', content: 'gamma' })).data.note;
+  assert.equal((await call('POST', '/notes/merge', { ids: [a._id] })).status, 400);
+  let r = await call('POST', '/notes/merge', { ids: [c._id, a._id, b._id], title: 'All' });
+  assert.equal(r.status, 201);
+  assert.equal(r.data.note.title, 'All');
+  assert.equal(r.data.note.content, '## C\n\ngamma\n\n## A\n\nalpha\n\n## B\n\nbeta');
+  assert.deepEqual(r.data.note.tags.sort(), ['x', 'y']);
+  const trash = (await call('GET', '/notes?view=trash')).data.notes.map((n) => n.title).sort();
+  assert.deepEqual(trash, ['A', 'B', 'C']);
+  assert.deepEqual((await call('GET', '/notes')).data.notes.map((n) => n.title), ['All']);
+  // undo = restore originals + trash the merged note
+  for (const id of r.data.trashed) await call('POST', `/notes/${id}/restore`);
+  await call('DELETE', `/notes/${r.data.note._id}`);
+  assert.deepEqual((await call('GET', '/notes')).data.notes.map((n) => n.title).sort(), ['A', 'B', 'C']);
+  // trashed/foreign/locked notes can't be merged
+  assert.equal((await call('POST', '/notes/merge', { ids: [a._id, r.data.note._id] })).status, 404);
+  await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' });
+  await call('PATCH', `/notes/${a._id}/lock`, { locked: true });
+  assert.equal((await call('POST', '/notes/merge', { ids: [a._id, b._id] })).status, 423);
+});
+
 // @@MORE@@
 
 try {
