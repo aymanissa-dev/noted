@@ -93,6 +93,18 @@ test('recently viewed and smart filters', async () => {
   assert.equal((await call('GET', '/notes?smart=bogus')).status, 400);
 });
 
+test('markdown search matches plain text', async () => {
+  const n = (await call('POST', '/notes', { title: 'MD', content: '# Plan\nThis is **really important** and ==glowing== stuff' })).data.note;
+  assert.equal(n.plain, undefined);
+  let r = await call('GET', '/notes?search=' + encodeURIComponent('really important and glowing'));
+  assert.deepEqual(r.data.notes.map((x) => x.title), ['MD']);
+  assert.equal(r.data.notes[0].plain, undefined);
+  r = await call('GET', '/notes?search=' + encodeURIComponent('**really')); assert.equal(r.data.notes.length, 1); // raw markdown still matches
+  await call('PATCH', `/notes/${n._id}`, { content: 'now _plain_ words' });
+  r = await call('GET', '/notes?search=plain%20words'); assert.equal(r.data.notes.length, 1);
+  r = await call('GET', '/notes?search=glowing'); assert.equal(r.data.notes.length, 0);
+});
+
 // @@MORE@@
 
 try {

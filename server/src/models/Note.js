@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { plainText } from '../lib/plain.js';
 
 export const NOTE_COLORS = ['', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray'];
 
@@ -14,6 +15,8 @@ const noteSchema = new mongoose.Schema(
     color: { type: String, enum: NOTE_COLORS, default: '' },
     emoji: { type: String, default: '', maxlength: 16 },
     deletedAt: { type: Date, default: null },
+    // Markdown stripped to plain text, so search matches what you see (never sent to clients).
+    plain: { type: String, default: '', select: false },
     folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
   },
   { timestamps: true }
@@ -26,10 +29,16 @@ noteSchema.index({ user: 1, updatedAt: -1 });
 noteSchema.index({ user: 1, tags: 1 });
 noteSchema.index({ user: 1, folderId: 1 });
 
+noteSchema.pre('validate', function (next) {
+  if (this.isNew || this.isModified('content')) this.plain = plainText(this.content);
+  next();
+});
+
 // Locked notes never serialize their title/content/tags unless the request unlocked them
 // (routes set doc.$locals.unlocked = true after verifying an unlock token).
 noteSchema.set('toJSON', {
   transform(doc, ret) {
+    delete ret.plain;
     if (ret.locked && !doc.$locals?.unlocked) {
       ret.title = ''; ret.content = ''; ret.tags = []; ret.redacted = true;
     }

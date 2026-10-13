@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, saveOnUnload } from '../lib/api.js';
 import { isTempId } from '../lib/offlineQueue.js';
@@ -8,7 +8,12 @@ import AppearancePicker from '../components/AppearancePicker.jsx';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import PinPrompt from '../components/PinPrompt.jsx';
 import FolderPicker from '../components/FolderPicker.jsx';
-import { EditorSkeleton } from '../components/Skeleton.jsx';
+import { EditorSkeleton, Bar } from '../components/Skeleton.jsx';
+import EditorTools from '../editor/EditorTools.jsx';
+import { toHtml } from '../lib/markdown.js';
+import { dropUndo } from '../editor/undoStore.js';
+
+const MarkdownEditor = lazy(() => import('../editor/MarkdownEditor.jsx'));
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { cardClass } from '../lib/colors.js';
@@ -38,6 +43,8 @@ export default function NoteEditor() {
   const unlockToken = useRef(null);
   const [previewOnly, setPreviewOnly] = useState(false);
   const previewOnlyRef = useRef(false);
+  const [editorApi, setEditorApi] = useState(null);
+  const [focusMode, setFocusMode] = useState(false);
   previewOnlyRef.current = previewOnly;
 
   const lastSaved = useRef(snapshot(note));
@@ -197,6 +204,7 @@ export default function NoteEditor() {
     try {
       await save();
       await api.lockNote(idRef.current);
+      dropUndo(user?.id, idRef.current); // locked notes never keep local undo history
       navigate('/notes');
     } catch (e) { setError(e.message); }
   };
@@ -253,6 +261,18 @@ export default function NoteEditor() {
       navigate('/trash');
     } catch (e) { setError(e.message); setConfirmDelete(false); }
   };
+
+  // Focus mode: Esc leaves it (unless an editor popup like search or autocomplete used the key).
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('.cm-tooltip-autocomplete, .cm-search')) { e.preventDefault(); e.stopPropagation(); setFocusMode(false); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [focusMode]);
+
+  const printHtml = useMemo(() => toHtml(note.content), [note.content]);
+  const print = () => { save(); setTimeout(() => window.print(), 50); };
+  const persist = !note.locked && noteId && !isTempId(noteId) && user?.id ? { userId: user.id, noteId } : null;
 
   if (loading) return <EditorSkeleton />;
 
@@ -317,14 +337,30 @@ export default function NoteEditor() {
       {note.archived && !note.deletedAt && (
         <div className="mb-3 rounded-xl bg-stone-100 dark:bg-stone-800 px-4 py-2 text-sm text-stone-600 dark:text-stone-300">Archived</div>
       )}
-      <div className={`rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
+      <div data-testid="editor-card" className={focusMode
+        ? 'fixed inset-0 z-40 overflow-y-auto bg-stone-50 px-4 py-10 dark:bg-stone-950 sm:px-8 sm:py-16'
+        : `rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
+        <div className={focusMode ? 'mx-auto max-w-reading' : ''}>
+        {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-ghost fixed right-4 top-4 text-xs" aria-label="Exit focus mode">Exit focus · Esc</button>}
         <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
-          placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => setNote({ ...note, title: e.target.value })} />
+          placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
+        {!focusMode && (
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
-          <TagInput tags={note.tags} onChange={(tags) => setNote({ ...note, tags })} />
+          <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
+          <EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} onPrint={print} />
         </div>
-        <textarea className="mt-4 min-h-[50vh] w-full max-w-reading resize-none bg-transparent text-[1.0625rem] leading-[1.75] outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
-          placeholder="Write it down…" readOnly={previewOnly} value={note.content} onChange={(e) => setNote({ ...note, content: e.target.value })} />
+        )}
+        <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
+          <MarkdownEditor value={note.content} readOnly={previewOnly} placeholder="Write it down… (type / for commands)"
+            persist={persist} focusMode={focusMode} onReady={setEditorApi}
+            onChange={(content) => setNote((n) => ({ ...n, content }))} />
+        </Suspense>
+        </div>
+      </div>
+      <div className="print-area" aria-hidden="true">
+        <h1>{note.emoji ? `${note.emoji} ` : ''}{note.title || 'Untitled'}</h1>
+        {note.tags.length > 0 && <p className="print-tags">{note.tags.map((t) => `#${t}`).join('  ')}</p>}
+        <div dangerouslySetInnerHTML={{ __html: printHtml }} />
       </div>
       <div className="mt-2 flex justify-between text-xs text-stone-400">
         <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>

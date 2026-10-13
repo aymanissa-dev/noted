@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { COLORS, EMOJIS } from '../lib/colors.js';
+import { searchEmoji } from '../lib/emoji.js';
 
 export default function AppearancePicker({ color, emoji, onChange }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const list = q.trim() ? searchEmoji(q, 48).map((e) => e.char) : EMOJIS;
   return (
     <div className="relative">
       <button type="button" className="btn-ghost px-2" title="Color & emoji" aria-label="Color and emoji" onClick={() => setOpen((o) => !o)}>
@@ -22,9 +25,11 @@ export default function AppearancePicker({ color, emoji, onChange }) {
               ))}
             </div>
             <p className="mb-2 mt-4 text-xs font-medium uppercase tracking-wider text-stone-400">Emoji</p>
-            <div className="grid grid-cols-8 gap-1">
-              {EMOJIS.map((e) => (
-                <button key={e} type="button" onClick={() => onChange({ emoji: e })}
+            <input type="search" className="input mb-2 py-1.5" placeholder="Search emoji by name…" aria-label="Search emoji" value={q} onChange={(e) => setQ(e.target.value)} />
+            {list.length === 0 && <p className="py-2 text-xs text-muted">No emoji match “{q}”.</p>}
+            <div className="grid max-h-48 grid-cols-8 gap-1 overflow-y-auto">
+              {list.map((e) => (
+                <button key={e} type="button" onClick={() => onChange({ emoji: e })} aria-label={`Emoji ${e}`}
                   className={`rounded-md p-1 text-lg leading-none hover:bg-stone-100 dark:hover:bg-stone-800 ${emoji === e ? 'bg-stone-100 dark:bg-stone-800' : ''}`}>{e}</button>
               ))}
             </div>

@@ -1,3 +1,4 @@
+import { clearAllUndo } from '../editor/undoStore.js';
 import { createQueue, isTempId } from './offlineQueue.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
@@ -80,6 +81,7 @@ function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
 }
 
 export function clearLocalData() {
+  clearAllUndo();
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(USER_KEY);
   queue.clear();

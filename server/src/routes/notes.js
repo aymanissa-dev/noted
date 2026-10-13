@@ -8,6 +8,7 @@ import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRe
 import User, { RECENT_LIMIT } from '../models/User.js';
 import Folder from '../models/Folder.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
+import { plainText } from '../lib/plain.js';
 import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
 const router = Router();
@@ -103,7 +104,7 @@ router.get('/', asyncHandler(async (req, res) => {
   }
   if (search) {
     const re = new RegExp(escapeRegex(search), 'i');
-    filter.$or = [{ title: re }, { content: re }];
+    filter.$or = [{ title: re }, { content: re }, { plain: re }];
   }
   if (tag) filter.tags = tag;
   // Smart entries: computed views over the user's notes.
@@ -188,7 +189,7 @@ router.post('/import', asyncHandler(async (req, res) => {
     const fp = fingerprint(d);
     if ((sourceId && ids.has(sourceId)) || seen.has(fp)) { skippedDuplicates++; continue; }
     seen.add(fp);
-    fresh.push({ ...d, folderId: await folderFor(folder), user: req.userId });
+    fresh.push({ ...d, plain: plainText(d.content), folderId: await folderFor(folder), user: req.userId });
   }
   const inserted = fresh.length ? await Note.insertMany(fresh, { timestamps: false }) : [];
   res.status(fresh.length ? 201 : 200).json({ imported: inserted.length, skippedDuplicates, skippedLocked: docs.skipped });
