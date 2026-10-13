@@ -6,18 +6,25 @@ export default function PinPrompt({ title = 'This note is locked', description =
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [shake, setShake] = useState(0);
+  const [opened, setOpened] = useState(false);
   const dialogRef = useRef(null);
   const noTrap = useRef(null);
   useFocusTrap(inline ? noTrap : dialogRef, onCancel);
 
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);
-    try { await onSubmit(pin); } catch (err) { setError(err.message); setPin(''); setBusy(false); }
+    try {
+      await onSubmit(pin, {
+        // Let the lock visibly open before the caller closes the prompt.
+        beforeClose: () => new Promise((r) => { setOpened(true); setTimeout(r, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 200); }),
+      });
+    } catch (err) { setError(err.message); setPin(''); setBusy(false); setShake((s) => s + 1); }
   };
 
   const form = (
     <form onSubmit={submit} className="w-full max-w-xs text-center">
-      <div className="text-3xl">🔒</div>
+      <div key={shake} data-testid="pin-lock" data-state={opened ? 'open' : shake ? 'shake' : 'idle'} aria-hidden="true" className={`mx-auto inline-block text-3xl ${opened ? 'animate-unlock' : shake ? 'animate-shake' : ''}`}>{opened ? '🔓' : '🔒'}</div>
       <h2 id="pin-title" className="mt-2 font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
       <input className="input mt-4 text-center font-mono text-lg tracking-[0.5em]" type="password" inputMode="numeric" autoComplete="off"

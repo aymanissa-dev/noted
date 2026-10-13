@@ -4,10 +4,11 @@ import PinIcon from './PinIcon.jsx';
 import { cardClass } from '../lib/colors.js';
 import { plainText } from '../lib/markdown.js';
 
-export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active, selecting, selectedIndex = -1, onSelect }) {
+export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
+  const motion = leaving ? 'animate-leave pointer-events-none' : entering ? 'animate-slide-in' : '';
   if (note.deletedAt) {
     return (
-      <div className="flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4">
+      <div data-flip-id={note._id} className={`${motion} flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4`}>
         <h3 className="font-semibold text-stone-700 dark:text-stone-200 line-clamp-1 break-words">{note.locked ? '🔒 Locked note' : note.title || 'Untitled'}</h3>
         <p className="mt-1 flex-1 whitespace-pre-line text-sm text-stone-500 dark:text-stone-400 line-clamp-3">{plainText(note.content)}</p>
         <div className="mt-3 flex items-center gap-1">
@@ -23,7 +24,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   // The card is a real link (stretched over the card via ::after), so it works with touch, keyboard, and
   // middle-click. The pin button is a sibling stacked above the link, not nested inside it.
   return (
-    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active || selectedIndex >= 0 ? 'ring-2 ring-accent' : ''} shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
+    <article data-flip-id={note._id} className={`${motion} group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active || selectedIndex >= 0 ? 'ring-2 ring-accent' : ''} shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:hover:translate-y-0 active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
       <h3 className="pr-7 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1 break-words">
         {optimistic ? (
           <span>{title}</span>

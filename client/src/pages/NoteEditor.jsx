@@ -184,8 +184,9 @@ export default function NoteEditor() {
     catch (e) { setNote((n) => ({ ...n, folderId: prev })); setError(e.message); }
   };
 
-  const unlock = async (pin) => {
+  const unlock = async (pin, { beforeClose } = {}) => {
     const { note: n, unlockToken: token } = await api.unlockNote(idRef.current, pin);
+    await beforeClose?.(); // the lock icon opens first
     unlockToken.current = token;
     setNeedsPin(false); setError('');
     if (snapshot(noteRef.current) === lastSaved.current && !noteRef.current.content && !noteRef.current.title) {
@@ -398,9 +399,25 @@ export default function NoteEditor() {
 }
 
 function SaveStatus({ status }) {
+  // After a save, show a checkmark briefly, then settle to a quiet "Saved".
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    if (status !== 'saved') return undefined;
+    setJustSaved(true);
+    const t = setTimeout(() => setJustSaved(false), 1200);
+    return () => clearTimeout(t);
+  }, [status]);
+  if (status === 'saved' && justSaved) {
+    return (
+      <span data-testid="save-status" data-state="saved-check" className="mr-1 inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-emerald-600 dark:text-emerald-400 sm:mr-2" aria-live="polite" title="Saved">
+        <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 animate-pop" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>
+        <span className="hidden min-[400px]:inline">Saved</span>
+      </span>
+    );
+  }
   const map = {
     dirty: ['Unsaved', 'bg-stone-300'],
-    saving: ['Saving…', 'bg-amber-400 animate-pulse'],
+    saving: ['Saving…', 'bg-accent animate-soft-pulse'],
     saved: ['Saved', 'bg-emerald-500'],
     error: ['Not saved', 'bg-red-500'],
     queued: ['Saved offline', 'bg-sky-400'],
@@ -408,7 +425,7 @@ function SaveStatus({ status }) {
   if (!map[status]) return null;
   const [label, dot] = map[status];
   return (
-    <span className="mr-1 inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-stone-500 dark:text-stone-400 sm:mr-2" aria-live="polite" title={label}>
+    <span data-testid="save-status" data-state={status} className="mr-1 inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-stone-500 dark:text-stone-400 sm:mr-2" aria-live="polite" title={label}>
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} /><span className="hidden min-[400px]:inline">{label}</span>
     </span>
   );

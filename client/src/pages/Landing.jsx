@@ -70,7 +70,7 @@ export default function Landing() {
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:rounded focus:bg-white focus:px-3 focus:py-2 dark:focus:bg-stone-900">Skip to content</a>
       <header className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <Link to="/" aria-label="noted. home"><Logo className="text-2xl" /></Link>
+        <Link to="/" aria-label="noted. home"><Logo className="text-2xl" bounce /></Link>
         <nav aria-label="Account" className="flex items-center gap-1 sm:gap-2">
           <ThemeToggle />
           <Link to="/login" className="btn-ghost">Log in</Link>

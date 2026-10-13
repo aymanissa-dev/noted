@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFlip } from '../lib/flip.js';
 import { latestOnly } from '../lib/latest.js';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SMART, smartLabel } from '../lib/smart.js';
@@ -36,6 +37,17 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncTick, setSyncTick] = useState(0);
+  const listRef = useRef(null);
+  const [leaving, setLeaving] = useState(() => new Set());
+  const [entering, setEntering] = useState(null);
+  useFlip(listRef, [notes, leaving]);
+  // Shrink-fade a card, then drop it (the FLIP hook glides the rest into the gap).
+  const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const removeAnimated = (id) => new Promise((resolve) => {
+    if (reduceMotion()) { setNotes((l) => l.filter((n) => n._id !== id)); return resolve(); }
+    setLeaving((s) => new Set(s).add(id));
+    setTimeout(() => { setNotes((l) => l.filter((n) => n._id !== id)); setLeaving((s) => { const n = new Set(s); n.delete(id); return n; }); resolve(); }, 200);
+  });
   // Multi-select (for merging). `selected` keeps click order.
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState([]);
@@ -111,10 +123,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     const tempId = `optimistic-${Date.now()}`;
     const now = new Date().toISOString();
     const optimistic = { _id: tempId, ...fields, pinned: false, archived: false, deletedAt: null, color: '', emoji: '', createdAt: now, updatedAt: now, pending: true };
+    setEntering(tempId);
     setNotes((l) => [optimistic, ...l].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
     try {
       const { note } = await api.createNote(folder ? { ...fields, folderId: folder } : fields);
       setNotes((l) => l.map((n) => (n._id === tempId ? note : n)));
+      setEntering((e) => (e === tempId ? note._id : e));
       if (fields.tags.length) api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
     } catch (e) {
       setNotes((l) => l.filter((n) => n._id !== tempId));
@@ -125,13 +139,13 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   };
 
   const restore = async (note) => {
-    setNotes((l) => l.filter((n) => n._id !== note._id)); // optimistic
-    try { await api.restoreNote(note._id); }
+    const done = removeAnimated(note._id); // optimistic
+    try { await api.restoreNote(note._id); await done; }
     catch (e) { setNotes((l) => [note, ...l]); setError(e.message); }
   };
   const deleteForever = async (note) => {
     if (!window.confirm('Delete this note forever? This can\'t be undone.')) return;
-    try { await api.deleteForever(note._id); setNotes((l) => l.filter((n) => n._id !== note._id)); }
+    try { await api.deleteForever(note._id); await removeAnimated(note._id); }
     catch (e) { setError(e.message); }
   };
   const emptyTrash = async () => {
@@ -206,6 +220,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       {merging && <MergeDialog notes={selected} onMerge={merge} onCancel={() => setMerging(false)} />}
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
+      <div ref={listRef}>
       {loading && notes.length === 0 ? (
         <ListSkeleton />
       ) : notes.length === 0 ? (
@@ -219,23 +234,24 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         </div>
       ) : (
         <>
-          {pinned.length > 0 && <Section selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
+          {pinned.length > 0 && <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
-            <Section selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
+            <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
               notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} />
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
 
-function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compact, activeId, selecting, selected = [], onSelect }) {
+function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compact, activeId, selecting, selected = [], onSelect, leaving, entering }) {
   return (
     <section className="mt-6">
       <h2 className="mb-3 section-label">{title}</h2>
       <div className={`grid ${compact ? 'gap-2' : 'gap-4 sm:grid-cols-2 lg:grid-cols-3'}`}>
-        {notes.map((n) => <NoteCard key={n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
+        {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
       </div>
     </section>
   );
