@@ -4,6 +4,8 @@ import User, { ACCENTS } from '../models/User.js';
 import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import Folder from '../models/Folder.js';
+import LoginEvent, { ACTIVITY_LIMIT } from '../models/LoginEvent.js';
+import { maskIp, parseUserAgent } from '../lib/useragent.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { hashPin, PIN_RE } from '../lib/lockPin.js';
@@ -12,6 +14,24 @@ import { hashPin, PIN_RE } from '../lib/lockPin.js';
 export const BCRYPT_COST = 10;
 
 const router = Router();
+// Record a sign-in and keep only the newest ACTIVITY_LIMIT. Returns the event id (stored in the token as sid).
+async function recordSignIn(req, user, kind) {
+  try {
+    const city = req.get('x-vercel-ip-city'); const country = req.get('x-vercel-ip-country');
+    const location = [city && decodeURIComponent(city), country].filter(Boolean).join(', ');
+    const ev = await LoginEvent.create({ user: user._id, kind, ...parseUserAgent(req.get('user-agent')), ip: maskIp(req.ip), location, tv: user.tokenVersion ?? 0 });
+    const old = await LoginEvent.find({ user: user._id }).sort({ at: -1 }).skip(ACTIVITY_LIMIT).select('_id').lean();
+    if (old.length) await LoginEvent.deleteMany({ _id: { $in: old.map((o) => o._id) } });
+    return ev._id;
+  } catch { return null; } // activity is best effort; never block sign-in
+}
+
+// After revoking other sessions, re-issue this session's token (same sid) and keep its activity row active.
+async function keepSession(req, user) {
+  if (req.sessionId) await LoginEvent.updateOne({ _id: req.sessionId, user: user._id }, { $set: { tv: user.tokenVersion } }).catch(() => {});
+  return signToken(user, undefined, req.sessionId);
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 router.post('/register', asyncHandler(async (req, res) => {
@@ -24,7 +44,8 @@ router.post('/register', asyncHandler(async (req, res) => {
   if (await User.exists({ email })) throw new HttpError(409, 'Email already registered');
 
   const user = await User.create({ name, email, password: await bcrypt.hash(password, BCRYPT_COST) });
-  res.status(201).json({ token: signToken(user), user });
+  const sid = await recordSignIn(req, user, 'register');
+  res.status(201).json({ token: signToken(user, undefined, sid), user });
 }));
 
 router.post('/login', asyncHandler(async (req, res) => {
@@ -38,7 +59,18 @@ router.post('/login', asyncHandler(async (req, res) => {
   if (bcrypt.getRounds(user.password) !== BCRYPT_COST) {
     await User.updateOne({ _id: user._id }, { password: await bcrypt.hash(password, BCRYPT_COST) });
   }
-  res.json({ token: signToken(user), user });
+  const sid = await recordSignIn(req, user, 'login');
+  res.json({ token: signToken(user, undefined, sid), user });
+}));
+
+// Recent sign-ins (newest first). `active`: that session is still valid; `current`: this one.
+router.get('/activity', requireAuth, asyncHandler(async (req, res) => {
+  const events = await LoginEvent.find({ user: req.userId }).sort({ at: -1 }).limit(ACTIVITY_LIMIT).lean();
+  res.json({ events: events.map(({ _id, at, kind, browser, os, device, ip, location, tv }) => ({
+    _id, at, kind, browser, os, device, ip, location,
+    active: (tv ?? 0) === req.tokenVersion,
+    current: req.sessionId === String(_id),
+  })) });
 }));
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
@@ -76,14 +108,14 @@ router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
   user.password = await bcrypt.hash(newPassword, BCRYPT_COST);
   user.tokenVersion = (user.tokenVersion ?? 0) + 1; // sign out other devices
   await user.save();
-  res.json({ ok: true, token: signToken(user) }); // keep this session
+  res.json({ ok: true, token: await keepSession(req, user) }); // keep this session
 }));
 
 // Sign out of all devices: revokes every existing token, then issues a fresh one for this session.
 router.post('/logout-all', requireAuth, asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(req.userId, { $inc: { tokenVersion: 1 } }, { new: true });
   if (!user) throw new HttpError(401, 'User not found');
-  res.json({ ok: true, token: signToken(user) });
+  res.json({ ok: true, token: await keepSession(req, user) });
 }));
 
 // Permanently delete the account and every note it owns. Requires the password.
@@ -91,6 +123,7 @@ router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await verifyPassword(req.userId, req.body?.password);
   await NoteVersion.deleteMany({ user: user._id });
   await Folder.deleteMany({ user: user._id });
+  await LoginEvent.deleteMany({ user: user._id });
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();
   res.json({ ok: true, deletedNotes: deletedCount });

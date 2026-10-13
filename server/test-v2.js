@@ -147,6 +147,32 @@ test('storage stats', async () => {
   assert.ok(!r.data.biggest.some((n) => n.title === 'Secret'));
 });
 
+test('login activity', async () => {
+  const { parseUserAgent, maskIp } = await import('./src/lib/useragent.js');
+  assert.deepEqual(parseUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'), { browser: 'Safari 17', os: 'iOS', device: 'mobile' });
+  assert.deepEqual(parseUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0'), { browser: 'Edge 129', os: 'Windows', device: 'desktop' });
+  assert.equal(maskIp('203.0.113.77'), '203.0.x.x'); assert.equal(maskIp('::ffff:10.1.2.3'), '10.1.x.x'); assert.equal(maskIp('2001:db8:85a3:0:0:8a2e:370:7334'), '2001:db8:85a3:…');
+  const UA = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36' };
+  const reg = await fetch(base + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA }, body: JSON.stringify({ name: 'Act', email: 'act@example.com', password: 'password123' }) }).then((r) => r.json());
+  token = reg.token;
+  let r = await call('GET', '/auth/activity');
+  assert.equal(r.data.events.length, 1);
+  assert.equal(r.data.events[0].kind, 'register'); assert.equal(r.data.events[0].browser, 'Chrome 129'); assert.equal(r.data.events[0].os, 'Linux');
+  assert.equal(r.data.events[0].current, true); assert.ok(!/\d+\.\d+\.\d+\.\d+/.test(r.data.events[0].ip));
+  for (let i = 0; i < 22; i++) await call('POST', '/auth/login', { email: 'act@example.com', password: 'password123' });
+  r = await call('GET', '/auth/activity');
+  assert.equal(r.data.events.length, 20); // capped
+  assert.equal(r.data.events.filter((e) => e.current).length, 0); // the register session was pruned
+  token = (await call('POST', '/auth/login', { email: 'act@example.com', password: 'password123' })).data.token;
+  r = await call('POST', '/auth/logout-all'); token = r.data.token;
+  r = await call('GET', '/auth/activity');
+  assert.equal(r.data.events[0].current, true); assert.equal(r.data.events[0].active, true);
+  assert.ok(r.data.events.slice(1).every((e) => !e.active)); // other sessions revoked
+  await call('DELETE', '/auth/me', { password: 'password123' });
+  const LoginEvent = (await import('./src/models/LoginEvent.js')).default;
+  assert.equal(await LoginEvent.countDocuments({}), await LoginEvent.countDocuments({ user: { $ne: null } }));
+});
+
 // @@MORE@@
 
 try {

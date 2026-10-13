@@ -21,16 +21,17 @@ export async function requireAuth(req, res, next) {
     req.userId = payload.sub;
     req.tokenVersion = user.tokenVersion ?? 0;
     req.lockPinVersion = user.lockPinVersion ?? 0;
+    req.sessionId = payload.sid || null;
     next();
   } catch (err) {
     next(err);
   }
 }
 
-export function signToken(userOrId, tokenVersion) {
+export function signToken(userOrId, tokenVersion, sid) {
   const id = userOrId?._id ?? userOrId;
   const tv = tokenVersion ?? userOrId?.tokenVersion ?? 0;
-  return jwt.sign({ sub: String(id), tv, typ: 'access' }, process.env.JWT_SECRET, {
+  return jwt.sign({ sub: String(id), tv, typ: 'access', ...(sid && { sid: String(sid) }) }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 }

@@ -9,6 +9,7 @@ import { notFound, errorHandler } from './middleware/error.js';
 
 export function createApp() {
   const app = express();
+  app.set('trust proxy', true); // Vercel's edge sets X-Forwarded-For (used only for the masked IP in login activity)
   app.use(helmet());
   app.use(cors({ origin: process.env.CLIENT_URL?.split(',') || '*' }));
   app.use(express.json({ limit: '10mb' }));

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ACCENTS, applyAccent, storedAccent } from '../lib/accent.js';
@@ -41,6 +41,35 @@ function AccentSection() {
         ))}
       </div>
       {msg && <p className="mt-3 text-sm text-muted">{msg}</p>}
+    </Card>
+  );
+}
+
+function ActivitySection() {
+  const [events, setEvents] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { api.loginActivity().then(({ events }) => setEvents(events)).catch((e) => setError(e.message)); }, []);
+  const when = (d) => new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return (
+    <Card title="Login activity" description="Your last 20 sign-ins. IP addresses are masked. If something looks unfamiliar, change your password and sign out everywhere.">
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!events && !error && <p className="text-sm text-muted">Loading…</p>}
+      {events && (
+        <ul data-testid="activity" className="-mx-2 divide-y divide-stone-100 dark:divide-stone-800">
+          {events.map((e) => (
+            <li key={e._id} className="flex items-start gap-3 px-2 py-2.5 text-sm">
+              <span aria-hidden="true" className="mt-0.5 text-base">{e.device === 'mobile' ? '📱' : e.device === 'tablet' ? '📲' : '💻'}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate">{e.browser} on {e.os}
+                  {e.current && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">This device</span>}
+                  {!e.current && !e.active && <span className="ml-2 text-xs text-faint">Signed out</span>}
+                </p>
+                <p className="truncate text-xs text-muted">{when(e.at)}{e.kind === 'register' ? ' · account created' : ''}{e.location ? ` · ${e.location}` : ''}{e.ip ? ` · ${e.ip}` : ''}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -235,6 +264,7 @@ export default function Settings() {
       <AccentSection />
       <DataSection />
       <LockPinSection />
+      <ActivitySection />
       <PasswordSection />
       <SessionsSection />
       <DeleteAccountSection />
