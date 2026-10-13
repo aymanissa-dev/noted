@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, saveOnUnload } from '../lib/api.js';
 import { isTempId } from '../lib/offlineQueue.js';
 import TagInput from '../components/TagInput.jsx';
@@ -20,10 +20,11 @@ const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tag
 
 export default function NoteEditor() {
   const { id: routeId } = useParams();
+  const [search] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
-  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false, folderId: null });
+  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false, folderId: search.get('folder') || null });
   const [noteId, setNoteId] = useState(routeId || null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(Boolean(routeId));
@@ -265,7 +266,7 @@ export default function NoteEditor() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-y-2">
+      <div data-testid="editor-toolbar" className="sticky top-[var(--header-h)] z-[5] -mx-3 mb-4 flex flex-wrap items-center justify-between gap-y-2 border-b border-transparent bg-stone-50/90 px-3 py-2 backdrop-blur dark:bg-stone-950/90 sm:-mx-4 sm:px-4">
         <button type="button" onClick={done} className="btn-ghost -ml-3">← Back</button>
         <div className="flex flex-wrap items-center justify-end gap-0.5 sm:gap-1">
           <SaveStatus status={status} />

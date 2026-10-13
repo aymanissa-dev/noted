@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+export const RECENT_LIMIT = 10;
 export const ACCENTS = ['amber', 'rose', 'emerald', 'sky', 'violet', 'stone'];
 
 const userSchema = new mongoose.Schema(
@@ -15,6 +16,8 @@ const userSchema = new mongoose.Schema(
     lockPinVersion: { type: Number, default: 0 },
     lockPinFailures: { type: Number, default: 0, select: false },
     lockPinBlockedUntil: { type: Date, default: null, select: false },
+    // Recently opened notes, newest first (max RECENT_LIMIT).
+    recent: { type: [{ _id: false, note: mongoose.Schema.Types.ObjectId, at: Date }], default: [], select: false },
     preferences: {
       accent: { type: String, enum: ACCENTS, default: 'amber' },
     },

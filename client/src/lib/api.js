@@ -61,11 +61,17 @@ function cacheNotes(notes, { replaceView } = {}) {
 const uncache = (id) => { const c = readCache(); delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); };
 const viewOf = (n) => (n.deletedAt ? 'trash' : n.archived ? 'archive' : 'active');
 
-function filterLocal(notes, { search, tag, folder, view = 'active' }) {
+const DAY = 24 * 60 * 60 * 1000;
+const SMART_LOCAL = {
+  pinned: (n) => n.pinned, untagged: (n) => !n.tags.length && !n.locked, locked: (n) => n.locked,
+  today: (n) => Date.now() - new Date(n.updatedAt) < DAY, week: (n) => Date.now() - new Date(n.updatedAt) < 7 * DAY,
+};
+function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
   const s = search?.toLowerCase();
   return notes
     .filter((n) => viewOf(n) === view)
     .filter((n) => !tag || n.tags.includes(tag))
+    .filter((n) => !SMART_LOCAL[smart] || SMART_LOCAL[smart](n))
     .filter((n) => !folder || (folder === 'none' ? !n.folderId : n.folderId === folder))
     .filter((n) => !s || n.title.toLowerCase().includes(s) || n.content.toLowerCase().includes(s))
     .sort((a, b) => (view === 'trash'
@@ -157,25 +163,32 @@ export const api = {
   updatePreferences: (prefs) => request('PATCH', '/auth/preferences', prefs),
   deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
 
-  async listNotes({ search, tag, folder, view = 'active' } = {}, signal) {
+  async recentNotes(signal) {
+    try { const r = await request('GET', '/notes/recent', undefined, { signal }); cacheNotes(r.notes); return { notes: r.notes, offline: false }; }
+    catch (err) { if (err?.name === 'AbortError' || !isNetworkError(err)) throw err; return { notes: [], offline: true }; }
+  },
+
+  async listNotes({ search, tag, folder, smart, view = 'active' } = {}, signal) {
+    if (smart === 'recent') return this.recentNotes(signal);
     const q = new URLSearchParams();
     if (view !== 'active') q.set('view', view);
     if (search) q.set('search', search);
     if (tag) q.set('tag', tag);
     if (folder) q.set('folder', folder);
+    if (smart) q.set('smart', smart);
     const qs = q.toString();
     let notes, offline = false;
     try {
       ({ notes } = await request('GET', `/notes${qs ? `?${qs}` : ''}`, undefined, { signal }));
-      cacheNotes(notes, { replaceView: !search && !tag && !folder ? view : undefined });
+      cacheNotes(notes, { replaceView: !search && !tag && !folder && !smart ? view : undefined });
     } catch (err) {
       if (err?.name === 'AbortError' || !isNetworkError(err)) throw err;
       offline = true;
-      notes = filterLocal(Object.values(readCache()), { search, tag, folder, view });
+      notes = filterLocal(Object.values(readCache()), { search, tag, folder, smart, view });
     }
     notes = applyMoves(queue.applyPending(notes), view);
     if (view === 'active') {
-      const local = filterLocal(queue.localNotes(), { search, tag, folder, view });
+      const local = filterLocal(queue.localNotes(), { search, tag, folder, smart, view });
       notes = [...local, ...notes].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt)));
     }
     return { notes, offline };

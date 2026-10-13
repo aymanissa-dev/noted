@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { latestOnly } from '../lib/latest.js';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { SMART, smartLabel } from '../lib/smart.js';
 import { api } from '../lib/api.js';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
@@ -17,7 +18,19 @@ export default function Dashboard({ view = 'active' }) {
   const [tags, setTags] = useState([]);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [tag, setTag] = useState('');
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const tag = view === 'active' ? params.get('tag') || '' : '';
+  const folder = view === 'active' ? params.get('folder') || '' : '';
+  const smart = view === 'active' ? params.get('smart') || '' : '';
+  const setTag = (t) => setParams((p) => { const n = new URLSearchParams(p); if (t) n.set('tag', t); else n.delete('tag'); return n; }, { replace: true });
+  const [folders, setFolders] = useState([]);
+  useEffect(() => {
+    const load = () => api.folders().then(({ folders }) => setFolders(folders)).catch(() => {});
+    load(); window.addEventListener('noted:folders-changed', load);
+    return () => window.removeEventListener('noted:folders-changed', load);
+  }, []);
+  const folderName = folders.find((f) => f._id === folder)?.name;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncTick, setSyncTick] = useState(0);
@@ -43,13 +56,13 @@ export default function Dashboard({ view = 'active' }) {
 
   useEffect(() => {
     setLoading(true);
-    fetchList({ search: query, tag: view === 'active' ? tag : '', view })
+    fetchList({ search: query, tag, folder, smart, view })
       .then(({ result, stale }) => {
         if (stale) return;
         setNotes(result.notes); setError(''); setLoading(false);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
-  }, [query, tag, view, syncTick, fetchList]);
+  }, [query, tag, folder, smart, view, syncTick, fetchList]);
 
   // Reset a tag filter whose tag no longer exists.
   useEffect(() => { if (tag && tags.length && !tags.includes(tag)) setTag(''); }, [tags, tag]);
@@ -74,7 +87,7 @@ export default function Dashboard({ view = 'active' }) {
     const optimistic = { _id: tempId, ...fields, pinned: false, archived: false, deletedAt: null, color: '', emoji: '', createdAt: now, updatedAt: now, pending: true };
     setNotes((l) => [optimistic, ...l].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
     try {
-      const { note } = await api.createNote(fields);
+      const { note } = await api.createNote(folder ? { ...fields, folderId: folder } : fields);
       setNotes((l) => l.map((n) => (n._id === tempId ? note : n)));
       if (fields.tags.length) api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
     } catch (e) {
@@ -105,12 +118,28 @@ export default function Dashboard({ view = 'active' }) {
   };
 
   const isActive = view === 'active';
-  const pinned = isActive ? notes.filter((n) => n.pinned) : [];
-  const others = isActive ? notes.filter((n) => !n.pinned) : notes;
+  const grouped = isActive && !smart; // recent/smart lists keep their own order
+  const pinned = grouped ? notes.filter((n) => n.pinned) : [];
+  const others = grouped ? notes.filter((n) => !n.pinned) : notes;
+  const heading = folder ? folderName || 'Folder' : smart ? smartLabel(smart) : tag ? `#${tag}` : null;
+  // Mobile/tablet scope picker (desktop uses the sidebar).
+  const scope = folder ? `folder:${folder}` : smart ? `smart:${smart}` : '';
+  const pickScope = (v) => { const [k, id] = v.split(':'); navigate(v ? `/notes?${k}=${id}` : '/notes'); };
   const copy = VIEWS[view];
 
   return (
     <div>
+      {isActive && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h1 className="truncate text-lg font-semibold">{heading || 'All notes'}</h1>
+          <select aria-label="Show" value={scope} onChange={(e) => pickScope(e.target.value)}
+            className="input w-auto max-w-[11rem] py-1.5 lg:hidden">
+            <option value="">All notes</option>
+            <optgroup label="Smart">{SMART.map(([k, l]) => <option key={k} value={`smart:${k}`}>{l}</option>)}</optgroup>
+            {folders.length > 0 && <optgroup label="Folders">{folders.map((f) => <option key={f._id} value={`folder:${f._id}`}>{f.name}</option>)}</optgroup>}
+          </select>
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
@@ -122,14 +151,14 @@ export default function Dashboard({ view = 'active' }) {
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200">✕</button>
           )}
         </div>
-        {isActive && <Link to="/notes/new" className="btn-primary">+ New note</Link>}
+        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className="btn-primary hidden sm:inline-flex">+ New note</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}
       </div>
 
-      {isActive && <QuickCapture onCapture={capture} />}
+      {isActive && !smart && <QuickCapture onCapture={capture} />}
 
-      {isActive && tags.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
+      {isActive && !smart && !folder && tags.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2 lg:hidden">
           <button onClick={() => setTag('')}
             className={`chip ${!tag ? 'chip-on' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-500 dark:hover:border-stone-500'}`}>All</button>
           {tags.map((t) => (
@@ -145,17 +174,18 @@ export default function Dashboard({ view = 'active' }) {
         <ListSkeleton />
       ) : notes.length === 0 ? (
         <div className="mt-20 text-center">
-          <p className="text-muted">{query || tag ? `No notes match ${query ? `“${query}”` : `#${tag}`}.` : copy.empty}</p>
+          <p className="text-muted">{query || tag ? `No notes match ${query ? `“${query}”` : `#${tag}`}.` : folder ? 'This folder is empty.' : smart ? 'Nothing here right now.' : copy.empty}</p>
           {(query || tag)
             ? <button type="button" className="btn-ghost mt-3" onClick={() => { setSearch(''); setTag(''); }}>Clear filters</button>
-            : view === 'active' ? <Link to="/notes/new" className="btn-primary mt-4">New note</Link>
+            : smart ? <Link to="/notes" className="btn-ghost mt-3">All notes</Link>
+            : view === 'active' ? <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className="btn-primary mt-4">New note</Link>
             : <Link to="/notes" className="btn-ghost mt-3">Back to notes</Link>}
         </div>
       ) : (
         <>
           {pinned.length > 0 && <Section title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
-            <Section title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : 'All notes'}
+            <Section title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
               notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} />
           )}
         </>

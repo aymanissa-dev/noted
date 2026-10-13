@@ -74,6 +74,25 @@ test('folders survive export/import', async () => {
   token = mine;
 });
 
+test('recently viewed and smart filters', async () => {
+  token = (await call('POST', '/auth/register', { name: 'Rec', email: 'rec@example.com', password: 'password123' })).data.token;
+  const ids = [];
+  for (let i = 0; i < 12; i++) ids.push((await call('POST', '/notes', { title: `n${i}`, content: 'x', tags: i % 2 ? ['odd'] : [] })).data.note._id);
+  for (const id of ids) await call('GET', `/notes/${id}`);
+  await call('GET', `/notes/${ids[3]}`); // re-open moves to the front without duplicating
+  let r = await call('GET', '/notes/recent');
+  assert.equal(r.data.notes.length, 10);
+  assert.equal(r.data.notes[0].title, 'n3'); assert.equal(r.data.notes[1].title, 'n11');
+  assert.equal(new Set(r.data.notes.map((n) => n._id)).size, 10);
+  await call('DELETE', `/notes/${ids[3]}`); // trashed notes drop out
+  r = await call('GET', '/notes/recent'); assert.equal(r.data.notes[0].title, 'n11');
+  await call('PATCH', `/notes/${ids[0]}/pin`);
+  assert.deepEqual((await call('GET', '/notes?smart=pinned')).data.notes.map((n) => n.title), ['n0']);
+  assert.equal((await call('GET', '/notes?smart=untagged')).data.notes.length, 6); // n0, n2 … n10
+  assert.equal((await call('GET', '/notes?smart=today')).data.notes.length, 11);
+  assert.equal((await call('GET', '/notes?smart=bogus')).status, 400);
+});
+
 // @@MORE@@
 
 try {

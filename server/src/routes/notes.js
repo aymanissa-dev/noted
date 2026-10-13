@@ -5,7 +5,7 @@ import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 import NoteVersion from '../models/NoteVersion.js';
 import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
-import User from '../models/User.js';
+import User, { RECENT_LIMIT } from '../models/User.js';
 import Folder from '../models/Folder.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
 import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
@@ -15,6 +15,7 @@ router.use(requireAuth);
 
 export const TRASH_DAYS = 30;
 export const EXCERPT_CHARS = 300;
+export const SMART_FILTERS = ['pinned', 'untagged', 'today', 'week', 'locked'];
 export const resetPurgeThrottle = () => lastPurge.clear();
 
 // Shape a lean note for list responses: locked notes redacted, long content cut to an excerpt.
@@ -105,13 +106,39 @@ router.get('/', asyncHandler(async (req, res) => {
     filter.$or = [{ title: re }, { content: re }];
   }
   if (tag) filter.tags = tag;
+  // Smart entries: computed views over the user's notes.
+  const smart = String(req.query.smart || '');
+  if (smart) {
+    if (!SMART_FILTERS.includes(smart)) throw new HttpError(400, `smart must be one of: ${SMART_FILTERS.join(', ')}`);
+    const day = 24 * 60 * 60 * 1000;
+    if (smart === 'pinned') filter.pinned = true;
+    if (smart === 'untagged') Object.assign(filter, { tags: { $size: 0 }, locked: { $ne: true } });
+    if (smart === 'today') filter.updatedAt = { $gte: new Date(Date.now() - day) };
+    if (smart === 'week') filter.updatedAt = { $gte: new Date(Date.now() - 7 * day) };
+    if (smart === 'locked') filter.locked = true;
+  }
   // Locked notes can't match on their hidden title/content/tags (that would leak them).
   if (search || tag) filter.locked = { $ne: true };
+  if (smart === 'locked') filter.locked = true;
   const sort = view === 'trash' ? { deletedAt: -1 } : { pinned: -1, updatedAt: -1 };
   // Lists send excerpts (the editor fetches the full note), as lean objects without Mongoose overhead.
   const notes = await Note.find(filter).sort(sort).select('-__v').lean();
   res.json({ notes: notes.map(toListItem) });
 }));
+
+// Recently viewed notes (last RECENT_LIMIT opened), newest first; trashed or deleted notes are skipped.
+router.get('/recent', asyncHandler(async (req, res) => {
+  const user = await User.findById(req.userId).select('+recent').lean();
+  const ids = (user?.recent || []).map((r) => r.note);
+  const notes = await Note.find({ _id: { $in: ids }, user: req.userId, deletedAt: null }).select('-__v').lean();
+  const byId = new Map(notes.map((n) => [String(n._id), n]));
+  res.json({ notes: ids.map((id) => byId.get(String(id))).filter(Boolean).map(toListItem) });
+}));
+
+async function recordView(userId, noteId) {
+  await User.updateOne({ _id: userId }, { $pull: { recent: { note: noteId } } });
+  await User.updateOne({ _id: userId }, { $push: { recent: { $each: [{ note: noteId, at: new Date() }], $position: 0, $slice: RECENT_LIMIT } } });
+}
 
 router.get('/tags', asyncHandler(async (req, res) => {
   const tags = await Note.distinct('tags', { user: req.userId, deletedAt: null, archived: false, locked: { $ne: true } });
@@ -178,7 +205,9 @@ router.post('/', asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
-  res.json({ note: await findOwnNote(req) }); // redacted if locked and not unlocked
+  const note = await findOwnNote(req);
+  if (!note.deletedAt) await recordView(req.userId, note._id).catch(() => {}); // best effort
+  res.json({ note }); // redacted if locked and not unlocked
 }));
 
 // Unlock a note with the PIN: returns its full contents and a short-lived unlock token.

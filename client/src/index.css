@@ -8,6 +8,7 @@
   --accent: 245 158 11;   /* default: the orange dot */
   --radius: 0.75rem;
   --dur: 200ms;
+  --header-h: 3.5rem;
 }
 .dark { color-scheme: dark; }
 

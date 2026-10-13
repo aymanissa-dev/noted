@@ -7,6 +7,7 @@ import ShortcutsHelp from './ShortcutsHelp.jsx';
 import { useShortcuts } from '../lib/useShortcuts.js';
 import { useOnline } from '../lib/useOnline.js';
 import { useTheme } from '../lib/theme.js';
+import Sidebar, { BottomNav } from './Sidebar.jsx';
 
 const NAV = [['/notes', 'Notes'], ['/archive', 'Archive'], ['/trash', 'Trash']];
 
@@ -36,7 +37,8 @@ function MobileMenu({ onHelp }) {
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-1.5 shadow-lg">
           <p className="truncate px-3 py-1.5 text-xs text-stone-400">{user?.email}</p>
-          <Link role="menuitem" to="/settings" className={item}>Settings</Link>
+          <Link role="menuitem" to="/archive" className={item}>Archive</Link>
+          <Link role="menuitem" to="/trash" className={item}>Trash</Link>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); onHelp(); }}>Keyboard shortcuts</button>
           <button role="menuitem" className={item} onClick={cycle}>Theme: <span className="capitalize">{theme}</span></button>
           <button role="menuitem" className={`${item} text-red-600`} onClick={logout}>Log out</button>
@@ -54,10 +56,10 @@ export default function Layout() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-stone-200 dark:border-stone-800 bg-stone-50/90 dark:bg-stone-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
+        <div className="mx-auto flex h-[var(--header-h)] max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3 sm:gap-6">
             <Link to="/notes" className="shrink-0"><Logo className="text-xl sm:text-2xl" /></Link>
-            <nav className="flex gap-0.5 text-sm sm:gap-1">
+            <nav aria-label="Main" className="hidden gap-1 text-sm sm:flex lg:hidden">
               {NAV.map(([to, label]) => (
                 <NavLink key={to} to={to} end
                   className={({ isActive }) => `whitespace-nowrap rounded-md px-2 py-1 transition sm:px-2.5 ${isActive ? 'bg-stone-200/70 dark:bg-stone-800 text-stone-900 dark:text-stone-100' : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'}`}>
@@ -81,9 +83,13 @@ export default function Layout() {
           {pending > 0 && ` (${pending} pending)`}
         </div>
       )}
-      <main className="mx-auto max-w-5xl px-3 py-6 sm:px-4">
-        <Outlet />
-      </main>
+      <div className="mx-auto flex max-w-7xl gap-6 px-3 sm:px-4 lg:px-6">
+        <Sidebar />
+        <main className="min-w-0 flex-1 py-6 pb-28 sm:pb-6">
+          <Outlet />
+        </main>
+      </div>
+      <BottomNav />
       {helpOpen && <ShortcutsHelp onClose={() => setHelpOpen(false)} />}
     </div>
   );
