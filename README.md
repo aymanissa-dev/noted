@@ -24,6 +24,16 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Sign out everywhere**: revoke every session from Settings; changing your password also signs out other devices
 - **PIN-locked notes**: lock individual notes behind a 4–6 digit PIN; the server never returns their contents without it
 - **Works offline (PWA)**: installable; read saved notes offline, and new notes and edits made offline sync when you reconnect
+- **Markdown editor** (CodeMirror 6, lazy-loaded): plain-text notes render as-is; `/` slash commands (H1–H3, checklist, divider, date, code block, quote), clickable checklists, highlights in four colors (`==text==`, `=={green}text==`), foldable heading sections, outline, find & replace (⌘/Ctrl+F), `:emoji` completion, undo history that survives reloads (IndexedDB; never for locked notes, cleared on logout), focus mode with typewriter scrolling, print / save as PDF
+- **Folders**: create, rename, delete (notes are moved out, never deleted), move notes; folders round-trip through export/import
+- **Sidebar & smart lists**: recently viewed, pinned, edited today, this week, untagged, locked; split view (list + note) on wide screens; bottom navigation on mobile
+- **Merge notes**: select 2+ notes, choose the order, merge (tags combined; originals go to the trash, Undo restores them)
+- **Accent color**: pick one in Settings (synced to your account); drives the logo dot, highlights, and focus rings
+- **Storage stats**: notes, words, biggest notes, folders, tags, versions, voice notes
+- **Login activity**: last 20 sign-ins with browser/OS, masked IP and approximate location; shows which sessions are still active
+- **Encrypted backups**: `.noted-backup` files encrypted in the browser (AES-256-GCM, PBKDF2-SHA-256 with 310k iterations); restore with the same duplicate skipping
+- **Voice notes**: record up to 5 minutes (≤ 4 MB) per clip; stored privately in MongoDB, streamed only to the owner, hidden for locked notes until unlocked, deleted with the note or account
+- **Motion**: subtle 150–250ms animations, all disabled under `prefers-reduced-motion`
 
 ## Tech stack
 
@@ -127,6 +137,18 @@ Passwords must be at least 8 characters. Logout is handled client-side by discar
 | DELETE       | `/notes/trash`     | Empty the trash → `{ deleted }`                               |
 | GET          | `/notes/export`    | Locked notes are redacted and flagged unless the `X-Lock-Pin` header has the correct PIN. `?format=json` (default) → `{ app, version, exportedAt, notes }`; `?format=md` → zip of Markdown files with front matter. Trashed notes are excluded. |
 | POST         | `/notes/import`    | Body: an export object or an array of notes (max 5000). Validated; always imported into the current user's account → `201 { imported }` |
+| POST         | `/notes/merge`     | `{ ids: [...] (ordered, 2–50), title? }` → `201 { note, trashed }`. Locked notes: `423` |
+| GET          | `/notes/recent`    | Last 10 opened notes, newest first |
+| PATCH        | `/notes/:id/folder` | `{ folderId }` (or `null`) |
+| GET / POST   | `/folders`         | List (with active note counts) / create `{ name }` |
+| PATCH / DELETE | `/folders/:id`   | Rename `{ name }` / delete (its notes move out of it) |
+| GET / POST   | `/notes/:id/audio` | List voice notes / upload raw audio (`Content-Type: audio/*`, `X-Audio-Duration`) |
+| GET / DELETE | `/audio/:clipId`   | Stream (owner only, `Range` supported) / delete |
+| GET          | `/stats`           | Storage stats |
+| GET          | `/auth/activity`   | Recent sign-ins `{ events: [{ at, browser, os, device, ip (masked), location, active, current }] }` |
+| PATCH        | `/auth/preferences` | `{ accent }` |
+
+`GET /notes` also accepts `folder` (id or `none`) and `smart` (`pinned`, `today`, `week`, `untagged`, `locked`); search matches the Markdown-stripped text too.
 
 Note shape:
 

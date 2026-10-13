@@ -194,7 +194,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'px-3' : ''}`} aria-label="New note">{compact ? '+' : '+ New note'}</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}
         {view !== 'trash' && !compact && notes.length > 1 && (
-          <button type="button" className="btn-ghost" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : 'Select'}</button>
+          <button type="button" className="btn-ghost self-end py-1 text-xs sm:self-auto sm:py-2 sm:text-sm" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : 'Select'}</button>
         )}
       </div>
 
