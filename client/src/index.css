@@ -2,20 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { overflow-x: clip; }
-:root { color-scheme: light; }
+/* Design tokens. Spacing follows Tailwind's 4px scale (1, 2, 3, 4, 6, 8, 12, 16). */
+:root {
+  color-scheme: light;
+  --accent: 245 158 11;   /* default: the orange dot */
+  --radius: 0.75rem;
+  --dur: 200ms;
+}
 .dark { color-scheme: dark; }
 
+html, body { overflow-x: clip; }
+
+@layer base {
+  /* Clear, consistent keyboard focus, in the accent color. */
+  :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+  ::selection { background: rgb(var(--accent) / 0.25); }
+}
+
 @layer components {
-  .input { @apply w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-3 py-2 text-sm outline-none transition focus:border-stone-500 focus:ring-2 focus:ring-stone-200 dark:focus:ring-stone-700; }
+  .input { @apply w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25; }
   .btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50; }
   .btn-primary { @apply btn bg-stone-900 text-white hover:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300; }
   .btn-ghost { @apply btn text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800; }
   .btn-danger { @apply btn text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40; }
   .chip { @apply rounded-full border px-3 py-1 text-xs transition; }
+  .text-muted { @apply text-stone-500 dark:text-stone-400; }
+  .text-faint { @apply text-stone-400 dark:text-stone-500; }
+  .section-label { @apply text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500; }
+  .surface { @apply rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900; }
 }
 
 @layer components {
   .chip-on { @apply border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900; }
   .chip-off { @apply border-stone-300 text-stone-600 hover:border-stone-500 dark:border-stone-700 dark:text-stone-300; }
+}
+
+/* Every animation is disabled for people who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
 }

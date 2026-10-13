@@ -164,7 +164,7 @@ export default function Dashboard({ view = 'active' }) {
 function Section({ title, notes, onTogglePin, onRestore, onDeleteForever }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-400">{title}</h2>
+      <h2 className="mb-3 section-label">{title}</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {notes.map((n) => <NoteCard key={n._id} note={n} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
       </div>

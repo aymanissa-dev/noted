@@ -22,7 +22,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   // The card is a real link (stretched over the card via ::after), so it works with touch, keyboard, and
   // middle-click. The pin button is a sibling stacked above the link, not nested inside it.
   return (
-    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-stone-400 dark:focus-within:ring-stone-500`}>
+    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
       <h3 className="pr-7 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1 break-words">
         {optimistic ? (
           <span>{title}</span>
@@ -36,7 +36,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         <button type="button"
           onClick={() => { if (!note.pending) onTogglePin(note); }}
           title={note.pinned ? 'Unpin' : 'Pin'} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={note.pinned}
-          className={`absolute right-2 top-2 z-10 rounded-md p-2 transition focus:opacity-100 ${note.pinned ? 'text-amber-500' : 'text-stone-300 hover:text-stone-600 dark:text-stone-600 dark:hover:text-stone-300 [@media(hover:hover)]:opacity-0 group-hover:opacity-100'}`}>
+          className={`absolute right-2 top-2 z-10 rounded-md p-2 transition focus:opacity-100 ${note.pinned ? 'text-accent' : 'text-stone-300 hover:text-stone-600 dark:text-stone-600 dark:hover:text-stone-300 [@media(hover:hover)]:opacity-0 group-hover:opacity-100'}`}>
           <PinIcon filled={note.pinned} />
         </button>
       )}

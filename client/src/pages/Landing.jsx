@@ -52,7 +52,7 @@ function AppPreview() {
             <div key={n.title} className={`rounded-xl border border-stone-200 p-3 text-left dark:border-stone-800 ${n.color}`}>
               <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-sm font-semibold">{n.emoji && <span className="mr-1">{n.emoji}</span>}{n.title}</p>
-                {n.pinned && <span className="text-xs text-amber-500">●</span>}
+                {n.pinned && <span className="text-xs text-accent">●</span>}
               </div>
               <p className="mt-1 truncate text-xs text-stone-500 dark:text-stone-400">{n.body}</p>
               <span className="mt-2 inline-block rounded-full bg-stone-900/5 px-2 py-0.5 text-[10px] text-stone-600 dark:bg-white/10 dark:text-stone-300">#{n.tag}</span>
@@ -80,7 +80,7 @@ export default function Landing() {
 
       <main id="main">
         <section className="mx-auto max-w-5xl px-4 pb-16 pt-12 text-center sm:px-6 sm:pt-20">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Write it down.<br />Find it later<span className="text-amber-500">.</span></h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Write it down.<br />Find it later<span className="text-accent">.</span></h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-stone-600 dark:text-stone-400 sm:text-lg">A simple, private space for your notes. No AI, no clutter, just your words.</p>
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link to="/register" className="btn-primary px-6 py-3 text-base">Get started, it’s free</Link>
@@ -91,7 +91,7 @@ export default function Landing() {
 
         <section aria-labelledby="features-title" className="border-t border-stone-200 dark:border-stone-800">
           <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-            <h2 id="features-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Everything a notebook needs<span className="text-amber-500">.</span></h2>
+            <h2 id="features-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Everything a notebook needs<span className="text-accent">.</span></h2>
             <p className="mt-2 text-stone-600 dark:text-stone-400">Nothing it doesn’t.</p>
             <ul className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map(([t, d]) => (
@@ -106,7 +106,7 @@ export default function Landing() {
 
         <section aria-labelledby="privacy-title" className="border-t border-stone-200 bg-stone-100/60 dark:border-stone-800 dark:bg-stone-900/40">
           <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-            <h2 id="privacy-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Private by default<span className="text-amber-500">.</span></h2>
+            <h2 id="privacy-title" className="text-2xl font-bold tracking-tight sm:text-3xl">Private by default<span className="text-accent">.</span></h2>
             <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
               {PRIVACY.map(([t, d]) => (
                 <div key={t}>

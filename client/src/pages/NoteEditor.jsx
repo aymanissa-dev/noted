@@ -260,7 +260,7 @@ export default function NoteEditor() {
           <SaveStatus status={status} />
           <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
           <button type="button" onClick={togglePin} title={note.pinned ? 'Unpin' : 'Pin'}
-            className={`btn-ghost ${note.pinned ? 'text-amber-500' : ''}`}>
+            className={`btn-ghost ${note.pinned ? 'text-accent' : ''}`}>
             <PinIcon filled={note.pinned} /><span className="ml-1.5 hidden sm:inline">{note.pinned ? 'Pinned' : 'Pin'}</span>
           </button>
           {noteId && !isTempId(noteId) && !note.deletedAt && (
@@ -309,7 +309,7 @@ export default function NoteEditor() {
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
           <TagInput tags={note.tags} onChange={(tags) => setNote({ ...note, tags })} />
         </div>
-        <textarea className="mt-4 min-h-[50vh] w-full resize-none bg-transparent leading-relaxed outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
+        <textarea className="mt-4 min-h-[50vh] w-full max-w-reading resize-none bg-transparent text-[1.0625rem] leading-[1.75] outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
           placeholder="Write it down…" readOnly={previewOnly} value={note.content} onChange={(e) => setNote({ ...note, content: e.target.value })} />
       </div>
       <div className="mt-2 flex justify-between text-xs text-stone-400">
