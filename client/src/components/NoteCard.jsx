@@ -3,7 +3,7 @@ import { timeAgo } from '../lib/format.js';
 import PinIcon from './PinIcon.jsx';
 import { cardClass } from '../lib/colors.js';
 
-export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever }) {
+export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active }) {
   if (note.deletedAt) {
     return (
       <div className="flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4">
@@ -22,7 +22,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   // The card is a real link (stretched over the card via ::after), so it works with touch, keyboard, and
   // middle-click. The pin button is a sibling stacked above the link, not nested inside it.
   return (
-    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
+    <article className={`group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active ? 'ring-2 ring-accent' : ''} shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
       <h3 className="pr-7 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1 break-words">
         {optimistic ? (
           <span>{title}</span>
@@ -40,7 +40,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
           <PinIcon filled={note.pinned} />
         </button>
       )}
-      <p className="mt-1 flex-1 whitespace-pre-line break-words text-sm text-stone-600 dark:text-stone-300 line-clamp-4">{note.locked ? <span className="italic text-stone-400">Enter your PIN to view.</span> : note.content}</p>
+      <p className={`mt-1 flex-1 whitespace-pre-line break-words text-sm text-stone-600 dark:text-stone-300 ${compact ? "line-clamp-2" : "line-clamp-4"}`}>{note.locked ? <span className="italic text-stone-400">Enter your PIN to view.</span> : note.content}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {note.tags.map((t) => (
           <span key={t} className="rounded-full bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs text-stone-600 dark:text-stone-300">#{t}</span>

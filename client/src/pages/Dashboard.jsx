@@ -13,7 +13,7 @@ const VIEWS = {
   trash: { empty: 'Trash is empty. Deleted notes stay here for 30 days.' },
 };
 
-export default function Dashboard({ view = 'active' }) {
+export default function Dashboard({ view = 'active', compact = false, activeId }) {
   const [notes, setNotes] = useState([]);
   const [tags, setTags] = useState([]);
   const [search, setSearch] = useState('');
@@ -39,7 +39,8 @@ export default function Dashboard({ view = 'active' }) {
     const bump = () => setSyncTick((t) => t + 1);
     window.addEventListener('noted:queue-changed', bump);
     window.addEventListener('online', bump);
-    return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('online', bump); };
+    window.addEventListener('noted:notes-changed', bump);
+    return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('online', bump); window.removeEventListener('noted:notes-changed', bump); };
   }, []);
 
   // debounce search input; clearing it applies immediately
@@ -129,7 +130,7 @@ export default function Dashboard({ view = 'active' }) {
 
   return (
     <div>
-      {isActive && (
+      {isActive && !compact && (
         <div className="mb-4 flex items-center justify-between gap-3">
           <h1 className="truncate text-lg font-semibold">{heading || 'All notes'}</h1>
           <select aria-label="Show" value={scope} onChange={(e) => pickScope(e.target.value)}
@@ -140,7 +141,7 @@ export default function Dashboard({ view = 'active' }) {
           </select>
         </div>
       )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className={`flex gap-3 ${compact ? 'items-center' : 'flex-col sm:flex-row sm:items-center'}`}>
         <div className="relative flex-1">
           <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
           <input id="search" type="search" className="input pl-9 pr-8" placeholder="Search notes…" value={search}
@@ -151,11 +152,11 @@ export default function Dashboard({ view = 'active' }) {
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200">✕</button>
           )}
         </div>
-        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className="btn-primary hidden sm:inline-flex">+ New note</Link>}
+        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'px-3' : ''}`} aria-label="New note">{compact ? '+' : '+ New note'}</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}
       </div>
 
-      {isActive && !smart && <QuickCapture onCapture={capture} />}
+      {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
 
       {isActive && !smart && !folder && tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2 lg:hidden">
@@ -183,9 +184,9 @@ export default function Dashboard({ view = 'active' }) {
         </div>
       ) : (
         <>
-          {pinned.length > 0 && <Section title="Pinned" notes={pinned} onTogglePin={togglePin} />}
+          {pinned.length > 0 && <Section compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
-            <Section title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
+            <Section compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
               notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} />
           )}
         </>
@@ -194,12 +195,12 @@ export default function Dashboard({ view = 'active' }) {
   );
 }
 
-function Section({ title, notes, onTogglePin, onRestore, onDeleteForever }) {
+function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compact, activeId }) {
   return (
     <section className="mt-6">
       <h2 className="mb-3 section-label">{title}</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {notes.map((n) => <NoteCard key={n._id} note={n} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
+      <div className={`grid ${compact ? 'gap-2' : 'gap-4 sm:grid-cols-2 lg:grid-cols-3'}`}>
+        {notes.map((n) => <NoteCard key={n._id} note={n} compact={compact} active={n._id === activeId} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
       </div>
     </section>
   );

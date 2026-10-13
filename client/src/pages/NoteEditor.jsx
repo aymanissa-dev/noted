@@ -84,9 +84,10 @@ export default function NoteEditor() {
       if (!idRef.current) {
         idRef.current = saved._id;
         setNoteId(saved._id);
-        navigate(`/notes/${saved._id}`, { replace: true });
+        navigate(`/notes/${saved._id}`, { replace: true, state: { created: true } });
       }
       setStatus(snapshot(noteRef.current) !== snap ? 'dirty' : queued ? 'queued' : 'saved');
+      window.dispatchEvent(new Event('noted:notes-changed'));
     })();
     inflight.current = run;
     try { await run; } catch (e) {
@@ -103,7 +104,7 @@ export default function NoteEditor() {
       if (e.detail.tempId !== idRef.current) return;
       idRef.current = e.detail.realId;
       setNoteId(e.detail.realId);
-      navigate(`/notes/${e.detail.realId}`, { replace: true });
+      navigate(`/notes/${e.detail.realId}`, { replace: true, state: { created: true } });
     };
     window.addEventListener('noted:id-mapped', onMapped);
     return () => window.removeEventListener('noted:id-mapped', onMapped);

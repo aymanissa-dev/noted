@@ -4,7 +4,7 @@ import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import NoteEditor from './pages/NoteEditor.jsx';
+import NoteRoute from './pages/NoteRoute.jsx';
 import Settings from './pages/Settings.jsx';
 import Landing from './pages/Landing.jsx';
 import { useAuth } from './context/AuthContext.jsx';
@@ -31,8 +31,8 @@ export default function App() {
           <Route path="/archive" element={<Dashboard view="archive" key="archive" />} />
           <Route path="/trash" element={<Dashboard view="trash" key="trash" />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/notes/new" element={<NoteEditor />} />
-          <Route path="/notes/:id" element={<NoteEditor />} />
+          <Route path="/notes/new" element={<NoteRoute />} />
+          <Route path="/notes/:id" element={<NoteRoute />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
