@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import NoteVersion from '../models/NoteVersion.js';
 import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
 import User from '../models/User.js';
+import Folder from '../models/Folder.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
 import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
@@ -93,6 +94,12 @@ router.get('/', asyncHandler(async (req, res) => {
   else throw new HttpError(400, 'view must be active, archive, or trash');
   const search = String(req.query.search || '').trim();
   const tag = String(req.query.tag || '').trim().toLowerCase();
+  const folder = String(req.query.folder || '').trim();
+  if (folder === 'none') filter.folderId = null;
+  else if (folder) {
+    if (!mongoose.isValidObjectId(folder)) throw new HttpError(400, 'Invalid folder');
+    filter.folderId = folder;
+  }
   if (search) {
     const re = new RegExp(escapeRegex(search), 'i');
     filter.$or = [{ title: re }, { content: re }];
@@ -127,7 +134,8 @@ router.get('/export', asyncHandler(async (req, res) => {
   }
   if (req.query.format && req.query.format !== 'json') throw new HttpError(400, 'format must be json or md');
   res.set('Content-Disposition', `attachment; filename="noted-${stamp}.json"`);
-  res.json({ app: 'noted', version: EXPORT_VERSION, exportedAt: new Date(), notes: notes.map(toExportNote) });
+  const folderNames = new Map((await Folder.find({ user: req.userId }).lean()).map((f) => [String(f._id), f.name]));
+  res.json({ app: 'noted', version: EXPORT_VERSION, exportedAt: new Date(), notes: notes.map((n) => ({ ...toExportNote(n), ...(n.folderId && folderNames.has(String(n.folderId)) && { folder: folderNames.get(String(n.folderId)) }) })) });
 }));
 
 // Import notes from a JSON export. Always scoped to the current user; ids/owners in the file are ignored.
@@ -141,11 +149,19 @@ router.post('/import', asyncHandler(async (req, res) => {
   const seen = new Set(existing.map(fingerprint));
   let skippedDuplicates = 0;
   const fresh = [];
-  for (const { sourceId, ...d } of docs.notes) {
+  // Folders are matched by name (case-insensitive) and created when missing.
+  const folders = new Map((await Folder.find({ user: req.userId }).lean()).map((f) => [f.name.toLowerCase(), f._id]));
+  const folderFor = async (name) => {
+    if (!name) return null;
+    const key = name.toLowerCase();
+    if (!folders.has(key)) folders.set(key, (await Folder.create({ user: req.userId, name }))._id);
+    return folders.get(key);
+  };
+  for (const { sourceId, folder, ...d } of docs.notes) {
     const fp = fingerprint(d);
     if ((sourceId && ids.has(sourceId)) || seen.has(fp)) { skippedDuplicates++; continue; }
     seen.add(fp);
-    fresh.push({ ...d, user: req.userId });
+    fresh.push({ ...d, folderId: await folderFor(folder), user: req.userId });
   }
   const inserted = fresh.length ? await Note.insertMany(fresh, { timestamps: false }) : [];
   res.status(fresh.length ? 201 : 200).json({ imported: inserted.length, skippedDuplicates, skippedLocked: docs.skipped });
@@ -156,6 +172,7 @@ router.post('/', asyncHandler(async (req, res) => {
   if (!fields.title?.trim() && !fields.content?.trim()) {
     throw new HttpError(400, 'A note needs a title or content');
   }
+  if (req.body?.folderId) fields.folderId = await parseFolderId(req, req.body.folderId);
   const note = await Note.create({ ...fields, user: req.userId });
   res.status(201).json({ note });
 }));
@@ -190,9 +207,26 @@ router.patch('/:id/lock', asyncHandler(async (req, res) => {
   res.json({ note });
 }));
 
+// folderId: a folder of this user, or null for "no folder".
+async function parseFolderId(req, value) {
+  if (value === null || value === '') return null;
+  if (!mongoose.isValidObjectId(value)) throw new HttpError(400, 'Invalid folder');
+  if (!(await Folder.exists({ _id: value, user: req.userId }))) throw new HttpError(404, 'Folder not found');
+  return value;
+}
+
+// Move a note into a folder (allowed for locked notes too: it doesn't touch the contents).
+router.patch('/:id/folder', asyncHandler(async (req, res) => {
+  const note = await findOwnNote(req);
+  note.folderId = await parseFolderId(req, req.body?.folderId ?? null);
+  await note.save({ timestamps: false });
+  res.json({ note });
+}));
+
 const update = asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
   requireUnlocked(note);
+  if (req.body?.folderId !== undefined) note.folderId = await parseFolderId(req, req.body.folderId);
   const prev = pickVersionFields(note);
   Object.assign(note, pickNoteFields(req.body));
   await maybeSnapshot(note, prev);

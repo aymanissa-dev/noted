@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import User, { ACCENTS } from '../models/User.js';
 import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
+import Folder from '../models/Folder.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { hashPin, PIN_RE } from '../lib/lockPin.js';
@@ -89,6 +90,7 @@ router.post('/logout-all', requireAuth, asyncHandler(async (req, res) => {
 router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await verifyPassword(req.userId, req.body?.password);
   await NoteVersion.deleteMany({ user: user._id });
+  await Folder.deleteMany({ user: user._id });
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();
   res.json({ ok: true, deletedNotes: deletedCount });

@@ -14,6 +14,7 @@ const noteSchema = new mongoose.Schema(
     color: { type: String, enum: NOTE_COLORS, default: '' },
     emoji: { type: String, default: '', maxlength: 16 },
     deletedAt: { type: Date, default: null },
+    folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
   },
   { timestamps: true }
 );
@@ -23,6 +24,7 @@ noteSchema.index({ user: 1, deletedAt: 1, archived: 1, pinned: -1, updatedAt: -1
 noteSchema.index({ user: 1, deletedAt: -1 });
 noteSchema.index({ user: 1, updatedAt: -1 });
 noteSchema.index({ user: 1, tags: 1 });
+noteSchema.index({ user: 1, folderId: 1 });
 
 // Locked notes never serialize their title/content/tags unless the request unlocked them
 // (routes set doc.$locals.unlocked = true after verifying an unlock token).

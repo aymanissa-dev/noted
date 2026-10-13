@@ -7,6 +7,7 @@ import PinIcon from '../components/PinIcon.jsx';
 import AppearancePicker from '../components/AppearancePicker.jsx';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import PinPrompt from '../components/PinPrompt.jsx';
+import FolderPicker from '../components/FolderPicker.jsx';
 import { EditorSkeleton } from '../components/Skeleton.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -22,7 +23,7 @@ export default function NoteEditor() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
-  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false });
+  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false, folderId: null });
   const [noteId, setNoteId] = useState(routeId || null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(Boolean(routeId));
@@ -49,7 +50,7 @@ export default function NoteEditor() {
     if (!routeId || routeId === idRef.current && !loading) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
-        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked) };
+        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked), folderId: n.folderId || null };
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
         if (n.locked) setNeedsPin(true);
@@ -76,7 +77,7 @@ export default function NoteEditor() {
         ? await api.updateLockedNote(idRef.current, fields, unlockToken.current)
         : idRef.current
         ? await api.updateNote(idRef.current, { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji })
-        : await api.createNote(current);
+        : await api.createNote({ ...current, folderId: current.folderId || undefined });
       lastSaved.current = snap;
       setUpdatedAt(saved.updatedAt);
       if (!idRef.current) {
@@ -162,6 +163,15 @@ export default function NoteEditor() {
       const { note: updated } = await api.togglePin(noteId);
       setNote((n) => ({ ...n, pinned: updated.pinned }));
     } catch (e) { setError(e.message); }
+  };
+
+  // Moving between folders is immediate (not part of autosave); a new note takes its folder when first saved.
+  const moveFolder = async (folderId) => {
+    const prev = note.folderId;
+    setNote((n) => ({ ...n, folderId }));
+    if (!idRef.current || isTempId(idRef.current)) return;
+    try { await api.moveToFolder(idRef.current, folderId); }
+    catch (e) { setNote((n) => ({ ...n, folderId: prev })); setError(e.message); }
   };
 
   const unlock = async (pin) => {
@@ -259,6 +269,7 @@ export default function NoteEditor() {
         <button type="button" onClick={done} className="btn-ghost -ml-3">← Back</button>
         <div className="flex flex-wrap items-center justify-end gap-0.5 sm:gap-1">
           <SaveStatus status={status} />
+          {!note.deletedAt && <FolderPicker value={note.folderId} onChange={moveFolder} />}
           <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
           <button type="button" onClick={togglePin} title={note.pinned ? 'Unpin' : 'Pin'}
             className={`btn-ghost ${note.pinned ? 'text-accent' : ''}`}>

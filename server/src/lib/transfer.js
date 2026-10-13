@@ -103,6 +103,7 @@ export function parseImport(body) {
       emoji,
       createdAt,
       updatedAt: validDate(raw.updatedAt) || createdAt,
+      folder: typeof raw.folder === 'string' && raw.folder.trim() ? raw.folder.trim().slice(0, 60) : null,
       sourceId: typeof raw.id === 'string' ? raw.id : typeof raw._id === 'string' ? raw._id : null,
     };
   });
