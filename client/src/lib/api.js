@@ -18,7 +18,12 @@ class ApiError extends Error {
 // fetch rejects with a TypeError when the network is unavailable.
 export const isNetworkError = (err) => err instanceof TypeError || err?.offline === true;
 
-async function request(method, path, body, { headers: extra, signal } = {}) {
+// While the session token is being rotated (sign out everywhere, password change), requests that
+// raced it can get a 401 with the old token: wait for the new one and retry instead of logging out.
+let rotating = null;
+const rotate = (run) => { const p = run(); rotating = p.finally(() => { if (rotating === p) rotating = null; }); return p; };
+
+async function request(method, path, body, { headers: extra, signal, retried } = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
   const res = await fetch(BASE + path, {
@@ -34,7 +39,13 @@ async function request(method, path, body, { headers: extra, signal } = {}) {
   });
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401 && token) onUnauthorized();
+    if (res.status === 401 && token) {
+      if (rotating) await rotating.catch(() => {});
+      if (!retried && localStorage.getItem(TOKEN_KEY) && localStorage.getItem(TOKEN_KEY) !== token) {
+        return request(method, path, body, { headers: extra, signal, retried: true });
+      }
+      onUnauthorized();
+    }
     throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data);
   }
   return data;
@@ -188,16 +199,16 @@ export const api = {
   register: (body) => request('POST', '/auth/register', body),
   login: (body) => request('POST', '/auth/login', body),
   me: () => request('GET', '/auth/me'),
-  async changePassword(currentPassword, newPassword) {
+  changePassword: (currentPassword, newPassword) => rotate(async () => {
     const r = await request('PATCH', '/auth/password', { currentPassword, newPassword });
     if (r?.token) localStorage.setItem(TOKEN_KEY, r.token); // other devices are signed out; keep this one
     return r;
-  },
-  async logoutAll() {
+  }),
+  logoutAll: () => rotate(async () => {
     const r = await request('POST', '/auth/logout-all');
     if (r?.token) localStorage.setItem(TOKEN_KEY, r.token);
     return r;
-  },
+  }),
   updatePreferences: (prefs) => request('PATCH', '/auth/preferences', prefs),
   deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
 

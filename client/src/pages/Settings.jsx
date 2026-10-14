@@ -50,7 +50,27 @@ function AccentSection() {
 function ActivitySection() {
   const [events, setEvents] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.loginActivity().then(({ events }) => setEvents(events)).catch((e) => setError(e.message)); }, []);
+  const [checkedAt, setCheckedAt] = useState(null);
+  // Keep it current: on open, when you come back to the tab, every 30s while visible, and after
+  // session changes (sign out everywhere, password change).
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.loginActivity()
+      .then(({ events }) => { if (alive) { setEvents(events); setError(''); setCheckedAt(Date.now()); } })
+      .catch((e) => alive && setError(e.message));
+    load();
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    window.addEventListener('noted:sessions-changed', load);
+    return () => {
+      alive = false; clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.removeEventListener('noted:sessions-changed', load);
+    };
+  }, []);
   const when = (d) => new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <Card title="Login activity" description="Your last 20 sign-ins. IP addresses are masked. If something looks unfamiliar, change your password and sign out everywhere.">
@@ -72,6 +92,7 @@ function ActivitySection() {
           ))}
         </ul>
       )}
+      {checkedAt && <p className="mt-2 text-xs text-faint" data-testid="activity-checked">Updated {new Date(checkedAt).toLocaleTimeString(undefined, { timeStyle: 'short' })}</p>}
     </Card>
   );
 }
@@ -158,6 +179,7 @@ function PasswordSection() {
     setBusy(true);
     try {
       await api.changePassword(form.current, form.next);
+      window.dispatchEvent(new Event('noted:sessions-changed'));
       setForm({ current: '', next: '', confirm: '' });
       setMsg({ text: 'Password updated. Other devices have been signed out.' });
     } catch (err) { setMsg({ error: true, text: err.message }); } finally { setBusy(false); }
@@ -240,7 +262,7 @@ function SessionsSection() {
   const run = async () => {
     if (!window.confirm('Sign out of noted. on every other device and browser?')) return;
     setBusy(true); setMsg(null);
-    try { await api.logoutAll(); setMsg({ text: 'Signed out everywhere else. You’re still signed in here.' }); }
+    try { await api.logoutAll(); window.dispatchEvent(new Event('noted:sessions-changed')); setMsg({ text: 'Signed out everywhere else. You’re still signed in here.' }); }
     catch (e) { setMsg({ error: true, text: e.message }); } finally { setBusy(false); }
   };
   return (
