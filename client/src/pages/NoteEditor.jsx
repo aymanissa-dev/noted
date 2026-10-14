@@ -11,6 +11,9 @@ import FolderPicker from '../components/FolderPicker.jsx';
 import VoiceNotes from '../components/VoiceNotes.jsx';
 import { EditorSkeleton, Bar } from '../components/Skeleton.jsx';
 import EditorTools from '../editor/EditorTools.jsx';
+import Icon from '../components/Icon.jsx';
+import Menu from '../components/Menu.jsx';
+import Dialog from '../components/Dialog.jsx';
 import { toHtml } from '../lib/markdown.js';
 import { dropUndo } from '../editor/undoStore.js';
 import { loadEditor } from '../editor/preload.js';
@@ -18,6 +21,7 @@ import { loadEditor } from '../editor/preload.js';
 const MarkdownEditor = lazy(loadEditor);
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useDialog } from '../context/DialogContext.jsx';
 import { cardClass } from '../lib/colors.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -32,6 +36,7 @@ export default function NoteEditor() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   // Open instantly from a full cached copy (prefetched on hover, or opened before); refreshed below.
   const [initial] = useState(() => (routeId ? api.cachedNote(routeId) : null));
   const [note, setNote] = useState(() => (initial ? toLoaded(initial) : { title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false, folderId: search.get('folder') || null }));
@@ -216,7 +221,8 @@ export default function NoteEditor() {
 
   const lockNote = async () => {
     if (!user?.hasLockPin) {
-      if (window.confirm('Set a lock PIN in Settings first. Go to Settings now?')) { await save(); navigate('/settings'); }
+      const go = await dialog.confirm({ title: 'Set a PIN first', body: 'Locked notes open with a 4–6 digit PIN. You can set one in Settings; this note is saved before you go.', confirmLabel: 'Go to Settings', cancelLabel: 'Not now' });
+      if (go) { await save(); navigate('/settings#lock-pin'); }
       return;
     }
     try {
@@ -293,6 +299,7 @@ export default function NoteEditor() {
   }, [focusMode]);
 
   const printHtml = useMemo(() => toHtml(note.content), [note.content]);
+  const saved = Boolean(noteId) && !isTempId(noteId);
   const print = () => { save(); setTimeout(() => window.print(), 50); };
   const persist = !note.locked && noteId && !isTempId(noteId) && user?.id ? { userId: user.id, noteId } : null;
 
@@ -301,7 +308,7 @@ export default function NoteEditor() {
   if (needsPin && !unlockToken.current && snapshot(note) === lastSaved.current && !note.content && !note.title) {
     return (
       <div className="mx-auto max-w-3xl">
-        <Link to="/notes" className="btn-ghost -ml-3">← Back</Link>
+        <Link to="/notes" className="btn-ghost -ml-2 gap-1 pl-2 pr-3"><Icon name="back" />Notes</Link>
         <PinPrompt inline onSubmit={unlock} />
       </div>
     );
@@ -309,46 +316,45 @@ export default function NoteEditor() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div data-testid="editor-toolbar" className="sticky top-[var(--header-h)] z-[5] -mx-3 mb-4 flex flex-wrap items-center justify-between gap-y-2 border-b border-transparent bg-stone-50/90 px-3 py-2 backdrop-blur dark:bg-stone-950/90 sm:-mx-4 sm:px-4">
-        <button type="button" onClick={done} className="btn-ghost -ml-3">← Back</button>
-        <div className="flex flex-wrap items-center justify-end gap-0.5 sm:gap-1">
+      <div data-testid="editor-toolbar" className="sticky top-[var(--header-h)] z-[5] -mx-3 mb-4 flex items-center justify-between gap-2 bg-stone-50/90 px-3 py-2 backdrop-blur dark:bg-stone-950/90 sm:-mx-4 sm:px-4">
+        <button type="button" onClick={done} className="btn-ghost -ml-2 min-w-11 gap-1 pl-2 pr-3" data-tip="Back to notes · Esc" data-tip-align="start" aria-label="Back to notes">
+          <Icon name="back" /><span className="hidden sm:inline">Notes</span>
+        </button>
+        <div className="flex min-w-0 items-center justify-end gap-0.5 sm:gap-1">
           <SaveStatus status={status} />
+          <button type="button" onClick={togglePin} data-tip={note.pinned ? 'Unpin' : 'Pin to top'} aria-label={note.pinned ? 'Unpin' : 'Pin'} aria-pressed={note.pinned}
+            className={`btn-ghost btn-icon ${note.pinned ? 'text-accent' : ''}`}><PinIcon filled={note.pinned} /></button>
           {!note.deletedAt && <FolderPicker value={note.folderId} onChange={moveFolder} />}
           <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
-          <button type="button" onClick={togglePin} title={note.pinned ? 'Unpin' : 'Pin'}
-            className={`btn-ghost ${note.pinned ? 'text-accent' : ''}`}>
-            <PinIcon filled={note.pinned} /><span className="ml-1.5 hidden sm:inline">{note.pinned ? 'Pinned' : 'Pin'}</span>
-          </button>
-          {noteId && !isTempId(noteId) && !note.deletedAt && (
-            note.locked
-              ? <button type="button" className="btn-ghost" onClick={() => setRemoveLockOpen(true)} title="Remove lock" aria-label="Remove lock">🔓<span className="ml-1 hidden sm:inline">Unlock</span></button>
-              : <button type="button" className="btn-ghost" onClick={lockNote} title="Lock with PIN" aria-label="Lock with PIN">🔒<span className="ml-1 hidden sm:inline">Lock</span></button>
-          )}
-          {noteId && !isTempId(noteId) && (
-            <button type="button" className="btn-ghost" onClick={openHistory} title="Version history" aria-label="Version history">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>
-              <span className="hidden sm:inline">History</span>
-            </button>
-          )}
-          {noteId && !isTempId(noteId) && !note.deletedAt && (
-            <button type="button" className="btn-ghost" onClick={toggleArchive} title={note.archived ? 'Unarchive' : 'Archive'} aria-label={note.archived ? 'Unarchive' : 'Archive'}>
-              <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" /></svg>
-              <span className="hidden sm:inline">{note.archived ? 'Unarchive' : 'Archive'}</span>
-            </button>
-          )}
-          {noteId && !isTempId(noteId) && !note.deletedAt && <button type="button" className="btn-danger" onClick={moveToTrash} title="Delete" aria-label="Delete">
-            <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3" /></svg>
-            <span className="hidden sm:inline">Delete</span>
-          </button>}
-          {note.deletedAt && <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete forever</button>}
-          <button type="button" className="btn-primary ml-1" onClick={done}>Done</button>
+          <Menu label="More actions" tip="More" testId="note-more" button={<Icon name="more" />}>
+            {() => (
+              <>
+                {saved && <button role="menuitem" type="button" className="menu-item" aria-label="Version history" onClick={openHistory}><Icon name="history" />Version history</button>}
+                {saved && !note.deletedAt && (note.locked
+                  ? <button role="menuitem" type="button" className="menu-item" aria-label="Remove lock" onClick={() => setRemoveLockOpen(true)}><Icon name="unlock" />Remove lock…</button>
+                  : <button role="menuitem" type="button" className="menu-item" aria-label="Lock with PIN" onClick={lockNote}><Icon name="lock" />Lock with PIN</button>)}
+                <button role="menuitem" type="button" className="menu-item" aria-label="Print or save as PDF" onClick={print}><Icon name="printer" />Print or save as PDF</button>
+                {saved && !note.deletedAt && <>
+                  <div className="menu-sep" />
+                  <button role="menuitem" type="button" className="menu-item" aria-label={note.archived ? 'Unarchive' : 'Archive'} onClick={toggleArchive}><Icon name="archive" />{note.archived ? 'Move out of archive' : 'Archive'}</button>
+                  <button role="menuitem" type="button" className="menu-item text-red-700 dark:text-red-400" aria-label="Delete" onClick={moveToTrash}><Icon name="trash" />Move to trash</button>
+                </>}
+                {note.deletedAt && <>
+                  <div className="menu-sep" />
+                  <button role="menuitem" type="button" className="menu-item" onClick={restore}><Icon name="refresh" />Restore</button>
+                  <button role="menuitem" type="button" className="menu-item text-red-700 dark:text-red-400" onClick={() => setConfirmDelete(true)}><Icon name="trash" />Delete forever…</button>
+                </>}
+              </>
+            )}
+          </Menu>
+          <button type="button" className="btn-primary ml-1 px-3 sm:px-4" onClick={done} data-tip="Save and close" data-tip-align="end">Done</button>
         </div>
       </div>
 
       {note.deletedAt && (
         <div className="mb-3 flex items-center justify-between rounded-xl bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-sm text-amber-800 dark:text-amber-200">
-          <span>This note is in the trash.</span>
-          <button type="button" className="font-medium underline" onClick={restore}>Restore</button>
+          <span>This note is in the trash. It’s deleted for good after 30 days.</span>
+          <button type="button" className="btn-sm btn-secondary" onClick={restore}>Restore</button>
         </div>
       )}
       {previewOnly && (
@@ -357,23 +363,23 @@ export default function NoteEditor() {
         </div>
       )}
       {note.archived && !note.deletedAt && (
-        <div className="mb-3 rounded-xl bg-stone-100 dark:bg-stone-800 px-4 py-2 text-sm text-stone-600 dark:text-stone-300">Archived</div>
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-stone-100 px-4 py-2 text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-200"><span className="inline-flex items-center gap-2"><Icon name="archive" />Archived. It’s out of your main list but still searchable here.</span><button type="button" className="btn-sm btn-secondary" onClick={toggleArchive}>Unarchive</button></div>
       )}
       <div data-testid="editor-card" className={focusMode
         ? 'fixed inset-0 z-40 overflow-y-auto bg-stone-50 px-4 py-10 dark:bg-stone-950 sm:px-8 sm:py-16'
         : `rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
         <div className={focusMode ? 'mx-auto max-w-reading' : ''}>
-        {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-ghost fixed right-4 top-4 text-xs" aria-label="Exit focus mode">Exit focus · Esc</button>}
+        {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
         <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
         {!focusMode && (
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
-          <EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} onPrint={print} />
+          <EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} />
         </div>
         )}
         <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
-          <MarkdownEditor value={note.content} readOnly={previewOnly} placeholder="Write it down… (type / for commands)"
+          <MarkdownEditor value={note.content} readOnly={previewOnly} placeholder="Start writing… Type / for headings, checklists and more"
             persist={persist} focusMode={focusMode} onReady={setEditorApi}
             onChange={(content) => setNote((n) => ({ ...n, content }))} />
         </Suspense>
@@ -388,11 +394,11 @@ export default function NoteEditor() {
         {note.tags.length > 0 && <p className="print-tags">{note.tags.map((t) => `#${t}`).join('  ')}</p>}
         <div dangerouslySetInnerHTML={{ __html: printHtml }} />
       </div>
-      <div className="mt-2 flex justify-between text-xs text-stone-400">
+      <div className="mt-2 flex justify-between text-xs text-faint">
         <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>
-        <span className="hidden sm:inline">Saves automatically · ⌘/Ctrl + S</span>
+        <span className="hidden sm:inline">Saves as you type</span>
       </div>
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
 
       {historyOpen && <HistoryPanel noteId={noteId} current={{ ...note, updatedAt }} unlockToken={unlockToken.current} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
       {needsPin && unlockToken.current === null && (snapshot(note) !== lastSaved.current || note.content || note.title) && (
@@ -403,16 +409,12 @@ export default function NoteEditor() {
           onSubmit={removeLock} onCancel={() => setRemoveLockOpen(false)} />
       )}
       {confirmDelete && (
-        <div data-modal className="fixed inset-0 z-20 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={() => setConfirmDelete(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-semibold">Delete this note forever?</h2>
-            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">This can't be undone.</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
-              <button type="button" className="btn bg-red-600 text-white hover:bg-red-700" onClick={deleteForever}>Delete forever</button>
-            </div>
-          </div>
-        </div>
+        <Dialog role="alertdialog" title="Delete forever?" description={`“${note.title || 'Untitled'}” and its history will be gone for good. This can’t be undone.`}
+          onClose={() => setConfirmDelete(false)}
+          footer={<>
+            <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
+            <button type="button" data-confirm autoFocus className="btn-danger-solid" onClick={deleteForever}>Delete forever</button>
+          </>} />
       )}
     </div>
   );
@@ -445,7 +447,7 @@ function SaveStatus({ status }) {
   if (!map[status]) return null;
   const [label, dot] = map[status];
   return (
-    <span data-testid="save-status" data-state={status} className="mr-1 inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-stone-500 dark:text-stone-400 sm:mr-2" aria-live="polite" title={label}>
+    <span data-testid="save-status" data-state={status} className="mr-1 inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted sm:mr-2" aria-live="polite" title={label}>
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} /><span className="hidden min-[400px]:inline">{label}</span>
     </span>
   );

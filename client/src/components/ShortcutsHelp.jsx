@@ -1,27 +1,24 @@
-import { useRef } from 'react';
-import { SHORTCUTS } from '../lib/useShortcuts.js';
-import { useFocusTrap } from '../lib/useFocusTrap.js';
+import { SHORTCUTS, EDITOR_SHORTCUTS } from '../lib/useShortcuts.js';
+import Dialog from './Dialog.jsx';
+
+const Rows = ({ items }) => (
+  <ul className="space-y-1">
+    {items.map(([key, label]) => (
+      <li key={key} className="flex min-h-9 items-center justify-between gap-4 text-sm">
+        <span className="text-muted">{label}</span>
+        <span className="flex shrink-0 gap-1">{key.split(' + ').map((k) => <kbd key={k} className="kbd">{k}</kbd>)}</span>
+      </li>
+    ))}
+  </ul>
+);
 
 export default function ShortcutsHelp({ onClose }) {
-  const ref = useRef(null);
-  useFocusTrap(ref, onClose);
   return (
-    <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={onClose}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" tabIndex={-1}
-        className="w-full max-w-xs rounded-2xl bg-white dark:bg-stone-900 p-5 shadow-xl outline-none" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 id="shortcuts-title" className="font-semibold">Keyboard shortcuts</h2>
-          <button className="btn-ghost px-2 py-1" onClick={onClose} aria-label="Close">✕</button>
-        </div>
-        <ul className="space-y-2 text-sm">
-          {SHORTCUTS.map(([key, label]) => (
-            <li key={key} className="flex items-center justify-between">
-              <span className="text-stone-600 dark:text-stone-300">{label}</span>
-              <kbd className="rounded border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 px-1.5 py-0.5 font-mono text-xs">{key}</kbd>
-            </li>
-          ))}
-        </ul>
+    <Dialog title="Keyboard shortcuts" onClose={onClose} closeButton size="md">
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div><h3 className="section-label mb-2">Anywhere</h3><Rows items={SHORTCUTS} /></div>
+        <div><h3 className="section-label mb-2">In a note</h3><Rows items={EDITOR_SHORTCUTS} /></div>
       </div>
-    </div>
+    </Dialog>
   );
 }

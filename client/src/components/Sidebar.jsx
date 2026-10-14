@@ -2,22 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { api, readMeta } from '../lib/api.js';
 import { SMART } from '../lib/smart.js';
+import { useDialog } from '../context/DialogContext.jsx';
+import Icon from './Icon.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 
-const Icon = ({ d, className = 'h-4 w-4' }) => (
-  <svg aria-hidden="true" viewBox="0 0 24 24" className={`shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
-);
-export const ICONS = {
-  notes: 'M5 4h10l4 4v12H5zM15 4v4h4M8 12h8M8 16h5',
-  archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
-  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
-  folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
-  smart: 'M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z',
-  tag: 'M3 12V4h8l10 10-8 8zM7.5 7.5h.01',
-  plus: 'M12 5v14M5 12h14',
-  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
-  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5',
-};
-export { Icon };
+const SMART_ICON = { recent: 'clock', pinned: 'pin', today: 'today', week: 'week', untagged: 'untagged', locked: 'lock' };
 
 const row = (active) => `group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition ${active ? 'bg-stone-200/70 text-stone-900 dark:bg-stone-800 dark:text-stone-100' : 'text-stone-600 hover:bg-stone-200/40 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-200'}`;
 
@@ -59,34 +48,47 @@ export default function Sidebar() {
   const onList = pathname === '/notes';
   const isAll = onList && !params.get('folder') && !params.get('tag') && !params.get('smart');
 
+  const dialog = useDialog();
+  const toast = useToast();
   const newFolder = async () => {
-    const name = window.prompt('New folder name');
-    if (!name?.trim()) return;
-    try { const { folder } = await api.createFolder(name.trim()); window.dispatchEvent(new Event('noted:folders-changed')); navigate(`/notes?folder=${folder._id}`); }
-    catch (e) { window.alert(e.message); }
+    let created;
+    const name = await dialog.prompt({
+      title: 'New folder', label: 'Folder name', placeholder: 'e.g. Work', confirmLabel: 'Create folder',
+      submit: async (v) => { ({ folder: created } = await api.createFolder(v)); },
+    });
+    if (!name || !created) return;
+    window.dispatchEvent(new Event('noted:folders-changed'));
+    navigate(`/notes?folder=${created._id}`);
   };
   const renameFolder = async (f) => {
-    const name = window.prompt('Rename folder', f.name);
-    if (!name?.trim() || name.trim() === f.name) return;
-    try { await api.renameFolder(f._id, name.trim()); window.dispatchEvent(new Event('noted:folders-changed')); } catch (e) { window.alert(e.message); }
+    const name = await dialog.prompt({
+      title: 'Rename folder', label: 'Folder name', initial: f.name, confirmLabel: 'Rename',
+      submit: async (v) => { if (v !== f.name) await api.renameFolder(f._id, v); },
+    });
+    if (name && name !== f.name) window.dispatchEvent(new Event('noted:folders-changed'));
   };
   const deleteFolder = async (f) => {
-    if (!window.confirm(`Delete the folder “${f.name}”? Its notes are kept and moved out of the folder.`)) return;
+    const ok = await dialog.confirm({
+      title: `Delete “${f.name}”?`, body: 'The folder goes away. Its notes stay, they just won’t be in a folder anymore.',
+      confirmLabel: 'Delete folder', danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteFolder(f._id);
       window.dispatchEvent(new Event('noted:folders-changed'));
       if (params.get('folder') === f._id) navigate('/notes');
-    } catch (e) { window.alert(e.message); }
+      toast.show(`Folder “${f.name}” deleted. Its notes are still in All notes.`);
+    } catch (e) { toast.show(`Couldn’t delete the folder: ${e.message}`); }
   };
 
   return (
     <nav aria-label="Sidebar" className="hidden w-60 shrink-0 lg:block">
       <div className="sticky top-[var(--header-h)] max-h-[calc(100vh-var(--header-h))] overflow-y-auto py-6 pr-4">
-        <Link to="/notes" className={row(isAll)}><Icon d={ICONS.notes} />All notes</Link>
+        <Link to="/notes" className={row(isAll)}><Icon name="notes" />All notes</Link>
 
         <Group title="Smart">
           {SMART.map(([key, label]) => (
-            <Link key={key} to={`/notes?smart=${key}`} className={row(onList && params.get('smart') === key)}><Icon d={ICONS.smart} />{label}</Link>
+            <Link key={key} to={`/notes?smart=${key}`} className={row(onList && params.get('smart') === key)}><Icon name={SMART_ICON[key] || 'star'} />{label}</Link>
           ))}
         </Group>
 
@@ -94,24 +96,24 @@ export default function Sidebar() {
           <Group title="Recent">
             {recent.map((n) => (
               <Link key={n._id} to={`/notes/${n._id}`} className={row(pathname === `/notes/${n._id}`)}>
-                <span aria-hidden="true" className="w-4 text-center text-xs">{n.locked ? '🔒' : n.emoji || '·'}</span>
+                {n.locked ? <Icon name="lock" /> : n.emoji ? <span aria-hidden="true" className="w-4 text-center text-xs">{n.emoji}</span> : <Icon name="notes" className="text-stone-400 dark:text-stone-500" />}
                 <span className="truncate">{n.locked ? 'Locked note' : n.title || 'Untitled'}</span>
               </Link>
             ))}
           </Group>
         )}
 
-        <Group title="Folders" action={<button type="button" onClick={newFolder} className="rounded p-0.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200" aria-label="New folder" title="New folder"><Icon d={ICONS.plus} className="h-3.5 w-3.5" /></button>}>
-          {folders.length === 0 && <button type="button" onClick={newFolder} className="px-2.5 py-1 text-xs text-faint hover:underline">Create a folder</button>}
+        <Group title="Folders" action={<button type="button" onClick={newFolder} className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition hover:bg-stone-200/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200" aria-label="New folder" data-tip="New folder" data-tip-align="end"><Icon name="plus" size="xs" /></button>}>
+          {folders.length === 0 && <button type="button" onClick={newFolder} className={`${row(false)} text-faint`}><Icon name="folderPlus" />New folder</button>}
           {folders.map((f) => (
             <div key={f._id} className="group relative">
               <Link to={`/notes?folder=${f._id}`} className={row(onList && params.get('folder') === f._id)}>
-                <Icon d={ICONS.folder} /><span className="truncate pr-10">{f.name}</span>
-                <span className="ml-auto text-xs text-faint group-hover:opacity-0">{f.count || ''}</span>
+                <Icon name="folder" /><span className="truncate pr-10">{f.name}</span>
+                <span className="ml-auto text-xs text-faint group-focus-within:opacity-0 group-hover:opacity-0">{f.count || ''}</span>
               </Link>
               <div className="absolute right-1 top-1/2 flex -translate-y-1/2 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-                <button type="button" onClick={() => renameFolder(f)} className="rounded px-1 text-xs text-stone-400 hover:text-stone-700 dark:hover:text-stone-200" aria-label={`Rename ${f.name}`} title="Rename">✎</button>
-                <button type="button" onClick={() => deleteFolder(f)} className="rounded px-1 text-xs text-stone-400 hover:text-red-600" aria-label={`Delete ${f.name}`} title="Delete folder">✕</button>
+                <button type="button" onClick={() => renameFolder(f)} className="grid h-7 w-7 place-items-center rounded-md text-stone-500 hover:bg-stone-200/70 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-700 dark:hover:text-stone-100" aria-label={`Rename ${f.name}`} data-tip="Rename"><Icon name="edit" size="xs" /></button>
+                <button type="button" onClick={() => deleteFolder(f)} className="grid h-7 w-7 place-items-center rounded-md text-stone-500 hover:bg-red-50 hover:text-red-700 dark:text-stone-400 dark:hover:bg-red-950/40 dark:hover:text-red-400" aria-label={`Delete ${f.name}`} data-tip="Delete folder" data-tip-align="end"><Icon name="trash" size="xs" /></button>
               </div>
             </div>
           ))}
@@ -120,14 +122,14 @@ export default function Sidebar() {
         {tags.length > 0 && (
           <Group title="Tags">
             {tags.map((t) => (
-              <Link key={t} to={`/notes?tag=${encodeURIComponent(t)}`} className={row(onList && params.get('tag') === t)}><Icon d={ICONS.tag} /><span className="truncate">{t}</span></Link>
+              <Link key={t} to={`/notes?tag=${encodeURIComponent(t)}`} className={row(onList && params.get('tag') === t)}><Icon name="tag" /><span className="truncate">{t}</span></Link>
             ))}
           </Group>
         )}
 
         <div className="mt-6 border-t border-stone-200 pt-4 dark:border-stone-800">
-          <NavLink to="/archive" className={({ isActive }) => row(isActive)}><Icon d={ICONS.archive} />Archive</NavLink>
-          <NavLink to="/trash" className={({ isActive }) => row(isActive)}><Icon d={ICONS.trash} />Trash</NavLink>
+          <NavLink to="/archive" className={({ isActive }) => row(isActive)}><Icon name="archive" />Archive</NavLink>
+          <NavLink to="/trash" className={({ isActive }) => row(isActive)}><Icon name="trash" />Trash</NavLink>
         </div>
       </div>
     </nav>
@@ -138,7 +140,7 @@ export default function Sidebar() {
 export function BottomNav() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const item = (active) => `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition ${active ? 'text-stone-900 dark:text-stone-100' : 'text-stone-500 dark:text-stone-400'}`;
+  const item = (active) => `flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium transition ${active ? 'text-stone-900 dark:text-stone-100' : 'text-muted'}`;
   const search = () => {
     const focus = () => document.getElementById('search')?.focus();
     if (pathname === '/notes') focus(); else { navigate('/notes'); setTimeout(focus, 80); }
@@ -146,10 +148,10 @@ export function BottomNav() {
   return (
     <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-stone-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur dark:border-stone-800 dark:bg-stone-950/95 sm:hidden">
       <div className="flex">
-        <Link to="/notes" className={item(pathname === '/notes')} aria-current={pathname === '/notes' ? 'page' : undefined}><Icon d={ICONS.notes} className="h-5 w-5" />Notes</Link>
-        <button type="button" onClick={search} className={item(false)}><Icon d={ICONS.search} className="h-5 w-5" />Search</button>
-        <Link to="/notes/new" className={item(pathname === '/notes/new')}><span className="grid h-5 w-5 place-items-center rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"><Icon d={ICONS.plus} className="h-3.5 w-3.5" /></span>New</Link>
-        <Link to="/settings" className={item(pathname === '/settings')} aria-current={pathname === '/settings' ? 'page' : undefined}><Icon d={ICONS.settings} className="h-5 w-5" />Settings</Link>
+        <Link to="/notes" className={item(pathname === '/notes')} aria-current={pathname === '/notes' ? 'page' : undefined}><Icon name="notes" size="md" />Notes</Link>
+        <button type="button" onClick={search} className={item(false)}><Icon name="search" size="md" />Search</button>
+        <Link to="/notes/new" className={item(pathname === '/notes/new')}><span className="grid h-5 w-5 place-items-center rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"><Icon name="plus" size="xs" /></span>New</Link>
+        <Link to="/settings" className={item(pathname === '/settings')} aria-current={pathname === '/settings' ? 'page' : undefined}><Icon name="settings" size="md" />Settings</Link>
       </div>
     </nav>
   );

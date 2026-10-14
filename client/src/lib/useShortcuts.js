@@ -1,13 +1,21 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl';
 export const SHORTCUTS = [
   ['N', 'New note'],
   ['/', 'Search notes'],
   ['Q', 'Quick capture'],
   ['Esc', 'Go back / close'],
-  ['⌘/Ctrl + S', 'Save now'],
   ['?', 'Show shortcuts'],
+];
+export const EDITOR_SHORTCUTS = [
+  [`${MOD} + S`, 'Save now'],
+  [`${MOD} + F`, 'Find and replace'],
+  [`${MOD} + Z`, 'Undo (kept after reload)'],
+  ['/', 'Commands (at line start)'],
+  [':', 'Emoji (e.g. :smile)'],
+  ['Esc', 'Leave focus mode / back'],
 ];
 
 const isTyping = (el) =>
