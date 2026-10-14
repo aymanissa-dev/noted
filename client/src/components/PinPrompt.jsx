@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 
 // Asks for the lock PIN. `onSubmit(pin)` should throw an Error with a message on failure.
@@ -8,6 +8,15 @@ export default function PinPrompt({ title = 'This note is locked', description =
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(0);
   const [opened, setOpened] = useState(false);
+  // After too many wrong PINs the server blocks checks for a while; count down instead of letting you retry.
+  const [blockedUntil, setBlockedUntil] = useState(0);
+  const [, tick] = useState(0);
+  const left = Math.max(0, Math.ceil((blockedUntil - Date.now()) / 1000));
+  useEffect(() => {
+    if (!blockedUntil) return undefined;
+    const t = setInterval(() => { tick((n) => n + 1); if (Date.now() >= blockedUntil) { setBlockedUntil(0); setError(''); } }, 1000);
+    return () => clearInterval(t);
+  }, [blockedUntil]);
   const dialogRef = useRef(null);
   const noTrap = useRef(null);
   useFocusTrap(inline ? noTrap : dialogRef, onCancel);
@@ -19,7 +28,10 @@ export default function PinPrompt({ title = 'This note is locked', description =
         // Let the lock visibly open before the caller closes the prompt.
         beforeClose: () => new Promise((r) => { setOpened(true); setTimeout(r, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 200); }),
       });
-    } catch (err) { setError(err.message); setPin(''); setBusy(false); setShake((s) => s + 1); }
+    } catch (err) {
+      if (err.status === 429) setBlockedUntil(Date.now() + (err.data?.retryAfter || 300) * 1000);
+      setError(err.message); setPin(''); setBusy(false); setShake((s) => s + 1);
+    }
   };
 
   const form = (
@@ -28,12 +40,12 @@ export default function PinPrompt({ title = 'This note is locked', description =
       <h2 id="pin-title" className="mt-2 font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
       <input className="input mt-4 text-center font-mono text-lg tracking-[0.5em]" type="password" inputMode="numeric" autoComplete="off"
-        pattern="\d{4,6}" maxLength={6} autoFocus required placeholder="••••" aria-label="PIN"
+        pattern="\d{4,6}" maxLength={6} autoFocus required placeholder="••••" aria-label="PIN" disabled={left > 0} aria-describedby={error ? 'pin-error' : undefined}
         value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p id="pin-error" role="alert" data-testid="pin-error" className="mt-2 text-sm text-red-600 dark:text-red-400">{left > 0 ? `Too many wrong attempts. Try again in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}.` : error}</p>}
       <div className="mt-4 flex justify-center gap-2">
         {onCancel && <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>}
-        <button className="btn-primary" disabled={busy || pin.length < 4}>{busy ? 'Checking…' : submitLabel}</button>
+        <button className="btn-primary" disabled={busy || pin.length < 4 || left > 0}>{busy ? 'Checking…' : submitLabel}</button>
       </div>
     </form>
   );

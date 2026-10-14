@@ -18,16 +18,19 @@ export async function verifyLockPin(userId, pin) {
   if (!user.hasLockPin || !user.lockPinHash) throw new HttpError(400, 'Set a lock PIN in Settings first');
   if (user.lockPinBlockedUntil && user.lockPinBlockedUntil > new Date()) {
     const secs = Math.ceil((user.lockPinBlockedUntil - Date.now()) / 1000);
-    throw new HttpError(429, `Too many wrong PIN attempts. Try again in ${Math.ceil(secs / 60)} minute(s).`);
+    const mins = Math.ceil(secs / 60);
+    throw Object.assign(new HttpError(429, `Too many wrong PIN attempts. Try again in ${mins} ${mins === 1 ? 'minute' : 'minutes'}.`), { extra: { attemptsLeft: 0, retryAfter: secs } });
   }
   const ok = typeof pin === 'string' && PIN_RE.test(pin) && (await bcrypt.compare(pin, user.lockPinHash));
   if (!ok) {
     const failures = (user.lockPinFailures || 0) + 1;
-    const update = failures >= MAX_PIN_FAILURES
-      ? { lockPinFailures: 0, lockPinBlockedUntil: new Date(Date.now() + PIN_BLOCK_MS) }
-      : { lockPinFailures: failures };
-    await User.updateOne({ _id: user._id }, update);
-    throw new HttpError(403, 'Incorrect PIN');
+    if (failures >= MAX_PIN_FAILURES) { // the 5th wrong attempt starts the block
+      await User.updateOne({ _id: user._id }, { lockPinFailures: 0, lockPinBlockedUntil: new Date(Date.now() + PIN_BLOCK_MS) });
+      throw Object.assign(new HttpError(429, `Too many wrong PIN attempts. Try again in ${PIN_BLOCK_MS / 60000} minutes.`), { extra: { attemptsLeft: 0, retryAfter: PIN_BLOCK_MS / 1000 } });
+    }
+    await User.updateOne({ _id: user._id }, { lockPinFailures: failures });
+    const left = MAX_PIN_FAILURES - failures;
+    throw Object.assign(new HttpError(403, `Incorrect PIN. ${left} ${left === 1 ? 'attempt' : 'attempts'} left.`), { extra: { attemptsLeft: left } });
   }
   if (user.lockPinFailures || user.lockPinBlockedUntil) {
     await User.updateOne({ _id: user._id }, { lockPinFailures: 0, lockPinBlockedUntil: null });

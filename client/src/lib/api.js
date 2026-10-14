@@ -13,7 +13,7 @@ let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
 class ApiError extends Error {
-  constructor(message, status) { super(message); this.status = status; }
+  constructor(message, status, data) { super(message); this.status = status; this.data = data; }
 }
 // fetch rejects with a TypeError when the network is unavailable.
 export const isNetworkError = (err) => err instanceof TypeError || err?.offline === true;
@@ -35,7 +35,7 @@ async function request(method, path, body, { headers: extra, signal } = {}) {
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized();
-    throw new ApiError(data?.error || `Request failed (${res.status})`, res.status);
+    throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data);
   }
   return data;
 }

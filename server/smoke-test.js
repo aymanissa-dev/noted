@@ -246,10 +246,13 @@ try {
     const imp = (await call('GET', '/notes?search=Imported ok')).data.notes[0];
     await call('DELETE', `/notes/${imp._id}?permanent=true`);
 
-    // rate limit: 5 wrong PINs block further attempts (even the right one)
-    for (let i = 0; i < 3; i++) assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' })).status, 403);
-    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' })).status, 403); // 5th failure overall since last success? reset on success above
-    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' })).status, 403);
+    // rate limit: the 5th wrong PIN starts a 5-minute block (even the right PIN is refused); messages count down
+    for (let i = 4; i >= 1; i--) {
+      r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' });
+      assert.equal(r.status, 403); assert.equal(r.data.attemptsLeft, i); assert.match(r.data.error, new RegExp(`${i} attempts? left`));
+    }
+    r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' });
+    assert.equal(r.status, 429); assert.match(r.data.error, /Try again in 5 minutes/);
     assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '2468' })).status, 429);
     await (await import('./src/models/User.js')).default.updateOne({ email: 'ada@example.com' }, { lockPinBlockedUntil: null, lockPinFailures: 0 });
 

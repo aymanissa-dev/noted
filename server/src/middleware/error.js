@@ -20,5 +20,5 @@ export function errorHandler(err, req, res, next) {
   if (err.code === 11000) { status = 409; message = 'Email already registered'; }
   if (err.type === 'entity.parse.failed') { status = 400; message = 'Invalid JSON'; }
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: status >= 500 ? 'Server error' : message });
+  res.status(status).json({ error: status >= 500 ? 'Server error' : message, ...(status < 500 && err.extra) });
 }
