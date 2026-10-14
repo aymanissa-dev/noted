@@ -3,6 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { takeFlash, useAuth } from '../context/AuthContext.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 
+// After logging in you land on your notes, unless you followed a link to one specific note.
+export function postLoginTarget(from) {
+  const path = from?.pathname || '';
+  return /^\/notes\/(?!new$)[A-Za-z0-9_-]+$/.test(path) ? path : '/notes';
+}
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -19,9 +25,7 @@ export default function Login() {
     setError(''); setBusy(true);
     try {
       await login(form);
-      const from = location.state?.from;
-      const target = from && !['/login', '/'].includes(from.pathname) ? `${from.pathname}${from.search || ''}` : '/notes';
-      navigate(target, { replace: true });
+      navigate(postLoginTarget(location.state?.from), { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

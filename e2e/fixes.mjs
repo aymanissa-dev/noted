@@ -138,6 +138,25 @@ try {
     await p.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' }); await p.goto('about:blank'); await sleep(300);
     ok(dialogs === 2, `no prompt once saved (${dialogs})`);
   }
+  if (want('redirect')) {
+    const u = await newUser('fix');
+    const n = (await api('POST', '/notes', { title: 'Deep', content: 'x' }, u.token)).data.note;
+    const ctx = await b.createBrowserContext();
+    const p = await ctx.newPage(); await p.setViewport({ width: 1280, height: 800 }); p.on('pageerror', (e) => errors.push(e.message));
+    const loginFrom = async (path) => {
+      await p.evaluate(() => { localStorage.clear(); sessionStorage.clear(); }).catch(() => {});
+      await p.goto(BASE + path, { waitUntil: 'networkidle0' });
+      await p.waitForSelector('input[type=email]');
+      await p.type('input[type=email]', u.email); await p.type('input[autocomplete=current-password]', 'password123');
+      await Promise.all([p.waitForFunction(() => !location.pathname.startsWith('/login'), { timeout: 15000 }), p.click('form button.btn-primary')]);
+      await sleep(300); return new URL(p.url()).pathname;
+    };
+    for (const path of ['/trash', '/archive', '/settings', '/stats', '/notes?tag=x', '/notes/new']) {
+      const got = await loginFrom(path); ok(got === '/notes', `login from ${path} → ${got}`);
+    }
+    const got = await loginFrom(`/notes/${n._id}`); ok(got === `/notes/${n._id}`, 'login from a note deep link returns to that note');
+    await ctx.close();
+  }
   // @@NEXT@@
   ok(!errors.length, 'no page errors ' + errors.join(' | '));
 } finally { await cleanup(); await b.close(); }
