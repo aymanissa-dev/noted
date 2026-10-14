@@ -5,6 +5,13 @@ const want = (k) => !only.length || only.includes(k);
 const b = await launch();
 const errors = [];
 const page = async (u, opts) => { const p = await pageAs(b, u.token, u.user, opts); p.on('pageerror', (e) => errors.push(e.message)); return p; };
+// Editor actions live in the "More actions" menu (or are visible buttons on wide toolbars).
+const editorAction = async (p, label) => {
+  const visible = await p.evaluate((l) => { const b = [...document.querySelectorAll(`button[aria-label="${l}"]`)].find((x) => x.offsetParent); if (b) { b.click(); return true; } return false; }, label);
+  if (visible) return;
+  await p.click('[data-testid=note-more]'); await p.waitForSelector(`[role=menu] [aria-label="${label}"]`);
+  await p.click(`[role=menu] [aria-label="${label}"]`);
+};
 const typeInEditor = async (p, text) => { await p.click('.cm-content'); await p.keyboard.press('End'); await p.keyboard.down('Control'); await p.keyboard.press('End'); await p.keyboard.up('Control'); await p.keyboard.type(text); };
 const saved = async (p) => { await p.waitForFunction(() => /dirty|saving/.test(document.querySelector('[data-testid=save-status]')?.dataset.state || ''), { timeout: 3000 }).catch(() => {}); return savedNow(p); };
 const savedNow = (p) => p.waitForFunction(() => /saved/.test(document.querySelector('[data-testid=save-status]')?.dataset.state || ''), { timeout: 15000 });
@@ -18,7 +25,7 @@ try {
     for (const t of [' edit one', ' edit two', ' edit three']) { await typeInEditor(p, t); await saved(p); await sleep(3500); }
     let vs = (await api('GET', `/notes/${n._id}/versions`, null, u.token)).data.versions;
     ok(vs.length === 1 && vs[0].preview === 'Body of Beta pancakes', `history: original kept after the first edit (${vs.length} version)`);
-    await p.click('[aria-label="Version history"]'); await p.waitForSelector('[data-testid=history-current]');
+    await editorAction(p, 'Version history'); await p.waitForSelector('[data-testid=history-current]');
     const listText = await p.$eval('[role=dialog] ul', (e) => e.innerText);
     ok(/Current version/.test(listText) && (listText.match(/chars/g) || []).length === 2, 'history panel lists the current version + the original');
     await p.keyboard.press('Escape');
@@ -174,7 +181,7 @@ try {
     const has = () => p.evaluate((id) => Boolean(document.querySelector(`[data-flip-id="${id}"]`)), n._id);
     for (const [action, label] of [['delete', 'Delete'], ['archive', 'Archive']]) {
       await p.goto(`${BASE}/notes/${n._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('.cm-content');
-      await p.evaluate((l) => { const b = [...document.querySelectorAll('button')].find((x) => x.getAttribute('aria-label') === l || x.innerText.trim() === l); b.click(); }, label);
+      await editorAction(p, label);
       await p.waitForFunction(() => location.pathname === '/notes');
       await p.waitForFunction(() => [...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'Undo'), { timeout: 5000 });
       await sleep(1200); // let the move request land and the list settle
