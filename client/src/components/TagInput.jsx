@@ -22,7 +22,7 @@ export default function TagInput({ tags, onChange }) {
           <button type="button" className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button>
         </span>
       ))}
-      <input className="min-w-[8rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-stone-400"
+      <input className="min-w-[8rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-stone-500 dark:placeholder:text-stone-400"
         placeholder="Add tag…" title="Press Enter or comma to add a tag"
         value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKeyDown} onBlur={() => value && add(value)} />
     </div>

@@ -38,11 +38,11 @@ export default function PinPrompt({ title = 'This note is locked', description =
     <form onSubmit={submit} className="w-full max-w-xs text-center">
       <div key={shake} data-testid="pin-lock" data-state={opened ? 'open' : shake ? 'shake' : 'idle'} aria-hidden="true" className={`mx-auto inline-block text-3xl ${opened ? 'animate-unlock' : shake ? 'animate-shake' : ''}`}>{opened ? '🔓' : '🔒'}</div>
       <h2 id="pin-title" className="mt-2 font-semibold">{title}</h2>
-      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
+      <p className="mt-1 text-sm text-muted">{description}</p>
       <input className="input mt-4 text-center font-mono text-lg tracking-[0.5em]" type="password" inputMode="numeric" autoComplete="off"
         pattern="\d{4,6}" maxLength={6} autoFocus required placeholder="••••" aria-label="PIN" disabled={left > 0} aria-describedby={error ? 'pin-error' : undefined}
         value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
-      {error && <p id="pin-error" role="alert" data-testid="pin-error" className="mt-2 text-sm text-red-600 dark:text-red-400">{left > 0 ? `Too many wrong attempts. Try again in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}.` : error}</p>}
+      {error && <p id="pin-error" role="alert" data-testid="pin-error" className="mt-2 text-sm text-red-700 dark:text-red-400">{left > 0 ? `Too many wrong attempts. Try again in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}.` : error}</p>}
       <div className="mt-4 flex justify-center gap-2">
         {onCancel && <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>}
         <button className="btn-primary" disabled={busy || pin.length < 4 || left > 0}>{busy ? 'Checking…' : submitLabel}</button>
@@ -52,9 +52,9 @@ export default function PinPrompt({ title = 'This note is locked', description =
 
   if (inline) return <div className="grid place-items-center py-16">{form}</div>;
   return (
-    <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 dark:bg-black/60 px-4" onClick={onCancel}>
+    <div data-modal className="dialog-overlay" onClick={onCancel}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="pin-title" tabIndex={-1}
-        className="rounded-2xl bg-white dark:bg-stone-900 p-6 shadow-xl outline-none" onClick={(e) => e.stopPropagation()}>{form}</div>
+        className="dialog-panel w-auto p-6" onClick={(e) => e.stopPropagation()}>{form}</div>
     </div>
   );
 }

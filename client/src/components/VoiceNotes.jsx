@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { audioApi } from '../lib/api.js';
 import { useOnline } from '../lib/useOnline.js';
+import { useDialog } from '../context/DialogContext.jsx';
+import Icon from './Icon.jsx';
 
 const MAX_SECONDS = 5 * 60;
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -19,7 +21,7 @@ function Clip({ clip, unlockToken, onDelete }) {
       {url ? <audio controls preload="metadata" src={url} className="h-9 min-w-0 flex-1" aria-label={`Voice note, ${fmt(clip.duration)}`} />
         : <span className="flex-1 text-xs text-muted">{error || 'Loading voice note…'}</span>}
       <span className="w-10 text-right text-xs tabular-nums text-faint">{fmt(clip.duration)}</span>
-      <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => onDelete(clip)} aria-label="Delete voice note">✕</button>
+      <button type="button" className="btn-ghost btn-icon" onClick={() => onDelete(clip)} aria-label="Delete voice note" data-tip="Delete voice note" data-tip-align="end"><Icon name="trash" /></button>
     </li>
   );
 }
@@ -27,6 +29,7 @@ function Clip({ clip, unlockToken, onDelete }) {
 // Record and play voice notes for a saved note (owner-only, private). Hidden for locked notes until unlocked.
 export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
   const { online } = useOnline();
+  const dialog = useDialog();
   const [clips, setClips] = useState([]);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -70,7 +73,7 @@ export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
   };
   const stop = () => rec.current?.stop();
   const remove = async (clip) => {
-    if (!window.confirm('Delete this voice note?')) return;
+    if (!(await dialog.confirm({ title: 'Delete this voice note?', body: 'The recording is removed for good.', confirmLabel: 'Delete', danger: true }))) return;
     try { await audioApi.remove(clip._id, unlockToken); setClips((c) => c.filter((x) => x._id !== clip._id)); } catch (e) { setError(e.message); }
   };
 
@@ -80,14 +83,14 @@ export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
       {clips.length > 0 && <ul className="mb-2 space-y-2">{clips.map((c) => <Clip key={c._id} clip={c} unlockToken={unlockToken} onDelete={remove} />)}</ul>}
       <div className="flex items-center gap-2">
         {supported && (recording
-          ? <button type="button" onClick={stop} className="btn-ghost px-2.5 py-1 text-xs text-red-600"><span className="mr-1.5 h-2 w-2 rounded-full bg-red-500 motion-safe:animate-pulse" />Stop · {fmt(elapsed)} / 5:00</button>
-          : <button type="button" onClick={start} disabled={!online || busy} className="btn-ghost px-2.5 py-1 text-xs" title={online ? 'Record a voice note (up to 5 minutes)' : 'Voice notes need a connection'}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+          ? <button type="button" onClick={stop} className="btn-ghost btn-sm text-red-700 dark:text-red-400"><span className="mr-1.5 h-2 w-2 rounded-full bg-red-500 motion-safe:animate-pulse" />Stop · {fmt(elapsed)} / 5:00</button>
+          : <button type="button" onClick={start} disabled={!online || busy} className="btn-ghost btn-sm" data-tip-align="start" data-tip={online ? 'Record a voice note (up to 5 minutes)' : 'Voice notes need a connection'}>
+              <Icon name="mic" size="xs" />
               {busy ? 'Saving…' : 'Record voice note'}
             </button>)}
         {!online && <span className="text-xs text-faint">Voice notes need a connection.</span>}
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
     </section>
   );
 }

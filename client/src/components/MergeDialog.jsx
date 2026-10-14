@@ -15,9 +15,9 @@ export default function MergeDialog({ notes, onMerge, onCancel }) {
     try { await onMerge(order.map((n) => n._id), title.trim()); } catch (err) { setError(err.message); setBusy(false); }
   };
   return (
-    <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 px-4 dark:bg-black/60" onClick={onCancel}>
+    <div data-modal className="dialog-overlay" onClick={onCancel}>
       <form ref={ref} role="dialog" aria-modal="true" aria-labelledby="merge-title" tabIndex={-1} onSubmit={submit} onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-stone-900">
+        className="dialog-panel max-w-md p-6">
         <h2 id="merge-title" className="font-semibold">Merge {order.length} notes</h2>
         <p className="mt-1 text-sm text-muted">They’re combined into a new note in this order. The originals move to the trash.</p>
         <label className="mt-4 block text-sm font-medium" htmlFor="merge-name">Title</label>
@@ -32,7 +32,7 @@ export default function MergeDialog({ notes, onMerge, onCancel }) {
             </li>
           ))}
         </ol>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
           <button type="submit" className="btn-primary" disabled={busy}>{busy ? 'Merging…' : 'Merge'}</button>

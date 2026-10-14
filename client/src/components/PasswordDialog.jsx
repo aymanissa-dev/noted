@@ -17,9 +17,9 @@ export default function PasswordDialog({ title, description, confirm = false, su
     try { await onSubmit(pw); } catch (err) { setError(err.message); setBusy(false); }
   };
   return (
-    <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 px-4 dark:bg-black/60" onClick={onCancel}>
+    <div data-modal className="dialog-overlay" onClick={onCancel}>
       <form ref={ref} role="dialog" aria-modal="true" aria-labelledby="pw-title" tabIndex={-1} onSubmit={submit} onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-stone-900">
+        className="dialog-panel max-w-sm p-6">
         <h2 id="pw-title" className="font-semibold">{title}</h2>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
         <label className="mt-4 block text-sm font-medium" htmlFor="pw1">Backup password</label>
@@ -28,7 +28,7 @@ export default function PasswordDialog({ title, description, confirm = false, su
           <label className="mt-3 block text-sm font-medium" htmlFor="pw2">Repeat password</label>
           <input id="pw2" type="password" autoComplete="new-password" className="input mt-1" value={pw2} onChange={(e) => setPw2(e.target.value)} />
         </>)}
-        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
           <button type="submit" className="btn-primary" disabled={busy || !pw}>{busy ? 'Working…' : submitLabel}</button>

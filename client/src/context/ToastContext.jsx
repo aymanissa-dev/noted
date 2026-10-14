@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import Icon from '../components/Icon.jsx';
 
 const ToastContext = createContext({ show: () => {} });
 
@@ -18,15 +19,18 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ show, dismiss }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4" role="status" aria-live="polite">
+      {/* Sits above the mobile bottom navigation. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 sm:bottom-6" role="status" aria-live="polite">
         {toast && (
-          <div className="pointer-events-auto flex max-w-md items-center gap-3 rounded-xl bg-stone-900 dark:bg-stone-100 px-4 py-2.5 text-sm text-white dark:text-stone-900 shadow-lg">
-            <span>{toast.message}</span>
+          <div key={toast.id} data-testid="toast" className="pointer-events-auto flex min-h-12 max-w-md items-center gap-2 rounded-xl border border-stone-800 bg-stone-900 py-1.5 pl-4 pr-1.5 text-sm text-stone-50 shadow-lg animate-toast-in dark:border-stone-300 dark:bg-stone-100 dark:text-stone-900">
+            <span className="mr-1 py-1.5">{toast.message}</span>
             {toast.action && (
-              <button className="font-semibold text-amber-300 dark:text-amber-600 hover:underline"
+              <button className="min-h-9 rounded-lg bg-white/10 px-3 font-semibold text-white transition hover:bg-white/20 dark:bg-stone-900/10 dark:text-stone-900 dark:hover:bg-stone-900/20"
                 onClick={() => { dismiss(); toast.action.onClick(); }}>{toast.action.label}</button>
             )}
-            <button className="text-stone-400 hover:text-white dark:hover:text-stone-900" onClick={dismiss} aria-label="Dismiss">✕</button>
+            <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-stone-300 transition hover:bg-white/10 hover:text-white dark:text-stone-600 dark:hover:bg-stone-900/10 dark:hover:text-stone-900" onClick={dismiss} aria-label="Dismiss">
+              <Icon name="close" />
+            </button>
           </div>
         )}
       </div>

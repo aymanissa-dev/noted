@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { api } from '../lib/api.js';
 import { timeAgo } from '../lib/format.js';
+import Icon from './Icon.jsx';
 
 // `current` is the note as it is now (listed first, preview only); versions are earlier states.
 export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken, current }) {
@@ -33,14 +34,14 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken,
   };
 
   return (
-    <div data-modal className="fixed inset-0 z-30 grid place-items-center bg-stone-900/30 dark:bg-black/60 p-4" onClick={onClose}>
+    <div data-modal className="dialog-overlay" onClick={onClose}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="history-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}
-        className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-stone-900 shadow-xl outline-none">
+        className="dialog-panel flex h-[80vh] max-w-4xl flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 px-5 py-3">
           <h2 id="history-title" className="font-semibold">Version history</h2>
-          <button className="btn-ghost px-2" onClick={onClose} aria-label="Close">✕</button>
+          <button className="btn-ghost btn-icon" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
-        {error && <p className="px-5 pt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="px-5 pt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
         {(
 
           <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
@@ -51,7 +52,7 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken,
                   <button onClick={() => setSelected('current')} data-testid="history-current"
                     className={`w-full px-4 py-2.5 text-left text-sm transition ${selected === 'current' ? 'bg-stone-100 dark:bg-stone-800' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'}`}>
                     <div className="font-medium">Current version</div>
-                    <div className="text-xs text-stone-500 dark:text-stone-400">{current.updatedAt ? `Edited ${timeAgo(current.updatedAt)}` : 'Not saved yet'} · {current.content.length} chars</div>
+                    <div className="text-xs text-muted">{current.updatedAt ? `Edited ${timeAgo(current.updatedAt)}` : 'Not saved yet'} · {current.content.length} chars</div>
                   </button>
                 </li>
               )}
@@ -61,7 +62,7 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken,
                   <button onClick={() => setSelected(v._id)}
                     className={`w-full px-4 py-2.5 text-left text-sm transition ${selected === v._id ? 'bg-stone-100 dark:bg-stone-800' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'}`}>
                     <div className="font-medium">{new Date(v.createdAt).toLocaleString()}</div>
-                    <div className="text-xs text-stone-500 dark:text-stone-400">
+                    <div className="text-xs text-muted">
                       {timeAgo(v.createdAt)}{v.reason === 'restore' ? ' · before restore' : ''} · {v.length} chars
                     </div>
                   </button>
