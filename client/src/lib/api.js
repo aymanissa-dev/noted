@@ -131,6 +131,8 @@ export function syncQueue() {
   return syncing;
 }
 const queued = () => window.dispatchEvent(new Event('noted:queue-changed'));
+// Tells lists, the sidebar (recent, tags, folder counts) and stats that notes changed elsewhere.
+const changed = (r) => { window.dispatchEvent(new Event('noted:notes-changed')); return r; };
 
 // Downloads a file from an authenticated endpoint.
 async function download(path, fallbackName, extraHeaders = {}) {
@@ -300,20 +302,20 @@ export const api = {
   },
 
   togglePin: async (id) => { const r = await request('PATCH', `/notes/${id}/pin`); cacheNotes([r.note]); return r; },
-  deleteNote: (id) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`); cacheNotes([r.note]); return r; }), // moves to trash
-  deleteForever: async (id) => { const r = await request('DELETE', `/notes/${id}?permanent=true`); uncache(id); return r; },
-  toggleArchive: (id, archived) => withMove(id, archived === undefined ? {} : archived ? { archived: true, pinned: false } : { archived: false }, async () => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return r; }),
-  restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return r; },
+  deleteNote: (id) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`); cacheNotes([r.note]); return changed(r); }), // moves to trash
+  deleteForever: async (id) => { const r = await request('DELETE', `/notes/${id}?permanent=true`); uncache(id); return changed(r); },
+  toggleArchive: (id, archived) => withMove(id, archived === undefined ? {} : archived ? { archived: true, pinned: false } : { archived: false }, async () => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return changed(r); }),
+  restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return changed(r); },
   async emptyTrash() {
     const r = await request('DELETE', '/notes/trash');
     // drop trashed notes from the offline cache too
     try { const c = readCache(); for (const [id, n] of Object.entries(c)) if (n.deletedAt) delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* ignore */ }
-    return r;
+    return changed(r);
   },
   exportJson: (pin) => download('/notes/export?format=json', 'noted.json', pin ? { 'X-Lock-Pin': pin } : {}),
   exportMarkdown: (pin) => download('/notes/export?format=md', 'noted.zip', pin ? { 'X-Lock-Pin': pin } : {}),
   exportData: (pin) => request('GET', '/notes/export?format=json', undefined, pin ? { headers: { 'X-Lock-Pin': pin } } : {}),
-  importNotes: (data) => request('POST', '/notes/import', data),
+  importNotes: (data) => request('POST', '/notes/import', data).then(changed),
   listVersions: (id, { unlockToken } = {}) => request('GET', `/notes/${id}/versions`, undefined, unlockHeaders(unlockToken)),
   getVersion: (id, vid, { unlockToken } = {}) => request('GET', `/notes/${id}/versions/${vid}`, undefined, unlockHeaders(unlockToken)),
   restoreVersion: async (id, vid, { unlockToken } = {}) => {
@@ -322,11 +324,16 @@ export const api = {
   },
 
   // ---- Lock PIN & locked notes (never queued offline, never cached with contents) ----
-  setLockPin: (password, pin) => request('PUT', '/auth/lock-pin', { password, pin }),
-  removeLockPin: (password) => request('DELETE', '/auth/lock-pin', { password }),
+  setLockPin: (password, pin) => request('PUT', '/auth/lock-pin', { password, pin }).then(changed),
+  // Removing the PIN unlocks every locked note: drop their redacted cache entries and refresh lists.
+  removeLockPin: async (password) => {
+    const r = await request('DELETE', '/auth/lock-pin', { password });
+    try { const c = readCache(); for (const [id, n] of Object.entries(c)) if (n.locked) delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* ignore */ }
+    return changed(r);
+  },
   unlockNote: (id, pin) => request('POST', `/notes/${id}/unlock`, { pin }),
-  lockNote: async (id) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return r; },
-  removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return r; },
+  lockNote: async (id) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return changed(r); },
+  removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return changed(r); },
   updateLockedNote: async (id, body, unlockToken, { session } = {}) => {
     const r = await request('PUT', `/notes/${id}`, body, { headers: { 'X-Unlock-Token': unlockToken, ...(session && { 'X-Edit-Session': session }) } });
     cacheNotes([r.note]); return r;

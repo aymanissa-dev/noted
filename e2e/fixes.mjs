@@ -1,5 +1,5 @@
 // Browser checks for the QA retest fixes. ONLY=history,capture,... runs a subset.
-import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep } from './h.mjs';
+import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep, created } from './h.mjs';
 const only = (process.env.ONLY || '').split(',').filter(Boolean);
 const want = (k) => !only.length || only.includes(k);
 const b = await launch();
@@ -189,6 +189,58 @@ try {
       ok(!s2.deletedAt && !s2.archived, `${action} → Undo: server state restored`); if (s2.deletedAt) console.log(JSON.stringify(s2), await p.evaluate(() => document.body.innerText.slice(-300)));
     }
     await p.close();
+  }
+  if (want('recent')) {
+    const u = await newUser('fix');
+    await api('PUT', '/auth/lock-pin', { password: 'password123', pin: '2468' }, u.token);
+    const mk = async (title) => (await api('POST', '/notes', { title, content: title }, u.token)).data.note;
+    const a = await mk('Alpha recent'), bn = await mk('Beta recent'), l = await mk('Secret recent');
+    await api('PATCH', `/notes/${l._id}/lock`, { locked: true }, u.token);
+    for (const n of [a, bn, l]) { await api('GET', `/notes/${n._id}`, null, u.token); await sleep(20); }
+    await api('DELETE', `/notes/${bn._id}`, null, u.token); // in the trash
+    const p = await page(u);
+    const recent = () => p.evaluate(() => { const h = [...document.querySelectorAll('nav[aria-label=Sidebar] h2')].find((x) => /recent/i.test(x.innerText)); return h ? h.closest('div').parentElement.innerText : ''; });
+    await p.goto(`${BASE}/trash`, { waitUntil: 'networkidle0' }); await sleep(300);
+    ok(/Locked note/.test(await recent()) && !/Beta recent/.test(await recent()), 'recent: trashed note hidden, locked note shown as locked');
+    p.on('dialog', (d) => d.accept());
+
+    // delete forever from the trash
+    await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Delete forever/.test(x.innerText)).click());
+    await sleep(300);
+    await p.evaluate(() => { const c = document.querySelector('[role=alertdialog] button[data-confirm], [role=dialog] button[data-confirm]'); c?.click(); });
+    await p.waitForFunction(() => !document.body.innerText.includes('Beta recent'), { timeout: 5000 });
+    const r1 = await api('GET', '/notes/recent', null, u.token);
+    ok(!r1.data.notes.some((n) => n._id === bn._id), 'recent (server): permanently deleted note gone');
+    // remove the PIN in Settings → the sidebar shows the note's real title without a reload
+    await p.goto(`${BASE}/settings`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Remove PIN').click());
+    await p.waitForSelector('input[placeholder="Account password"]'); await p.type('input[placeholder="Account password"]', 'password123');
+    await p.evaluate(() => [...document.querySelectorAll('form button')].find((x) => /Remove PIN/.test(x.innerText)).click());
+    await p.waitForFunction(() => /PIN removed/.test(document.body.innerText), { timeout: 8000 });
+    const t0 = Date.now();
+    await p.waitForFunction(() => { const nav = document.querySelector('nav[aria-label=Sidebar]'); return nav && nav.innerText.includes('Secret recent') && !nav.innerText.includes('Locked note'); }, { timeout: 5000 }).catch(() => {});
+    ok(/Secret recent/.test(await recent()), `recent: PIN removed → title shown (${Date.now() - t0}ms) — ${(await recent()).replace(/\s+/g, ' ')}`);
+  }
+  if (want('activity')) {
+    const u = await newUser('fix');
+    const p = await page(u);
+    await p.goto(`${BASE}/settings`, { waitUntil: 'networkidle0' }); await p.waitForSelector('[data-testid=activity] li');
+    const count = () => p.$$eval('[data-testid=activity] li', (l) => l.length);
+    const c0 = await count();
+    p.on('dialog', (d) => d.accept());
+
+    const other = await api('POST', '/auth/login', { email: u.email, password: 'password123' });
+    await p.evaluate(() => window.dispatchEvent(new Event('focus'))); // you come back to the tab
+    await p.waitForFunction((n) => document.querySelectorAll('[data-testid=activity] li').length > n, { timeout: 5000 }, c0).catch(() => {});
+    ok((await count()) === c0 + 1, `activity: a new sign-in shows when you return to the tab (${c0} → ${await count()})`);
+    await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Sign out of all other devices/i.test(x.innerText)).click());
+    await sleep(300);
+    await p.evaluate(() => { const c = document.querySelector('[role=alertdialog] button[data-confirm], [role=dialog] button[data-confirm]'); c?.click(); });
+    await p.waitForFunction(() => document.querySelector('[data-testid=activity]')?.innerText.includes('Signed out'), { timeout: 6000 }).catch(() => {});
+    ok(new URL(p.url()).pathname === '/settings', 'this session stays signed in (a request racing the token rotation retries instead of logging out)');
+    ok(/Signed out/.test(await p.$eval('[data-testid=activity]', (e) => e.innerText)), 'activity: sign out everywhere marks other sessions as signed out right away');
+    ok((await api('GET', '/auth/me', null, other.data.token)).status === 401, 'other session really signed out');
+    created.push({ email: u.email, token: await p.evaluate(() => localStorage.getItem('noted.token')) }); // new token for cleanup
   }
   // @@NEXT@@
   ok(!errors.length, 'no page errors ' + errors.join(' | '));

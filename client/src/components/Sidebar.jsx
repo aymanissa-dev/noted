@@ -46,9 +46,12 @@ export default function Sidebar() {
   }, []);
   useEffect(() => {
     load();
+    // Coalesce bursts (autosave, bulk actions) into one refresh.
+    let t;
+    const soon = () => { clearTimeout(t); t = setTimeout(load, 250); };
     const evs = ['noted:folders-changed', 'noted:queue-changed', 'noted:notes-changed'];
-    evs.forEach((e) => window.addEventListener(e, load));
-    return () => evs.forEach((e) => window.removeEventListener(e, load));
+    evs.forEach((e) => window.addEventListener(e, soon));
+    return () => { clearTimeout(t); evs.forEach((e) => window.removeEventListener(e, soon)); };
   }, [load]);
   useEffect(() => { if (pathname.startsWith('/notes/')) setTimeout(load, 300); }, [pathname, load]);
 

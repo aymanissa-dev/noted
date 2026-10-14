@@ -1,6 +1,7 @@
 import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import AudioClip from '../models/AudioClip.js';
+import User from '../models/User.js';
 
 export const VERSION_FIELDS = ['title', 'content', 'tags', 'color', 'emoji'];
 export const MAX_VERSIONS = 50;
@@ -70,6 +71,7 @@ export async function deleteNotesWithHistory(filter) {
   if (!ids.length) return 0;
   await NoteVersion.deleteMany({ note: { $in: ids } });
   await AudioClip.deleteMany({ note: { $in: ids } });
+  await User.updateMany({ 'recent.note': { $in: ids } }, { $pull: { recent: { note: { $in: ids } } } });
   const { deletedCount } = await Note.deleteMany({ _id: { $in: ids } });
   return deletedCount;
 }
