@@ -31,6 +31,60 @@ try {
     vs = (await api('GET', `/notes/${n._id}/versions`, null, u.token)).data.versions;
     ok(vs.length === 3, `history: ~360 chars typed over 4 saves → another version (${vs.length})`);
   }
+  if (want('capture')) {
+    const u = await newUser('fix');
+    await api('POST', '/notes', { title: 'Existing', content: 'x' }, u.token);
+    const p = await page(u);
+    await p.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' });
+    // slow server: the note must show before the POST returns
+    await p.setRequestInterception(true);
+    let slow = true, failCreates = false;
+    p.on('request', async (r) => {
+      if (r.isInterceptResolutionHandled()) return;
+      if (r.method() === 'POST' && /\/api\/notes$/.test(r.url())) {
+        if (failCreates) return r.abort('internetdisconnected');
+        if (slow) { await sleep(2000); }
+      }
+      r.continue();
+    });
+    await p.click('#quick-capture'); await p.keyboard.type('QC line one');
+    await p.keyboard.down('Shift'); await p.keyboard.press('Enter'); await p.keyboard.up('Shift');
+    await p.keyboard.type('line two #qatag');
+    const t0 = Date.now(); await p.keyboard.press('Enter');
+    await p.waitForFunction(() => [...document.querySelectorAll('[data-flip-id] h3')].some((h) => h.innerText.includes('QC line one')), { timeout: 5000 });
+    const shown = Date.now() - t0;
+    ok(shown < 400, `quick capture shows the note immediately (${shown}ms, server takes 2s)`);
+    await p.evaluate(() => window.dispatchEvent(new Event('noted:notes-changed'))); // a list refetch races the save
+    await sleep(700);
+    ok(await p.evaluate(() => [...document.querySelectorAll('[data-flip-id] h3')].some((h) => h.innerText.includes('QC line one'))), 'optimistic card survives a list refetch while saving');
+    await p.waitForFunction(() => !document.querySelector('[data-flip-id^=optimistic]'), { timeout: 8000 });
+    const list = (await api('GET', '/notes', null, u.token)).data.notes;
+    const qc = list.find((n) => n.title === 'QC line one');
+    ok(qc && qc.tags.includes('qatag') && qc.content === 'line two #qatag', `#tag in the body becomes a tag (${JSON.stringify(qc?.tags)})`);
+    ok(await p.$$eval('[data-flip-id]', (els) => els.filter((e) => e.innerText.includes('QC line one')).length === 1), 'optimistic card replaced by the saved note (no duplicate)');
+    slow = false;
+    // offline: queue two notes, then come back online while the network is still flaky
+    await p.setOfflineMode(true); await sleep(200);
+    for (const t of ['Offline QC note', 'Quick capture xyz']) { await p.click('#quick-capture'); await p.keyboard.type(t); await p.keyboard.press('Enter'); await sleep(200); }
+    const banner = () => p.evaluate(() => document.querySelector('[role=status]')?.innerText || '');
+    ok(/2 pending/.test(await banner()), 'offline: pending count 2 — ' + (await banner()));
+    failCreates = true; // network "up" but requests still failing at first
+    await p.setOfflineMode(false);
+    await sleep(1500);
+    failCreates = false;
+    const t1 = Date.now();
+    await p.waitForFunction(() => !/pending/.test(document.querySelector('[role=status]')?.innerText || ''), { timeout: 30000 });
+    ok(true, `queue flushed without reload ${Date.now() - t1}ms after the network recovered`);
+    const titles = (await api('GET', '/notes', null, u.token)).data.notes.map((n) => n.title);
+    ok(titles.filter((t) => t === 'Offline QC note').length === 1 && titles.includes('Quick capture xyz'), 'offline notes synced once, full titles intact');
+    // the online event alone flushes too
+    await p.setOfflineMode(true); await sleep(200);
+    await p.click('#quick-capture'); await p.keyboard.type('Third offline'); await p.keyboard.press('Enter'); await sleep(200);
+    const t2 = Date.now(); await p.setOfflineMode(false);
+    await p.waitForFunction(() => !/pending/.test(document.querySelector('[role=status]')?.innerText || ''), { timeout: 10000 });
+    ok(Date.now() - t2 < 3000, `'online' event flushes the queue (${Date.now() - t2}ms)`);
+    await p.setRequestInterception(false);
+  }
   // @@NEXT@@
   ok(!errors.length, 'no page errors ' + errors.join(' | '));
 } finally { await cleanup(); await b.close(); }

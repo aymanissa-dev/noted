@@ -8,7 +8,16 @@ export function useOnline() {
 
   useEffect(() => {
     const refresh = () => setPending(queue.size());
-    const goOnline = () => { setOnline(true); syncQueue(); };
+    // The 'online' event can fire before requests actually go through, so retry shortly after too.
+    const retries = [];
+    const goOnline = () => {
+      setOnline(true); syncQueue();
+      for (const ms of [1500, 4000]) retries.push(setTimeout(() => syncQueue(), ms));
+    };
+    // ...and keep trying while anything is pending (flaky networks, server hiccups).
+    const timer = setInterval(() => { if (queue.size() && navigator.onLine) syncQueue(); }, 5000);
+    const onVisible = () => { if (document.visibilityState === 'visible') syncQueue(); };
+    document.addEventListener('visibilitychange', onVisible);
     const goOffline = () => setOnline(false);
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
@@ -16,6 +25,8 @@ export function useOnline() {
     window.addEventListener('storage', refresh);
     syncQueue();
     return () => {
+      clearInterval(timer); retries.forEach(clearTimeout);
+      document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('noted:queue-changed', refresh);

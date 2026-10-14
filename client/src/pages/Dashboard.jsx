@@ -97,7 +97,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     fetchList({ search: query, tag, folder, smart, view })
       .then(({ result, stale }) => {
         if (stale) return;
-        setNotes(result.notes); setError(''); setLoading(false);
+        // Keep optimistic quick-capture cards that a refetch raced past (they're replaced once saved).
+        setNotes((cur) => {
+          const optimistic = cur.filter((n) => String(n._id).startsWith('optimistic-'));
+          return optimistic.length ? [...optimistic, ...result.notes] : result.notes;
+        });
+        setError(''); setLoading(false);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, [query, tag, folder, smart, view, syncTick, fetchList]);
