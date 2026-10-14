@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api.js';
+import { api, readMeta } from '../lib/api.js';
 import { SMART } from '../lib/smart.js';
 
 const Icon = ({ d, className = 'h-4 w-4' }) => (
@@ -35,9 +35,10 @@ export default function Sidebar() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(search);
-  const [folders, setFolders] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [recent, setRecent] = useState([]);
+  // Paint from the last known copies, then refresh.
+  const [folders, setFolders] = useState(() => readMeta('folders') || []);
+  const [tags, setTags] = useState(() => readMeta('tags') || []);
+  const [recent, setRecent] = useState(() => (readMeta('recent') || []).slice(0, 5));
 
   const load = useCallback(() => {
     api.folders().then(({ folders }) => setFolders(folders)).catch(() => {});

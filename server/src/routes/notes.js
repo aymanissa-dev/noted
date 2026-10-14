@@ -234,7 +234,8 @@ router.post('/', asyncHandler(async (req, res) => {
 
 router.get('/:id', asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
-  if (!note.deletedAt) await recordView(req.userId, note._id).catch(() => {}); // best effort
+  // Hover prefetches (?prefetch=1) don't count as opening the note.
+  if (!note.deletedAt && !req.query.prefetch) await recordView(req.userId, note._id).catch(() => {}); // best effort
   res.json({ note }); // redacted if locked and not unlocked
 }));
 

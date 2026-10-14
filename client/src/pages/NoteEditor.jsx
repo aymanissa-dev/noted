@@ -13,8 +13,9 @@ import { EditorSkeleton, Bar } from '../components/Skeleton.jsx';
 import EditorTools from '../editor/EditorTools.jsx';
 import { toHtml } from '../lib/markdown.js';
 import { dropUndo } from '../editor/undoStore.js';
+import { loadEditor } from '../editor/preload.js';
 
-const MarkdownEditor = lazy(() => import('../editor/MarkdownEditor.jsx'));
+const MarkdownEditor = lazy(loadEditor);
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { cardClass } from '../lib/colors.js';
@@ -22,6 +23,7 @@ import { timeAgo } from '../lib/format.js';
 
 const AUTOSAVE_MS = 800;
 const isEmpty = (n) => !n.title.trim() && !n.content.trim();
+const toLoaded = (n) => ({ title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked), folderId: n.folderId || null });
 const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tags: n.tags, color: n.color, emoji: n.emoji });
 
 export default function NoteEditor() {
@@ -30,10 +32,12 @@ export default function NoteEditor() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
-  const [note, setNote] = useState({ title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false, folderId: search.get('folder') || null });
+  // Open instantly from a full cached copy (prefetched on hover, or opened before); refreshed below.
+  const [initial] = useState(() => (routeId ? api.cachedNote(routeId) : null));
+  const [note, setNote] = useState(() => (initial ? toLoaded(initial) : { title: '', content: '', tags: [], pinned: false, archived: false, deletedAt: null, color: '', emoji: '', locked: false, folderId: search.get('folder') || null }));
   const [noteId, setNoteId] = useState(routeId || null);
-  const [updatedAt, setUpdatedAt] = useState(null);
-  const [loading, setLoading] = useState(Boolean(routeId));
+  const [updatedAt, setUpdatedAt] = useState(initial?.updatedAt || null);
+  const [loading, setLoading] = useState(Boolean(routeId) && !initial);
   const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -57,11 +61,19 @@ export default function NoteEditor() {
   const idRef = useRef(noteId);
   idRef.current = noteId;
 
+  const revalidated = useRef(false);
   useEffect(() => {
-    if (!routeId || routeId === idRef.current && !loading) return;
+    const refresh = initial && !revalidated.current && routeId === initial._id;
+    revalidated.current = true;
+    if (!routeId || (routeId === idRef.current && !loading && !refresh)) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
-        const loaded = { title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked), folderId: n.folderId || null };
+        const loaded = toLoaded(n);
+        if (refresh) {
+          // Opened from cache: take the server copy only if it differs and you haven't started typing.
+          if (snapshot(noteRef.current) !== lastSaved.current) return;
+          if (snapshot(loaded) === lastSaved.current && n.updatedAt === initial.updatedAt && !n.locked) return;
+        }
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
         if (n.locked) setNeedsPin(true);

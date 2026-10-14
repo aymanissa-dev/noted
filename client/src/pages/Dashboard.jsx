@@ -3,7 +3,8 @@ import { useFlip } from '../lib/flip.js';
 import { latestOnly } from '../lib/latest.js';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SMART, smartLabel } from '../lib/smart.js';
-import { api, matchesList } from '../lib/api.js';
+import { api, matchesList, readMeta } from '../lib/api.js';
+import { preloadEditor } from '../editor/preload.js';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
@@ -17,28 +18,35 @@ const VIEWS = {
 };
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
-  const [notes, setNotes] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [params, setParams] = useSearchParams();
+  // Stale-while-revalidate: paint the cached list immediately, then refresh from the server.
+  const [notes, setNotes] = useState(() => api.cachedList({
+    view, tag: view === 'active' ? params.get('tag') || '' : '', folder: view === 'active' ? params.get('folder') || '' : '', smart: view === 'active' ? params.get('smart') || '' : '',
+  }) || []);
+  const [tags, setTags] = useState(() => readMeta('tags') || []);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const tag = view === 'active' ? params.get('tag') || '' : '';
   const folder = view === 'active' ? params.get('folder') || '' : '';
   const smart = view === 'active' ? params.get('smart') || '' : '';
   const setTag = (t) => setParams((p) => { const n = new URLSearchParams(p); if (t) n.set('tag', t); else n.delete('tag'); return n; }, { replace: true });
-  const [folders, setFolders] = useState([]);
+  const [folders, setFolders] = useState(() => readMeta('folders') || []);
+  // Warm the editor chunk while the browser is idle, so opening a note doesn't wait for it.
+  useEffect(() => preloadEditor(), []);
   useEffect(() => {
     const load = () => api.folders().then(({ folders }) => setFolders(folders)).catch(() => {});
     load(); window.addEventListener('noted:folders-changed', load);
     return () => window.removeEventListener('noted:folders-changed', load);
   }, []);
   const folderName = folders.find((f) => f._id === folder)?.name;
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // a refresh is in flight (cached rows may be showing)
   const [error, setError] = useState('');
   const [syncTick, setSyncTick] = useState(0);
   const listRef = useRef(null);
   const [leaving, setLeaving] = useState(() => new Set());
+  const leavingRef = useRef(leaving);
+  leavingRef.current = leaving;
   const [entering, setEntering] = useState(null);
   useFlip(listRef, [notes, leaving]);
   // Shrink-fade a card, then drop it (the FLIP hook glides the rest into the gap).
@@ -112,9 +120,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       .then(({ result, stale }) => {
         if (stale) return;
         // Keep optimistic quick-capture cards that a refetch raced past (they're replaced once saved).
+        // Cards mid-exit animation stay put until they finish.
         setNotes((cur) => {
           const optimistic = cur.filter((n) => String(n._id).startsWith('optimistic-'));
-          return optimistic.length ? [...optimistic, ...result.notes] : result.notes;
+          const next = optimistic.length ? [...optimistic, ...result.notes] : [...result.notes];
+          cur.forEach((n, i) => { if (leavingRef.current.has(n._id) && !next.some((x) => x._id === n._id)) next.splice(Math.min(i, next.length), 0, n); });
+          return next;
         });
         setError(''); setLoading(false);
       })

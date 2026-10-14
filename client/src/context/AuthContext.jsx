@@ -14,8 +14,11 @@ export function takeFlash() {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
+  // Render right away from the cached profile (the token is checked in the background; a 401 logs out).
+  // Only a first visit without a cached profile waits for /auth/me.
+  const cachedUser = () => { try { return localStorage.getItem(TOKEN_KEY) ? JSON.parse(localStorage.getItem(USER_KEY)) : null; } catch { return null; } };
+  const [user, setUser] = useState(cachedUser);
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)) && !cachedUser());
 
   // `flash` is shown once on the login page (e.g. after deleting the account).
   // Intentional logouts land on a clean /login (no "return to" page). Only an expired session remembers where you were.

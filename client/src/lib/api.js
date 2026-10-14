@@ -51,6 +51,19 @@ async function request(method, path, body, { headers: extra, signal, retried } =
   return data;
 }
 
+// Identical GETs that overlap share one request (the sidebar and the list both ask for folders/tags).
+const inflightGets = new Map();
+function getShared(path) {
+  if (inflightGets.has(path)) return inflightGets.get(path);
+  const p = request('GET', path).finally(() => inflightGets.delete(path));
+  inflightGets.set(path, p);
+  return p;
+}
+// Small persisted copies of side data (folders, tags) so the sidebar renders instantly; refreshed on every fetch.
+const META_KEY = 'noted.meta';
+export const readMeta = (k) => { try { return JSON.parse(localStorage.getItem(META_KEY))?.[k]; } catch { return undefined; } };
+const writeMeta = (k, v) => { try { const m = JSON.parse(localStorage.getItem(META_KEY)) || {}; m[k] = v; localStorage.setItem(META_KEY, JSON.stringify(m)); } catch { /* best-effort */ } };
+
 // ---- Local read cache (for offline reading). Cleared on logout. ----
 const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch { return {}; } };
 function cacheNotes(notes, { replaceView } = {}) {
@@ -73,6 +86,7 @@ function cacheNotes(notes, { replaceView } = {}) {
 const uncache = (id) => { const c = readCache(); delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); };
 const viewOf = (n) => (n.deletedAt ? 'trash' : n.archived ? 'archive' : 'active');
 
+const prefetched = new Set();
 const DAY = 24 * 60 * 60 * 1000;
 const SMART_LOCAL = {
   pinned: (n) => n.pinned, untagged: (n) => !n.tags.length && !n.locked, locked: (n) => n.locked,
@@ -94,6 +108,7 @@ function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
 export function clearLocalData() {
   clearAllUndo();
   localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(META_KEY);
   localStorage.removeItem(USER_KEY);
   queue.clear();
 }
@@ -212,8 +227,32 @@ export const api = {
   updatePreferences: (prefs) => request('PATCH', '/auth/preferences', prefs),
   deleteAccount: (password) => request('DELETE', '/auth/me', { password }),
 
+  // Instant first paint: the list as the local cache has it (stale-while-revalidate; the caller then fetches).
+  cachedList({ search, tag, folder, smart, view = 'active' } = {}) {
+    if (smart === 'recent') return null;
+    const all = Object.values(readCache());
+    if (!all.length) return null;
+    let notes = applyMoves(queue.applyPending(filterLocal(all, { search, tag, folder, smart, view })), view);
+    if (view === 'active') notes = [...filterLocal(queue.localNotes(), { search, tag, folder, smart, view }), ...notes];
+    return notes;
+  },
+  // Fetch a note ahead of opening it (hover / touchstart), so the editor opens from cache.
+  prefetchNote(id) {
+    if (!id || isTempId(id) || prefetched.has(id) || !navigator.onLine) return;
+    const c = readCache()[id];
+    if (c && !c.excerpt && !c.redacted) return; // full copy already here
+    prefetched.add(id);
+    getShared(`/notes/${id}?prefetch=1`).then(({ note }) => cacheNotes([note])).catch(() => {}).finally(() => setTimeout(() => prefetched.delete(id), 30000));
+  },
+  // A full (non-excerpt, non-locked) cached copy, for opening a note instantly.
+  cachedNote(id) {
+    const c = readCache()[id];
+    if (!c || c.excerpt || c.redacted || c.locked) return null;
+    return queue.applyPending([c])[0];
+  },
+
   async recentNotes(signal) {
-    try { const r = await request('GET', '/notes/recent', undefined, { signal }); cacheNotes(r.notes); return { notes: r.notes, offline: false }; }
+    try { const r = await (signal ? request('GET', '/notes/recent', undefined, { signal }) : getShared('/notes/recent')); cacheNotes(r.notes); writeMeta('recent', r.notes.slice(0, 10).map((n) => ({ _id: n._id, title: n.locked ? '' : n.title, emoji: n.locked ? '' : n.emoji, locked: n.locked }))); return { notes: r.notes, offline: false }; }
     catch (err) { if (err?.name === 'AbortError' || !isNetworkError(err)) throw err; return { notes: [], offline: true }; }
   },
 
@@ -252,14 +291,14 @@ export const api = {
   mergeNotes: async (ids, title) => { const r = await request('POST', '/notes/merge', { ids, title }); cacheNotes([r.note]); return r; },
 
   // ---- Folders ----
-  folders: () => request('GET', '/folders'),
+  folders: () => getShared('/folders').then((r) => { writeMeta('folders', r.folders); return r; }),
   createFolder: (name) => request('POST', '/folders', { name }),
   renameFolder: (id, name) => request('PATCH', `/folders/${id}`, { name }),
   deleteFolder: (id) => request('DELETE', `/folders/${id}`),
   moveToFolder: async (id, folderId) => { const r = await request('PATCH', `/notes/${id}/folder`, { folderId }); cacheNotes([r.note]); window.dispatchEvent(new Event('noted:folders-changed')); return r; },
 
   async tags() {
-    try { return await request('GET', '/notes/tags'); } catch (err) {
+    try { const r = await getShared('/notes/tags'); writeMeta('tags', r.tags); return r; } catch (err) {
       if (!isNetworkError(err)) throw err;
       const all = Object.values(readCache()).filter((n) => viewOf(n) === 'active').flatMap((n) => n.tags);
       return { tags: [...new Set(all)].sort() };

@@ -6,7 +6,8 @@ const b = await launch();
 const errors = [];
 const page = async (u, opts) => { const p = await pageAs(b, u.token, u.user, opts); p.on('pageerror', (e) => errors.push(e.message)); return p; };
 const typeInEditor = async (p, text) => { await p.click('.cm-content'); await p.keyboard.press('End'); await p.keyboard.down('Control'); await p.keyboard.press('End'); await p.keyboard.up('Control'); await p.keyboard.type(text); };
-const saved = (p) => p.waitForFunction(() => /saved/.test(document.querySelector('[data-testid=save-status]')?.dataset.state || ''), { timeout: 15000 });
+const saved = async (p) => { await p.waitForFunction(() => /dirty|saving/.test(document.querySelector('[data-testid=save-status]')?.dataset.state || ''), { timeout: 3000 }).catch(() => {}); return savedNow(p); };
+const savedNow = (p) => p.waitForFunction(() => /saved/.test(document.querySelector('[data-testid=save-status]')?.dataset.state || ''), { timeout: 15000 });
 try {
   // ---- 1. history: QA repro ----
   if (want('history')) {
@@ -45,7 +46,7 @@ try {
         if (failCreates) return r.abort('internetdisconnected');
         if (slow) { await sleep(2000); }
       }
-      r.continue();
+      r.continue().catch(() => {});
     });
     await p.click('#quick-capture'); await p.keyboard.type('QC line one');
     await p.keyboard.down('Shift'); await p.keyboard.press('Enter'); await p.keyboard.up('Shift');
@@ -64,7 +65,7 @@ try {
     ok(await p.$$eval('[data-flip-id]', (els) => els.filter((e) => e.innerText.includes('QC line one')).length === 1), 'optimistic card replaced by the saved note (no duplicate)');
     slow = false;
     // offline: queue two notes, then come back online while the network is still flaky
-    await p.setOfflineMode(true); await sleep(200);
+    await p.setOfflineMode(true); await p.waitForFunction(() => !navigator.onLine); await sleep(300);
     for (const t of ['Offline QC note', 'Quick capture xyz']) { await p.click('#quick-capture'); await p.keyboard.type(t); await p.keyboard.press('Enter'); await sleep(200); }
     const banner = () => p.evaluate(() => document.querySelector('[role=status]')?.innerText || '');
     ok(/2 pending/.test(await banner()), 'offline: pending count 2 — ' + (await banner()));
@@ -83,7 +84,7 @@ try {
     const t2 = Date.now(); await p.setOfflineMode(false);
     await p.waitForFunction(() => !/pending/.test(document.querySelector('[role=status]')?.innerText || ''), { timeout: 10000 });
     ok(Date.now() - t2 < 3000, `'online' event flushes the queue (${Date.now() - t2}ms)`);
-    await p.setRequestInterception(false);
+    await p.close();
   }
   if (want('pin')) {
     const u = await newUser('fix');
@@ -241,6 +242,38 @@ try {
     ok(/Signed out/.test(await p.$eval('[data-testid=activity]', (e) => e.innerText)), 'activity: sign out everywhere marks other sessions as signed out right away');
     ok((await api('GET', '/auth/me', null, other.data.token)).status === 401, 'other session really signed out');
     created.push({ email: u.email, token: await p.evaluate(() => localStorage.getItem('noted.token')) }); // new token for cleanup
+  }
+  if (want('speed')) {
+    const u = await newUser('fix');
+    const ids = [];
+    for (let i = 0; i < 12; i++) ids.push((await api('POST', '/notes', { title: `Speed ${i}`, content: `Body ${i} `.repeat(30) }, u.token)).data.note._id);
+    const p = await page(u);
+    await p.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' }); // first visit fills the caches
+    const cdp = await p.createCDPSession();
+    const LAT = Number(process.env.LATENCY ?? 300);
+    if (LAT) await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: LAT, downloadThroughput: -1, uploadThroughput: -1 });
+    const card = '[data-flip-id]:not([data-flip-id^=optimistic]) h3';
+    const list = [], open = [];
+    for (let i = 0; i < 3; i++) {
+      const t0 = Date.now(); await p.goto(`${BASE}/notes`, { waitUntil: 'domcontentloaded' }); await p.waitForSelector(card); list.push(Date.now() - t0); await sleep(2500);
+    }
+    // count API requests on a repeat visit (duplicates)
+    const seen = []; const onReq = (r) => { if (r.url().includes('/api/')) seen.push(r.method() + ' ' + new URL(r.url()).pathname); };
+    p.on('request', onReq); await p.goto(`${BASE}/notes`, { waitUntil: 'domcontentloaded' }); await sleep(3000); p.off('request', onReq);
+    const gets = seen.filter((x) => x.startsWith('GET'));
+    const dups = gets.filter((x, i) => gets.indexOf(x) !== i);
+    ok(!dups.length, `no duplicate API requests on a list visit (${gets.join(', ')})`);
+    for (let i = 0; i < 3; i++) {
+      const sel = `[data-flip-id="${ids[i + 2]}"] a`;
+      await p.waitForSelector(sel); await p.hover(sel); await sleep(LAT * 2 + 300);
+      const t0 = Date.now(); await p.click(sel);
+      await p.waitForFunction((n) => document.querySelector('.cm-content')?.innerText.includes(`Body ${n}`), {}, i + 2);
+      open.push(Date.now() - t0);
+      await p.goto(`${BASE}/notes`, { waitUntil: 'domcontentloaded' }); await p.waitForSelector(card); await sleep(1500);
+    }
+    const med = (a) => [...a].sort((x, y) => x - y)[1];
+    ok(med(list) < 300, `repeat-visit list render ${list.join('/')}ms (median ${med(list)}, ${LAT}ms added latency)`);
+    ok(med(open) < 500, `note open after hover ${open.join('/')}ms (median ${med(open)})`);
   }
   // @@NEXT@@
   ok(!errors.length, 'no page errors ' + errors.join(' | '));

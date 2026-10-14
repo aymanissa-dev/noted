@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { api } from '../lib/api.js';
 import { timeAgo } from '../lib/format.js';
 import PinIcon from './PinIcon.jsx';
 import { cardClass } from '../lib/colors.js';
@@ -29,7 +30,8 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         {optimistic ? (
           <span>{title}</span>
         ) : (
-          <Link to={`/notes/${note._id}`} className="outline-none after:absolute after:inset-0 after:rounded-xl after:content-['']">
+          <Link to={`/notes/${note._id}`} className="outline-none after:absolute after:inset-0 after:rounded-xl after:content-['']"
+            onMouseEnter={() => api.prefetchNote(note._id)} onTouchStart={() => api.prefetchNote(note._id)} onFocus={() => api.prefetchNote(note._id)}>
             {!note.locked && note.emoji && <span className="mr-1.5" aria-hidden="true">{note.emoji}</span>}{title}
           </Link>
         )}
