@@ -14,6 +14,8 @@ import { hashPin, PIN_RE } from '../lib/lockPin.js';
 // Cost 10 is ~4x faster than 12 and still strong; older cost-12 hashes are upgraded on login.
 export const BCRYPT_COST = 10;
 
+import { createWelcomeNote } from '../lib/welcome.js';
+
 const router = Router();
 // Record a sign-in and keep only the newest ACTIVITY_LIMIT. Returns the event id (stored in the token as sid).
 async function recordSignIn(req, user, kind) {
@@ -46,6 +48,7 @@ router.post('/register', asyncHandler(async (req, res) => {
 
   const user = await User.create({ name, email, password: await bcrypt.hash(password, BCRYPT_COST) });
   const sid = await recordSignIn(req, user, 'register');
+  if (req.body?.sample === true) await createWelcomeNote(user._id).catch(() => {}); // first-run tour (web sign-ups)
   res.status(201).json({ token: signToken(user, undefined, sid), user });
 }));
 

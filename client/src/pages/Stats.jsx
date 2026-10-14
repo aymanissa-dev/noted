@@ -25,7 +25,7 @@ export default function Stats() {
       <Link to="/settings" className="btn-ghost -ml-3">← Settings</Link>
       <h1 className="mt-2 text-xl font-semibold">Storage</h1>
       <p className="text-sm text-muted">What’s in your notebook. Locked notes are counted but their words stay private.</p>
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p>}
       {!s && !error && <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="surface p-4"><Bar className="h-3 w-16" /><Bar className="mt-3 h-6 w-12" /></div>)}</div>}
       {s && (
         <>

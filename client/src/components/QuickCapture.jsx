@@ -26,11 +26,12 @@ export default function QuickCapture({ onCapture }) {
   };
 
   return (
-    <div className="mt-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-4 py-2.5 shadow-sm focus-within:border-stone-400 dark:focus-within:border-stone-600">
+    <div className="mt-4 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm transition focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 dark:border-stone-800 dark:bg-stone-900">
       <textarea ref={ref} id="quick-capture" rows={1} value={text} onChange={onChange} onKeyDown={onKeyDown}
-        placeholder="Quick note… (Enter to save)"
-        title="Enter saves · Shift+Enter adds a line · #tag adds a tag"
-        className="block w-full resize-none bg-transparent text-sm outline-none placeholder:text-stone-400" aria-label="Quick capture" />
+        placeholder="Jot something down… #tags work · Enter to save"
+        
+        className="block w-full resize-none bg-transparent text-sm outline-none placeholder:text-stone-500 dark:placeholder:text-stone-400" aria-label="Quick note" aria-describedby="qc-hint" />
+      <p id="qc-hint" className="sr-only">First line becomes the title. Enter saves, Shift+Enter adds a line, #tags become tags.</p>
     </div>
   );
 }

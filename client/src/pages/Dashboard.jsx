@@ -5,16 +5,19 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SMART, smartLabel } from '../lib/smart.js';
 import { api, matchesList, readMeta } from '../lib/api.js';
 import { preloadEditor } from '../editor/preload.js';
+import Icon from '../components/Icon.jsx';
+import TipsHint from '../components/TipsHint.jsx';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useDialog } from '../context/DialogContext.jsx';
 
 const VIEWS = {
-  active: { empty: 'No notes yet. Press N to write one.' },
-  archive: { empty: 'Nothing archived. Archive a note to tuck it away.' },
-  trash: { empty: 'Trash is empty. Deleted notes stay here for 30 days.' },
+  active: { icon: 'notes', title: 'No notes yet', empty: 'Write your first one, or type a quick note above.' },
+  archive: { icon: 'archive', title: 'Nothing archived', empty: 'Archive notes you want to keep but not see every day.' },
+  trash: { icon: 'trash', title: 'Trash is empty', empty: 'Deleted notes wait here for 30 days before they’re gone for good.' },
 };
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
@@ -42,6 +45,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   const folderName = folders.find((f) => f._id === folder)?.name;
   const [loading, setLoading] = useState(true); // a refresh is in flight (cached rows may be showing)
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [offline, setOffline] = useState(false);
   const [syncTick, setSyncTick] = useState(0);
   const listRef = useRef(null);
   const [leaving, setLeaving] = useState(() => new Set());
@@ -61,6 +66,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   const [selected, setSelected] = useState([]);
   const [merging, setMerging] = useState(false);
   const toast = useToast();
+  const dialog = useDialog();
   const toggleSelect = (n) => setSelected((s) => (s.some((x) => x._id === n._id) ? s.filter((x) => x._id !== n._id) : [...s, n]));
   const stopSelecting = () => { setSelecting(false); setSelected([]); };
   useEffect(() => { stopSelecting(); }, [view, folder, smart, tag]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,9 +133,9 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
           cur.forEach((n, i) => { if (leavingRef.current.has(n._id) && !next.some((x) => x._id === n._id)) next.splice(Math.min(i, next.length), 0, n); });
           return next;
         });
-        setError(''); setLoading(false);
+        setLoadError(''); setOffline(Boolean(result.offline)); setLoading(false);
       })
-      .catch((e) => { setError(e.message); setLoading(false); });
+      .catch((e) => { if (e?.name === 'AbortError') return; setLoadError(e.message); setLoading(false); });
   }, [query, tag, folder, smart, view, syncTick, fetchList]);
 
   // Reset a tag filter whose tag no longer exists.
@@ -174,12 +180,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     catch (e) { setNotes((l) => [note, ...l]); setError(e.message); }
   };
   const deleteForever = async (note) => {
-    if (!window.confirm('Delete this note forever? This can\'t be undone.')) return;
+    if (!(await dialog.confirm({ title: 'Delete forever?', body: `“${note.title || 'Untitled'}” and its history will be gone for good. This can’t be undone.`, confirmLabel: 'Delete forever', danger: true }))) return;
     try { await api.deleteForever(note._id); await removeAnimated(note._id); }
     catch (e) { setError(e.message); }
   };
   const emptyTrash = async () => {
-    if (!window.confirm('Permanently delete everything in the trash?')) return;
+    if (!(await dialog.confirm({ title: 'Empty the trash?', body: `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} will be deleted for good. This can’t be undone.`, confirmLabel: 'Empty trash', danger: true }))) return;
     const previous = notes;
     setNotes([]); // optimistic
     try { await api.emptyTrash(); }
@@ -199,36 +205,55 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
 
   return (
     <div>
-      {isActive && !compact && (
+      {!compact && (
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="truncate text-lg font-semibold">{heading || 'All notes'}</h1>
-          <select aria-label="Show" value={scope} onChange={(e) => pickScope(e.target.value)}
-            className="input w-auto max-w-[11rem] py-1.5 lg:hidden">
-            <option value="">All notes</option>
-            <optgroup label="Smart">{SMART.map(([k, l]) => <option key={k} value={`smart:${k}`}>{l}</option>)}</optgroup>
-            {folders.length > 0 && <optgroup label="Folders">{folders.map((f) => <option key={f._id} value={`folder:${f._id}`}>{f.name}</option>)}</optgroup>}
-          </select>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight">{isActive ? heading || 'All notes' : view === 'trash' ? 'Trash' : 'Archive'}</h1>
+            {view === 'trash' && <p className="mt-0.5 text-sm text-muted">Notes here are deleted for good after 30 days.</p>}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {view !== 'trash' && notes.length > 1 && (
+              <button type="button" className="btn-ghost btn-sm sm:hidden" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : 'Select'}</button>
+            )}
+            {isActive && (
+              <select aria-label="Show" value={scope} onChange={(e) => pickScope(e.target.value)}
+                className="input w-auto max-w-[10rem] py-1.5 lg:hidden">
+                <option value="">All notes</option>
+                <optgroup label="Smart">{SMART.map(([k, l]) => <option key={k} value={`smart:${k}`}>{l}</option>)}</optgroup>
+                {folders.length > 0 && <optgroup label="Folders">{folders.map((f) => <option key={f._id} value={`folder:${f._id}`}>{f.name}</option>)}</optgroup>}
+              </select>
+            )}
+          </div>
         </div>
       )}
       <div className={`flex gap-3 ${compact ? 'items-center' : 'flex-col sm:flex-row sm:items-center'}`}>
         <div className="relative flex-1">
-          <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-          <input id="search" type="search" className="input pl-9 pr-8" placeholder="Search notes…" value={search}
+          <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input id="search" type="search" aria-label="Search notes" className="input pl-9 pr-10" placeholder={view === 'trash' ? 'Search the trash…' : view === 'archive' ? 'Search the archive…' : 'Search notes…'} value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); e.stopPropagation(); setSearch(''); } }} />
           {search && (
             <button type="button" onClick={() => setSearch('')} aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200">✕</button>
+              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"><Icon name="close" /></button>
           )}
         </div>
-        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'px-3' : ''}`} aria-label="New note">{compact ? '+' : '+ New note'}</Link>}
-        {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}>Empty trash</button>}
         {view !== 'trash' && !compact && notes.length > 1 && (
-          <button type="button" className="btn-ghost self-end py-1 text-xs sm:self-auto sm:py-2 sm:text-sm" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : 'Select'}</button>
+          <button type="button" className="btn-ghost hidden sm:inline-flex" aria-pressed={selecting} data-tip={selecting ? undefined : 'Select notes to merge'}
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : <><Icon name="select" />Select</>}</button>
         )}
+        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'btn-icon' : ''}`} aria-label="New note" data-tip="New note · N" data-tip-align="end"><Icon name="plus" />{!compact && 'New note'}</Link>}
+        {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}><Icon name="trash" />Empty trash</button>}
       </div>
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
+      {isActive && !compact && !smart && !folder && !tag && notes.length > 0 && <TipsHint />}
+      {offline && <p role="status" className="mt-4 inline-flex items-center gap-2 text-xs text-muted"><Icon name="offline" size="xs" />Offline: showing the notes saved on this device.</p>}
+      {loadError && (
+        <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <span className="inline-flex items-center gap-2"><Icon name="alert" />Couldn’t load your notes{notes.length ? '. Showing the last copy on this device' : ''}. {loadError}</span>
+          <button type="button" className="btn-secondary btn-sm" onClick={() => setSyncTick((t) => t + 1)}>Try again</button>
+        </div>
+      )}
 
       {isActive && !smart && !folder && tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2 lg:hidden">
@@ -248,20 +273,28 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         </div>
       )}
       {merging && <MergeDialog notes={selected} onMerge={merge} onCancel={() => setMerging(false)} />}
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p>}
 
       <div ref={listRef}>
       {loading && notes.length === 0 ? (
         <ListSkeleton />
       ) : notes.length === 0 ? (
-        <div className="mt-20 text-center">
-          <p className="text-muted">{query || tag ? `No notes match ${query ? `“${query}”` : `#${tag}`}.` : folder ? 'This folder is empty.' : smart ? 'Nothing here right now.' : copy.empty}</p>
+        loadError ? null : (
+        <div className="mx-auto mt-16 max-w-sm text-center" data-testid="empty-state">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+            <Icon name={query || tag ? 'search' : folder ? 'folder' : smart ? (smart === 'locked' ? 'lock' : 'star') : copy.icon} size="md" />
+          </span>
+          <h2 className="mt-4 font-semibold">{query || tag ? 'No matches' : folder ? 'This folder is empty' : smart ? 'Nothing here right now' : copy.title}</h2>
+          <p className="mt-1 text-sm text-muted">{query || tag ? `No notes match ${query ? `“${query}”` : `#${tag}`}. Try fewer words or another tag.` : folder ? 'Move notes here from the editor, or create one in this folder.' : smart ? 'Notes show up here as soon as they match.' : copy.empty}</p>
+          <div className="mt-5">
           {(query || tag)
-            ? <button type="button" className="btn-ghost mt-3" onClick={() => { setSearch(''); setTag(''); }}>Clear filters</button>
-            : smart ? <Link to="/notes" className="btn-ghost mt-3">All notes</Link>
-            : view === 'active' ? <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className="btn-primary mt-4">New note</Link>
-            : <Link to="/notes" className="btn-ghost mt-3">Back to notes</Link>}
+            ? <button type="button" className="btn-secondary" onClick={() => { setSearch(''); setTag(''); }}>Clear search</button>
+            : smart ? <Link to="/notes" className="btn-secondary">Show all notes</Link>
+            : view === 'active' ? <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className="btn-primary"><Icon name="plus" />New note</Link>
+            : <Link to="/notes" className="btn-secondary">Back to notes</Link>}
+          </div>
         </div>
+        )
       ) : (
         <>
           {pinned.length > 0 && <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}

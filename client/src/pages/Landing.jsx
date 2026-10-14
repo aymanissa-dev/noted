@@ -54,7 +54,7 @@ function AppPreview() {
                 <p className="truncate text-sm font-semibold">{n.emoji && <span className="mr-1">{n.emoji}</span>}{n.title}</p>
                 {n.pinned && <span className="text-xs text-accent">●</span>}
               </div>
-              <p className="mt-1 truncate text-xs text-stone-500 dark:text-stone-400">{n.body}</p>
+              <p className="mt-1 truncate text-xs text-muted">{n.body}</p>
               <span className="mt-2 inline-block rounded-full bg-stone-900/5 px-2 py-0.5 text-[10px] text-stone-600 dark:bg-white/10 dark:text-stone-300">#{n.tag}</span>
             </div>
           ))}
@@ -121,7 +121,7 @@ export default function Landing() {
       </main>
 
       <footer className="border-t border-stone-200 dark:border-stone-800">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-stone-500 dark:text-stone-400 sm:flex-row sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted sm:flex-row sm:px-6">
           <Logo className="text-base" />
           <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="underline-offset-4 hover:underline">Source on GitHub</a>
         </div>

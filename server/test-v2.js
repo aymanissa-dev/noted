@@ -245,6 +245,18 @@ test('history: QA repro (3 edits ~3.5s apart) + sessions + cumulative change', a
   assert.equal(g.editSession, undefined); assert.equal(g.changeSinceVersion, undefined);
 });
 
+test('welcome note on web sign-up only', async () => {
+  let r = await call('POST', '/auth/register', { name: 'New', email: 'new@example.com', password: 'password123', sample: true });
+  token = r.data.token;
+  let notes = (await call('GET', '/notes')).data.notes;
+  assert.equal(notes.length, 1); assert.equal(notes[0].title, 'Welcome to noted.'); assert.equal(notes[0].pinned, true);
+  assert.deepEqual(notes[0].tags, ['welcome']);
+  assert.equal((await call('DELETE', `/notes/${notes[0]._id}?permanent=true`)).status, 204); // deletable
+  r = await call('POST', '/auth/register', { name: 'Api', email: 'api@example.com', password: 'password123' });
+  token = r.data.token;
+  assert.equal((await call('GET', '/notes')).data.notes.length, 0); // API clients start empty
+});
+
 // @@MORE@@
 
 try {
