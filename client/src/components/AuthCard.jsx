@@ -9,13 +9,13 @@ export default function AuthCard({ title, children, footer }) {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <Link to="/" aria-label="noted. home"><Logo className="text-4xl" /></Link>
-          <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">Write it down. Find it later.</p>
+          <p className="mt-2 text-sm text-muted">Write it down. Find it later.</p>
         </div>
-        <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-6 shadow-sm">
-          <h1 className="mb-4 text-lg font-semibold">{title}</h1>
+        <div className="surface p-6 shadow-sm sm:p-8">
+          <h1 className="mb-5 text-xl font-semibold tracking-tight">{title}</h1>
           {children}
         </div>
-        <p className="mt-4 text-center text-sm text-stone-500 dark:text-stone-400">{footer}</p>
+        <p className="mt-5 text-center text-sm text-muted">{footer}</p>
       </div>
     </div>
   );
