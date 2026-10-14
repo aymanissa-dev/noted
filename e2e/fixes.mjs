@@ -106,6 +106,38 @@ try {
     const r = await api('POST', `/notes/${n._id}/unlock`, { pin: '2468' }, u.token);
     ok(r.status === 429, 'server refuses even the right PIN during the block');
   }
+  if (want('leave')) {
+    const u = await newUser('fix');
+    const n = (await api('POST', '/notes', { title: 'Leave', content: 'start' }, u.token)).data.note;
+    const p = await page(u);
+    let dialogs = 0; p.on('dialog', async (d) => { if (d.type() === 'beforeunload') dialogs++; await d.accept(); });
+    const content = async () => (await api('GET', `/notes/${n._id}`, null, u.token)).data.note.content;
+    // a) Unsaved (before autosave fires): prompt, and the keepalive save still lands
+    await p.goto(`${BASE}/notes/${n._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('.cm-content');
+    await typeInEditor(p, ' unsaved-edit');
+    await p.waitForSelector('[data-testid=save-status]', { timeout: 3000 }).catch(() => {});
+    ok(await p.evaluate(() => document.querySelector('[data-testid=save-status]')?.dataset.state) === 'dirty', 'state is Unsaved');
+    await p.reload({ waitUntil: 'networkidle0' }); await sleep(800);
+    ok(dialogs === 1, `leave prompt shown while Unsaved (${dialogs})`);
+    ok((await content()).endsWith('unsaved-edit'), 'keepalive save landed after leaving');
+    // b) Saving… (request in flight): prompt
+    await p.waitForSelector('.cm-content');
+    await p.setRequestInterception(true);
+    const hold = (r) => { if (r.isInterceptResolutionHandled()) return; if (r.method() === 'PUT') setTimeout(() => r.continue().catch(() => {}), 4000); else r.continue(); };
+    p.on('request', hold);
+    await typeInEditor(p, ' saving-edit');
+    await p.waitForFunction(() => document.querySelector('[data-testid=save-status]')?.dataset.state === 'saving', { timeout: 5000 });
+    await p.reload({ waitUntil: 'domcontentloaded' }); await sleep(800);
+    ok(dialogs === 2, `leave prompt shown while Saving… (${dialogs})`);
+    p.off('request', hold); await p.setRequestInterception(false);
+    await sleep(4500);
+    ok((await content()).endsWith('saving-edit'), 'edit made while saving was kept');
+    // c) Saved: no prompt
+    await p.goto(`${BASE}/notes/${n._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('.cm-content');
+    await typeInEditor(p, ' done'); await saved(p); await sleep(300);
+    await p.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' }); await p.goto('about:blank'); await sleep(300);
+    ok(dialogs === 2, `no prompt once saved (${dialogs})`);
+  }
   // @@NEXT@@
   ok(!errors.length, 'no page errors ' + errors.join(' | '));
 } finally { await cleanup(); await b.close(); }

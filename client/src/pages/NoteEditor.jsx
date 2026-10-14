@@ -140,11 +140,13 @@ export default function NoteEditor() {
       if (noteRef.current.locked && !unlockToken.current) return;
       if (saveOnUnload(idRef.current, fieldsOf(noteRef.current), unlockToken.current)) lastSaved.current = snapshot(noteRef.current);
     };
-    // Only prompt if there are changes that are neither saved, in flight, nor handed to a keepalive save.
+    // Prompt whenever something isn't confirmed saved yet (Unsaved or Saving…). A keepalive save of the
+    // latest state still goes out first, so the edit survives even if you leave anyway.
     const warn = (e) => {
-      if (!dirty() || inflight.current) return;
+      const unsaved = dirty() || Boolean(inflight.current);
+      if (!unsaved) return;
       flush();
-      if (dirty()) { e.preventDefault(); e.returnValue = ''; }
+      e.preventDefault(); e.returnValue = '';
     };
     const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
     window.addEventListener('beforeunload', warn);
