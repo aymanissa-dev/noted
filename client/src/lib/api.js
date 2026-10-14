@@ -101,6 +101,19 @@ async function withMove(id, patch, run) {
   try { return await run(); } finally { pendingMoves.delete(id); }
 }
 
+// ---- Optimistic inserts (Undo after delete/archive) ----
+// The note shows up in the list at once; list results include it until the server confirms.
+const pendingInserts = new Map(); // id -> note
+export function optimisticInsert(note, promise) {
+  pendingInserts.set(note._id, note);
+  window.dispatchEvent(new CustomEvent('noted:note-inserted', { detail: note }));
+  return promise.finally(() => {
+    if (pendingInserts.get(note._id) === note) pendingInserts.delete(note._id);
+    window.dispatchEvent(new Event('noted:notes-changed'));
+  });
+}
+export const matchesList = (n, filters) => filterLocal([n], filters).length > 0;
+
 // ---- Sync ----
 const sendEntry = async (e) => {
   if (e.op === 'create') return (await request('POST', '/notes', e.body)).note;
@@ -210,6 +223,10 @@ export const api = {
       notes = filterLocal(Object.values(readCache()), { search, tag, folder, smart, view });
     }
     notes = applyMoves(queue.applyPending(notes), view);
+    if (pendingInserts.size) {
+      const extra = filterLocal([...pendingInserts.values()].filter((p) => !notes.some((n) => n._id === p._id)), { search, tag, folder, smart, view });
+      if (extra.length) notes = [...extra, ...notes];
+    }
     if (view === 'active') {
       const local = filterLocal(queue.localNotes(), { search, tag, folder, smart, view });
       notes = [...local, ...notes].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt)));

@@ -3,7 +3,7 @@ import { useFlip } from '../lib/flip.js';
 import { latestOnly } from '../lib/latest.js';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SMART, smartLabel } from '../lib/smart.js';
-import { api } from '../lib/api.js';
+import { api, matchesList } from '../lib/api.js';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
@@ -71,6 +71,20 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     });
     navigate(`/notes/${note._id}`);
   };
+
+  // Undo after delete/archive: put the note back right away (the server confirms in the background).
+  const filtersRef = useRef({});
+  filtersRef.current = { search: query, tag, folder, smart, view };
+  useEffect(() => {
+    const onInsert = (e) => {
+      const n = e.detail;
+      if (!matchesList(n, filtersRef.current)) return;
+      setEntering(n._id);
+      setNotes((l) => [n, ...l.filter((x) => x._id !== n._id)].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
+    };
+    window.addEventListener('noted:note-inserted', onInsert);
+    return () => window.removeEventListener('noted:note-inserted', onInsert);
+  }, []);
 
   useEffect(() => {
     const bump = () => setSyncTick((t) => t + 1);

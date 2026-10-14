@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, saveOnUnload } from '../lib/api.js';
+import { api, optimisticInsert, saveOnUnload } from '../lib/api.js';
 import { isTempId } from '../lib/offlineQueue.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
@@ -230,6 +230,8 @@ export default function NoteEditor() {
     setNote(restored); setUpdatedAt(n.updatedAt); setStatus('saved');
   };
 
+  // The note as the list shows it, for putting it back instantly on Undo.
+  const asListNote = (patch) => ({ _id: idRef.current, ...noteRef.current, updatedAt: updatedAt || new Date().toISOString(), createdAt: updatedAt, ...patch });
   // Optimistic archive/trash: leave the editor right away, offer Undo, report failures in a toast.
   const toggleArchive = async () => {
     const id = idRef.current;
@@ -242,7 +244,8 @@ export default function NoteEditor() {
     }
     const req = api.toggleArchive(id, true);
     navigate('/notes');
-    toast.show('Note archived.', { action: { label: 'Undo', onClick: () => req.then(() => api.toggleArchive(id, false)).then(() => toast.show('Note restored.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
+    const back = asListNote({ archived: false, deletedAt: null });
+    toast.show('Note archived.', { action: { label: 'Undo', onClick: () => optimisticInsert(back, req.catch(() => {}).then(() => api.toggleArchive(id, false))).then(() => toast.show('Back in your notes.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
     req.catch((e) => toast.show(`Couldn’t archive the note: ${e.message}`));
   };
 
@@ -251,7 +254,8 @@ export default function NoteEditor() {
     await save();
     const req = api.deleteNote(id);
     navigate('/notes');
-    toast.show('Note moved to trash.', { action: { label: 'Undo', onClick: () => req.then(() => api.restoreNote(id)).then(() => { toast.show('Note restored.'); window.dispatchEvent(new Event('noted:queue-changed')); }).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
+    const back = asListNote({ deletedAt: null });
+    toast.show('Note moved to trash.', { action: { label: 'Undo', onClick: () => optimisticInsert(back, req.catch(() => {}).then(() => api.restoreNote(id))).then(() => toast.show('Note restored.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
     req.catch((e) => toast.show(`Couldn’t delete the note: ${e.message}`));
   };
 

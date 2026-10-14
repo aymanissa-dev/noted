@@ -157,6 +157,39 @@ try {
     const got = await loginFrom(`/notes/${n._id}`); ok(got === `/notes/${n._id}`, 'login from a note deep link returns to that note');
     await ctx.close();
   }
+  if (want('undo')) {
+    const u = await newUser('fix');
+    await api('POST', '/notes', { title: 'Keeper', content: 'k' }, u.token);
+    const n = (await api('POST', '/notes', { title: 'Delete me', content: 'bye' }, u.token)).data.note;
+    const p = await page(u, { width: 1024, height: 800 });
+    await p.goto(`${BASE}/notes/${n._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('.cm-content');
+    await p.setRequestInterception(true);
+    let archives = 0;
+    p.on('request', (r) => {
+      if (r.isInterceptResolutionHandled()) return;
+      const undo = r.method() === 'POST' && /\/restore$/.test(r.url()) || (r.method() === 'PATCH' && /\/archive$/.test(r.url()) && ++archives === 2);
+      if (undo) setTimeout(() => r.continue().catch(() => {}), 2500); else r.continue().catch(() => {});
+    });
+    const has = () => p.evaluate((id) => Boolean(document.querySelector(`[data-flip-id="${id}"]`)), n._id);
+    for (const [action, label] of [['delete', 'Delete'], ['archive', 'Archive']]) {
+      await p.goto(`${BASE}/notes/${n._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('.cm-content');
+      await p.evaluate((l) => { const b = [...document.querySelectorAll('button')].find((x) => x.getAttribute('aria-label') === l || x.innerText.trim() === l); b.click(); }, label);
+      await p.waitForFunction(() => location.pathname === '/notes');
+      await p.waitForFunction(() => [...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'Undo'), { timeout: 5000 });
+      await sleep(1200); // let the move request land and the list settle
+      ok(!(await has()), `${action}: note left the list`);
+      const t0 = Date.now();
+      await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Undo').click());
+      await p.waitForFunction((id) => document.querySelector(`[data-flip-id="${id}"]`), { timeout: 5000 }, n._id);
+      const ms = Date.now() - t0;
+      ok(ms < 300, `${action} → Undo: note back in the list in ${ms}ms (server takes 2.5s)`);
+      await sleep(3200);
+      ok(await has(), `${action} → Undo: still there after the server confirms`);
+      const s2 = (await api('GET', `/notes/${n._id}`, null, u.token)).data.note;
+      ok(!s2.deletedAt && !s2.archived, `${action} → Undo: server state restored`); if (s2.deletedAt) console.log(JSON.stringify(s2), await p.evaluate(() => document.body.innerText.slice(-300)));
+    }
+    await p.close();
+  }
   // @@NEXT@@
   ok(!errors.length, 'no page errors ' + errors.join(' | '));
 } finally { await cleanup(); await b.close(); }
