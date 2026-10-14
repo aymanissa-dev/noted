@@ -217,6 +217,34 @@ test('voice notes', async () => {
   // clip deletion
 });
 
+test('history: QA repro (3 edits ~3.5s apart) + sessions + cumulative change', async () => {
+  token = (await call('POST', '/auth/register', { name: 'Hist', email: 'hist@example.com', password: 'password123' })).data.token;
+  const n = (await call('POST', '/notes', { title: 'Beta pancakes', content: 'Body of Beta pancakes' })).data.note;
+  const versions = async () => (await call('GET', `/notes/${n._id}/versions`)).data.versions;
+  const edit = (content, session) => call('PATCH', `/notes/${n._id}`, { content }, session ? { 'X-Edit-Session': session } : {});
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // QA repro: one editor session, 3 small edits ~3.5s apart → the original is kept after the first edit
+  await edit('Body of Beta pancakes edit 1', 's1'); await sleep(3500);
+  await edit('Body of Beta pancakes edit 1 edit 2', 's1'); await sleep(3500);
+  await edit('Body of Beta pancakes edit 1 edit 2 edit 3', 's1');
+  let vs = await versions();
+  assert.equal(vs.length, 1); assert.equal(vs[0].preview, 'Body of Beta pancakes');
+  // reopening the note (a new editing session) snapshots the state you left, even within 5 minutes
+  await edit('Body of Beta pancakes edit 1 edit 2 edit 3 — later', 's2');
+  vs = await versions(); assert.equal(vs.length, 2); assert.equal(vs[0].preview, 'Body of Beta pancakes edit 1 edit 2 edit 3');
+  // more edits in the same session: none until the cumulative change since the last version reaches 300 chars
+  let text = 'Body of Beta pancakes edit 1 edit 2 edit 3 — later';
+  for (let i = 0; i < 2; i++) { text += ' ' + 'x'.repeat(99); await edit(text, 's2'); }
+  assert.equal((await versions()).length, 2); // ~250 chars so far (each request is small)
+  const before = text; text += ' ' + 'y'.repeat(99); await edit(text, 's2'); // crosses 300 cumulative
+  vs = await versions(); assert.equal(vs.length, 3); assert.equal(vs[0].preview.slice(0, 40), before.slice(0, 40));
+  // the counter resets: the next small edit doesn't snapshot
+  await edit(text + '!', 's2'); assert.equal((await versions()).length, 3);
+  // bookkeeping fields never leak
+  const g = (await call('GET', `/notes/${n._id}`)).data.note;
+  assert.equal(g.editSession, undefined); assert.equal(g.changeSinceVersion, undefined);
+});
+
 // @@MORE@@
 
 try {

@@ -18,6 +18,9 @@ const noteSchema = new mongoose.Schema(
     // Markdown stripped to plain text, so search matches what you see (never sent to clients).
     plain: { type: String, default: '', select: false },
     folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
+    // Version-history bookkeeping (never sent to clients).
+    editSession: { type: String, default: '', select: false, maxlength: 64 },
+    changeSinceVersion: { type: Number, default: 0, select: false },
   },
   { timestamps: true }
 );
@@ -38,7 +41,7 @@ noteSchema.pre('validate', function (next) {
 // (routes set doc.$locals.unlocked = true after verifying an unlock token).
 noteSchema.set('toJSON', {
   transform(doc, ret) {
-    delete ret.plain;
+    delete ret.plain; delete ret.editSession; delete ret.changeSinceVersion;
     if (ret.locked && !doc.$locals?.unlocked) {
       ret.title = ''; ret.content = ''; ret.tags = []; ret.redacted = true;
     }

@@ -265,10 +265,11 @@ export const api = {
     }
   },
 
-  async updateNote(id, body) {
+  // `session` identifies one editor visit, so the server can keep a version at the start of each session.
+  async updateNote(id, body, { session } = {}) {
     if (!isTempId(id) && !queue.entries().some((e) => e.id === id)) {
       try {
-        const res = await request('PUT', `/notes/${id}`, body);
+        const res = await request('PUT', `/notes/${id}`, body, session ? { headers: { 'X-Edit-Session': session } } : {});
         cacheNotes([res.note]);
         return res;
       } catch (err) {
@@ -309,8 +310,8 @@ export const api = {
   unlockNote: (id, pin) => request('POST', `/notes/${id}/unlock`, { pin }),
   lockNote: async (id) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return r; },
   removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return r; },
-  updateLockedNote: async (id, body, unlockToken) => {
-    const r = await request('PUT', `/notes/${id}`, body, unlockHeaders(unlockToken));
+  updateLockedNote: async (id, body, unlockToken, { session } = {}) => {
+    const r = await request('PUT', `/notes/${id}`, body, { headers: { 'X-Unlock-Token': unlockToken, ...(session && { 'X-Edit-Session': session }) } });
     cacheNotes([r.note]); return r;
   },
 };

@@ -49,6 +49,8 @@ export default function NoteEditor() {
   previewOnlyRef.current = previewOnly;
 
   const lastSaved = useRef(snapshot(note));
+  // One id per editor visit: the server keeps a version at the start of each editing session.
+  const session = useRef(Math.random().toString(36).slice(2) + Date.now().toString(36)).current;
   const inflight = useRef(null);
   const noteRef = useRef(note);
   noteRef.current = note;
@@ -83,9 +85,9 @@ export default function NoteEditor() {
     const run = (async () => {
       const fields = { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji };
       const { note: saved, queued } = current.locked
-        ? await api.updateLockedNote(idRef.current, fields, unlockToken.current)
+        ? await api.updateLockedNote(idRef.current, fields, unlockToken.current, { session })
         : idRef.current
-        ? await api.updateNote(idRef.current, { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji })
+        ? await api.updateNote(idRef.current, fields, { session })
         : await api.createNote({ ...current, folderId: current.folderId || undefined });
       lastSaved.current = snap;
       setUpdatedAt(saved.updatedAt);
@@ -104,7 +106,7 @@ export default function NoteEditor() {
       else setError(e.message);
     }
     finally { if (inflight.current === run) inflight.current = null; }
-  }, [navigate]);
+  }, [navigate, session]);
 
   // When an offline-created note syncs, switch to its real id.
   useEffect(() => {
@@ -374,7 +376,7 @@ export default function NoteEditor() {
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
-      {historyOpen && <HistoryPanel noteId={noteId} unlockToken={unlockToken.current} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
+      {historyOpen && <HistoryPanel noteId={noteId} current={{ ...note, updatedAt }} unlockToken={unlockToken.current} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
       {needsPin && unlockToken.current === null && (snapshot(note) !== lastSaved.current || note.content || note.title) && (
         <PinPrompt title="Unlock expired" description="Enter your PIN to keep saving this note." onSubmit={unlock} />
       )}

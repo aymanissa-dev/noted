@@ -73,9 +73,10 @@ function pickNoteFields(body = {}) {
   return out;
 }
 
-async function findOwnNote(req) {
+async function findOwnNote(req, select) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(400, 'Invalid id');
-  const note = await Note.findOne({ _id: req.params.id, user: req.userId });
+  const query = Note.findOne({ _id: req.params.id, user: req.userId });
+  const note = await (select ? query.select(select) : query);
   if (!note) throw new HttpError(404, 'Note not found');
   if (note.locked && hasUnlock(req, note)) note.$locals.unlocked = true;
   return note;
@@ -280,12 +281,12 @@ router.patch('/:id/folder', asyncHandler(async (req, res) => {
 }));
 
 const update = asyncHandler(async (req, res) => {
-  const note = await findOwnNote(req);
+  const note = await findOwnNote(req, '+editSession +changeSinceVersion');
   requireUnlocked(note);
   if (req.body?.folderId !== undefined) note.folderId = await parseFolderId(req, req.body.folderId);
   const prev = pickVersionFields(note);
   Object.assign(note, pickNoteFields(req.body));
-  await maybeSnapshot(note, prev);
+  await maybeSnapshot(note, prev, { session: String(req.get('x-edit-session') || '').slice(0, 64) });
   await note.save();
   res.json({ note });
 });
