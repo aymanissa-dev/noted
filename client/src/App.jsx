@@ -1,13 +1,23 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+
+// The signed-in app is split from the landing/auth pages so first-time visitors download less.
+// Signed-in users start fetching it immediately.
+const loadApp = () => import('./components/Layout.jsx');
+const loadDashboard = () => import('./pages/Dashboard.jsx');
+const loadNote = () => import('./pages/NoteRoute.jsx');
+if (typeof localStorage !== 'undefined' && localStorage.getItem('noted.token')) { loadApp(); loadDashboard(); loadNote(); }
+const Layout = lazy(loadApp);
+const Dashboard = lazy(loadDashboard);
+const NoteRoute = lazy(loadNote);
+const Settings = lazy(() => import('./pages/Settings.jsx'));
+const Stats = lazy(() => import('./pages/Stats.jsx'));
+const Help = lazy(() => import('./pages/Help.jsx'));
+export const preloadApp = () => { loadApp(); loadDashboard(); };
 import { ProtectedRoute, GuestRoute } from './components/RouteGuards.jsx';
-import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import NoteRoute from './pages/NoteRoute.jsx';
-import Settings from './pages/Settings.jsx';
 import Landing from './pages/Landing.jsx';
-import Stats from './pages/Stats.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 
 // Public landing page for visitors; signed-in users go straight to their notes.
@@ -20,6 +30,7 @@ function Home() {
 
 export default function App() {
   return (
+    <Suspense fallback={null}>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route element={<GuestRoute />}>
@@ -33,11 +44,13 @@ export default function App() {
           <Route path="/trash" element={<Dashboard view="trash" key="trash" />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/stats" element={<Stats />} />
+          <Route path="/help" element={<Help />} />
           <Route path="/notes/new" element={<NoteRoute />} />
           <Route path="/notes/:id" element={<NoteRoute />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

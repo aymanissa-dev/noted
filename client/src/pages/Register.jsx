@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { preloadApp } from '../App.jsx';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import AuthCard from '../components/AuthCard.jsx';
@@ -7,6 +8,7 @@ import Icon from '../components/Icon.jsx';
 import { EMAIL_RE } from './Login.jsx';
 
 export default function Register() {
+  useEffect(() => { const t = setTimeout(preloadApp, 1500); return () => clearTimeout(t); }, []);
   const { register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
@@ -29,6 +31,7 @@ export default function Register() {
     setError(''); setBusy(true);
     try {
       await register({ name: form.name.trim(), email: form.email.trim(), password: form.password, sample: true });
+      localStorage.setItem('noted.tourPending', '1');
       navigate('/notes', { replace: true });
     } catch (err) {
       setError(err.status === 409 ? 'An account with this email already exists. Log in instead?' : err.message);

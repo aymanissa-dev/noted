@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirror/state';
+import { toggleWrap, toggleTask } from './formatting.js';
 import { EditorView, keymap, placeholder as placeholderExt, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyField, historyKeymap } from '@codemirror/commands';
 import { markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
@@ -96,6 +97,11 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
     EditorView.contentAttributes.of({ 'aria-label': label, 'aria-multiline': 'true', spellcheck: 'true', autocapitalize: 'sentences' }),
     keymap.of([
       { key: 'Mod-Shift-h', run: (v) => setHighlight(v, 'yellow') },
+      { key: 'Mod-b', run: toggleWrap('**'), preventDefault: true },
+      { key: 'Mod-i', run: toggleWrap('*'), preventDefault: true },
+      { key: 'Mod-e', run: toggleWrap('`'), preventDefault: true },
+      { key: 'Mod-Shift-x', run: toggleWrap('~~'), preventDefault: true },
+      { key: 'Mod-Enter', run: toggleTask, preventDefault: true },
       ...completionKeymap, ...markdownKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...defaultKeymap,
     ]),
     comps.current.ro.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),

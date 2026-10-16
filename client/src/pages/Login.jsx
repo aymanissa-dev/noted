@@ -1,3 +1,4 @@
+import { preloadApp } from '../App.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { takeFlash, useAuth } from '../context/AuthContext.jsx';
@@ -14,6 +15,7 @@ export function postLoginTarget(from) {
 }
 
 export default function Login() {
+  useEffect(() => { const t = setTimeout(preloadApp, 1500); return () => clearTimeout(t); }, []);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

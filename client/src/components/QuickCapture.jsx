@@ -26,12 +26,12 @@ export default function QuickCapture({ onCapture }) {
   };
 
   return (
-    <div className="mt-4 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm transition focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 dark:border-stone-800 dark:bg-stone-900">
+    <div data-tour="capture" className="mt-4 flex items-start gap-3 rounded-xl border border-stone-200/80 bg-white px-4 py-3 shadow-soft transition focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15 dark:border-stone-800 dark:bg-stone-900">
+      <span aria-hidden="true" className="mt-[3px] h-3.5 w-0.5 shrink-0 rounded-full bg-accent" />
       <textarea ref={ref} id="quick-capture" rows={1} value={text} onChange={onChange} onKeyDown={onKeyDown}
-        placeholder="Jot something down… #tags work · Enter to save"
-        
-        className="block w-full resize-none bg-transparent text-sm outline-none placeholder:text-stone-500 dark:placeholder:text-stone-400" aria-label="Quick note" aria-describedby="qc-hint" />
-      <p id="qc-hint" className="sr-only">First line becomes the title. Enter saves, Shift+Enter adds a line, #tags become tags.</p>
+        placeholder="Jot something down…"
+        className="block min-w-0 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-stone-500 dark:placeholder:text-stone-400" aria-label="Quick note" aria-describedby="qc-hint" />
+      <p id="qc-hint" className="hidden shrink-0 items-center gap-1.5 pt-px text-xs text-faint sm:flex"><span className="sr-only">First line becomes the title. Shift+Enter adds a line. </span>#tags work · <kbd className="kbd kbd-sm">↵</kbd> to save</p>
     </div>
   );
 }

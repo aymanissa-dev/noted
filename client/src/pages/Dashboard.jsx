@@ -6,7 +6,6 @@ import { SMART, smartLabel } from '../lib/smart.js';
 import { api, matchesList, readMeta } from '../lib/api.js';
 import { preloadEditor } from '../editor/preload.js';
 import Icon from '../components/Icon.jsx';
-import TipsHint from '../components/TipsHint.jsx';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
@@ -208,7 +207,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       {!compact && (
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{isActive ? heading || 'All notes' : view === 'trash' ? 'Trash' : 'Archive'}</h1>
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{isActive ? heading || 'All notes' : view === 'trash' ? 'Trash' : 'Archive'}</h1>
             {view === 'trash' && <p className="mt-0.5 text-sm text-muted">Notes here are deleted for good after 30 days.</p>}
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -229,7 +228,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       <div className={`flex gap-3 ${compact ? 'items-center' : 'flex-col sm:flex-row sm:items-center'}`}>
         <div className="relative flex-1">
           <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input id="search" type="search" aria-label="Search notes" className="input pl-9 pr-10" placeholder={view === 'trash' ? 'Search the trash…' : view === 'archive' ? 'Search the archive…' : 'Search notes…'} value={search}
+          <input id="search" data-tour="search" type="search" aria-label="Search notes" className="input pl-9 pr-10" placeholder={view === 'trash' ? 'Search the trash…' : view === 'archive' ? 'Search the archive…' : 'Search notes…'} value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape' && search) { e.preventDefault(); e.stopPropagation(); setSearch(''); } }} />
           {search && (
@@ -241,12 +240,11 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
           <button type="button" className="btn-ghost hidden sm:inline-flex" aria-pressed={selecting} data-tip={selecting ? undefined : 'Select notes to merge'}
             onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : <><Icon name="select" />Select</>}</button>
         )}
-        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'btn-icon' : ''}`} aria-label="New note" data-tip="New note · N" data-tip-align="end"><Icon name="plus" />{!compact && 'New note'}</Link>}
+        {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'btn-icon' : ''}`} data-tour="new" aria-label="New note" data-tip="New note · N" data-tip-align="end"><Icon name="plus" />{!compact && 'New note'}</Link>}
         {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}><Icon name="trash" />Empty trash</button>}
       </div>
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
-      {isActive && !compact && !smart && !folder && !tag && notes.length > 0 && <TipsHint />}
       {offline && <p role="status" className="mt-4 inline-flex items-center gap-2 text-xs text-muted"><Icon name="offline" size="xs" />Offline: showing the notes saved on this device.</p>}
       {loadError && (
         <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">

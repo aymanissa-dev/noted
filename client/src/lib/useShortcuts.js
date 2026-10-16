@@ -1,34 +1,39 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { MOD } from './keys.js';
 
-export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl';
-export const SHORTCUTS = [
-  ['N', 'New note'],
-  ['/', 'Search notes'],
-  ['Q', 'Quick capture'],
-  ['Esc', 'Go back / close'],
-  ['?', 'Show shortcuts'],
-];
-export const EDITOR_SHORTCUTS = [
-  [`${MOD} + S`, 'Save now'],
-  [`${MOD} + F`, 'Find and replace'],
-  [`${MOD} + Z`, 'Undo (kept after reload)'],
-  ['/', 'Commands (at line start)'],
-  [':', 'Emoji (e.g. :smile)'],
-  ['Esc', 'Leave focus mode / back'],
-];
+export { MOD };
 
 const isTyping = (el) =>
   el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 
-// Global keyboard shortcuts. Single-key shortcuts are ignored while typing; Esc always works.
-export function useShortcuts({ helpOpen, setHelpOpen }) {
+// "G then …" jumps.
+export const GO = { n: '/notes', a: '/archive', t: '/trash', s: '/settings', h: '/help' };
+
+export function focusSearch(navigate, pathname) {
+  const focus = () => document.getElementById('search')?.focus();
+  if (document.getElementById('search')) focus();
+  else { if (pathname !== '/notes') navigate('/notes'); setTimeout(focus, 80); }
+}
+
+// Global keyboard shortcuts (see shortcutList.js for the full, documented list).
+// Single-key shortcuts are ignored while typing; Esc and Mod+K always work.
+export function useShortcuts({ helpOpen, setHelpOpen, paletteOpen, setPaletteOpen }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const pendingG = useRef(0);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.defaultPrevented) return;
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setHelpOpen(false);
+        setPaletteOpen((o) => !o);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (paletteOpen) return; // the palette handles its own keys
       const typing = isTyping(document.activeElement);
 
       if (e.key === 'Escape') {
@@ -42,17 +47,22 @@ export function useShortcuts({ helpOpen, setHelpOpen }) {
         }
         return;
       }
-      if (typing) return;
+      if (typing || document.querySelector('[data-modal]')) return;
+      const k = e.key.toLowerCase();
 
-      if (e.key === 'n' || e.key === 'N') {
+      if (pendingG.current && Date.now() - pendingG.current < 1200) {
+        pendingG.current = 0;
+        if (GO[k]) { e.preventDefault(); navigate(GO[k]); }
+        return;
+      }
+      if (k === 'g') { pendingG.current = Date.now(); return; }
+      if (k === 'n') {
         e.preventDefault();
         navigate('/notes/new');
       } else if (e.key === '/') {
         e.preventDefault();
-        const focusSearch = () => document.getElementById('search')?.focus();
-        if (document.getElementById('search')) focusSearch();
-        else { navigate('/notes'); setTimeout(focusSearch, 50); }
-      } else if (e.key === 'q' || e.key === 'Q') {
+        focusSearch(navigate, pathname);
+      } else if (k === 'q') {
         const el = document.getElementById('quick-capture');
         if (el) { e.preventDefault(); el.focus(); }
       } else if (e.key === '?') {
@@ -62,5 +72,5 @@ export function useShortcuts({ helpOpen, setHelpOpen }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate, pathname, helpOpen, setHelpOpen]);
+  }, [navigate, pathname, helpOpen, setHelpOpen, paletteOpen, setPaletteOpen]);
 }

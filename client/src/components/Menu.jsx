@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 // Dropdown menu: click or Enter opens; arrows move; Esc / outside click / navigation closes.
 // `children` is a function receiving `close`, rendering .menu-item buttons/links (role="menuitem").
-export default function Menu({ button, label, tip, align = 'right', className = '', buttonClass = 'btn-ghost btn-icon', children, testId }) {
+export default function Menu({ button, label, tip, align = 'right', className = '', buttonClass = 'btn-ghost btn-icon', children, testId, tour }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const btn = useRef(null);
@@ -31,7 +31,7 @@ export default function Menu({ button, label, tip, align = 'right', className = 
   return (
     <div className={`relative ${className}`} ref={ref}>
       <button ref={btn} type="button" className={buttonClass} aria-label={label} data-tip={open ? undefined : tip} data-tip-align={align === 'right' ? 'end' : 'start'}
-        aria-haspopup="menu" aria-expanded={open} data-testid={testId} onClick={() => setOpen((o) => !o)}>{button}</button>
+        aria-haspopup="menu" aria-expanded={open} data-testid={testId} data-tour={tour} onClick={() => setOpen((o) => !o)}>{button}</button>
       {open && (
         <div role="menu" aria-label={label} className={`menu absolute mt-2 ${align === 'right' ? 'right-0' : 'left-0'}`} onClick={(e) => { if (e.target.closest('[role=menuitem]')) close(); }}>
           {children(close)}

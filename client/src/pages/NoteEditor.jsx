@@ -347,7 +347,7 @@ export default function NoteEditor() {
               </>
             )}
           </Menu>
-          <button type="button" className="btn-primary ml-1 px-3 sm:px-4" onClick={done} data-tip="Save and close" data-tip-align="end">Done</button>
+          <button type="button" className="btn-primary ml-1 px-3 sm:px-4" onClick={done} data-tip={`Save and close · Esc`} data-tip-align="end">Done</button>
         </div>
       </div>
 

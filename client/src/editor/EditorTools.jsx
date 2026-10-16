@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { headings } from '../lib/markdown.js';
 import Icon from '../components/Icon.jsx';
-import { MOD } from '../lib/useShortcuts.js';
+import { keyLabel } from '../lib/keys.js';
 
 const Btn = ({ label, tip, onClick, children, pressed, ...rest }) => (
   <button type="button" onClick={onClick} data-tip={tip || label} data-tip-align="start" aria-label={label} aria-pressed={pressed}
@@ -40,7 +40,7 @@ export default function EditorTools({ content, editor, focusMode, onFocusMode })
           </div>
         )}
       </div>
-      <Btn label={`Find and replace (${MOD} F)`} tip={`Find and replace · ${MOD} F`} onClick={() => editor?.openFind()}><I name="find" /><span>Find</span></Btn>
+      <Btn label={`Find and replace (${keyLabel('Mod+F')})`} tip={`Find and replace · ${keyLabel('Mod+F')}`} onClick={() => editor?.openFind()}><I name="find" /><span>Find</span></Btn>
       <Btn label={focusMode ? 'Exit focus mode (Esc)' : 'Focus mode'} tip="Focus mode: just you and the text" pressed={focusMode} onClick={() => onFocusMode(!focusMode)}><I name="focus" /><span>Focus</span></Btn>
     </div>
   );

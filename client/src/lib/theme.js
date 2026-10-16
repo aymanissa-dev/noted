@@ -12,8 +12,15 @@ function apply(theme) {
 export function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem(KEY) || 'system');
 
+  // Keep every useTheme() in sync (header toggle, menu, command palette).
   useEffect(() => {
-    localStorage.setItem(KEY, theme);
+    const sync = (e) => setTheme(e.detail);
+    window.addEventListener('noted:theme', sync);
+    return () => window.removeEventListener('noted:theme', sync);
+  }, []);
+
+  useEffect(() => {
+    if (localStorage.getItem(KEY) !== theme) { localStorage.setItem(KEY, theme); window.dispatchEvent(new CustomEvent('noted:theme', { detail: theme })); }
     apply(theme);
     if (theme !== 'system') return;
     const mq = media();

@@ -20,7 +20,7 @@ function Group({ title, action, children }) {
 }
 
 // Desktop sidebar: notes, smart entries, recently viewed, folders, tags, archive, trash.
-export default function Sidebar() {
+export default function Sidebar({ onOpen }) {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(search);
@@ -87,13 +87,13 @@ export default function Sidebar() {
         <Link to="/notes" className={row(isAll)}><Icon name="notes" />All notes</Link>
 
         <Group title="Smart">
-          {SMART.map(([key, label]) => (
+          {SMART.filter(([key]) => key !== 'recent' || recent.length === 0).map(([key, label]) => (
             <Link key={key} to={`/notes?smart=${key}`} className={row(onList && params.get('smart') === key)}><Icon name={SMART_ICON[key] || 'star'} />{label}</Link>
           ))}
         </Group>
 
         {recent.length > 0 && (
-          <Group title="Recent">
+          <Group title="Recently viewed" action={<Link to="/notes?smart=recent" className="rounded px-1 text-xs text-faint transition hover:text-stone-800 dark:hover:text-stone-200">See all</Link>}>
             {recent.map((n) => (
               <Link key={n._id} to={`/notes/${n._id}`} className={row(pathname === `/notes/${n._id}`)}>
                 {n.locked ? <Icon name="lock" /> : n.emoji ? <span aria-hidden="true" className="w-4 text-center text-xs">{n.emoji}</span> : <Icon name="notes" className="text-stone-400 dark:text-stone-500" />}
@@ -130,6 +130,7 @@ export default function Sidebar() {
         <div className="mt-6 border-t border-stone-200 pt-4 dark:border-stone-800">
           <NavLink to="/archive" className={({ isActive }) => row(isActive)}><Icon name="archive" />Archive</NavLink>
           <NavLink to="/trash" className={({ isActive }) => row(isActive)}><Icon name="trash" />Trash</NavLink>
+          <NavLink to="/help" data-tour="help" className={({ isActive }) => row(isActive)}><Icon name="help" />Help &amp; shortcuts</NavLink>
         </div>
       </div>
     </nav>
@@ -150,7 +151,7 @@ export function BottomNav() {
       <div className="flex">
         <Link to="/notes" className={item(pathname === '/notes')} aria-current={pathname === '/notes' ? 'page' : undefined}><Icon name="notes" size="md" />Notes</Link>
         <button type="button" onClick={search} className={item(false)}><Icon name="search" size="md" />Search</button>
-        <Link to="/notes/new" className={item(pathname === '/notes/new')}><span className="grid h-5 w-5 place-items-center rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"><Icon name="plus" size="xs" /></span>New</Link>
+        <Link to="/notes/new" data-tour="new" className={item(pathname === '/notes/new')}><span className="grid h-5 w-5 place-items-center rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"><Icon name="plus" size="xs" /></span>New</Link>
         <Link to="/settings" className={item(pathname === '/settings')} aria-current={pathname === '/settings' ? 'page' : undefined}><Icon name="settings" size="md" />Settings</Link>
       </div>
     </nav>
