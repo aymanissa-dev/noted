@@ -376,8 +376,8 @@ export default function Landing() {
 
       <footer className="relative overflow-hidden border-t border-stone-200/80 bg-stone-100/70 dark:border-stone-800 dark:bg-stone-900/40">
         <div className="mx-auto max-w-6xl px-5 pt-16 sm:px-8">
-          <div className="grid gap-10 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
-            <div>
+          <div className="grid grid-cols-3 gap-x-6 gap-y-10 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
+            <div className="col-span-3 sm:col-span-1">
               <Logo className="text-2xl" />
               <p className="mt-3 max-w-xs text-sm leading-6 text-stone-600 dark:text-stone-400">Write it down. Find it later. A simple, private notes app with no AI and no clutter.</p>
               <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm mt-5"><Icon name="github" size="sm" />Source on GitHub</a>
