@@ -22,7 +22,7 @@ const askPin = async (user, dialog) => {
 
 export function Card({ title, description, children, id }) {
   return (
-    <section id={id} className="surface scroll-mt-20 p-5 shadow-sm sm:p-6">
+    <section id={id} className="surface scroll-mt-20 p-5 sm:p-7">
       <h2 className="text-base font-semibold">{title}</h2>
       {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       <div className="mt-4">{children}</div>
@@ -320,7 +320,7 @@ export default function Settings() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted">{user?.name} · {user?.email}</p>
         <Link to="/stats" className="mt-2 inline-block text-sm underline-offset-4 hover:underline">View storage stats →</Link>
       </div>

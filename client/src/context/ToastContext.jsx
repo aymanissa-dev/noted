@@ -22,7 +22,7 @@ export function ToastProvider({ children }) {
       {/* Sits above the mobile bottom navigation. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 sm:bottom-6" role="status" aria-live="polite">
         {toast && (
-          <div key={toast.id} data-testid="toast" className="pointer-events-auto flex min-h-12 max-w-md items-center gap-2 rounded-xl border border-stone-800 bg-stone-900 py-1.5 pl-4 pr-1.5 text-sm text-stone-50 shadow-lg animate-toast-in dark:border-stone-300 dark:bg-stone-100 dark:text-stone-900">
+          <div key={toast.id} data-testid="toast" className="pointer-events-auto flex min-h-12 max-w-md items-center gap-2 rounded-full border border-stone-800 bg-stone-900/95 py-1.5 pl-5 pr-1.5 text-sm text-stone-50 shadow-float backdrop-blur animate-toast-in dark:border-stone-300 dark:bg-stone-100 dark:text-stone-900">
             <span className="mr-1 py-1.5">{toast.message}</span>
             {toast.action && (
               <button className="min-h-9 rounded-lg bg-white/10 px-3 font-semibold text-white transition hover:bg-white/20 dark:bg-stone-900/10 dark:text-stone-900 dark:hover:bg-stone-900/20"

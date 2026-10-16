@@ -35,7 +35,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         // Never serve API responses from the SW cache (they are per-user and must be fresh).
         runtimeCaching: [{ urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' }],
-        globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest,woff2}'],
       },
     }),
   ],

@@ -12,4 +12,4 @@ export const COLORS = {
 
 export const EMOJIS = ['📝', '💡', '⭐', '📌', '✅', '📚', '🛒', '💼', '🏠', '❤️', '🎯', '🔒', '✈️', '🍳', '💰', '🎵'];
 
-export const cardClass = (color) => COLORS[color]?.card || 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800';
+export const cardClass = (color) => COLORS[color]?.card || 'bg-white dark:bg-stone-900 border-stone-200/80 dark:border-stone-800';

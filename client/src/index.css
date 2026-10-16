@@ -6,7 +6,7 @@
 :root {
   color-scheme: light;
   --accent: 245 158 11;   /* default: the orange dot */
-  --radius: 0.75rem;
+  --radius: 0.875rem;
   --dur: 200ms;
   --header-h: 3.5rem;
 }
@@ -15,6 +15,9 @@
 html, body { overflow-x: clip; }
 
 @layer base {
+  html { font-feature-settings: 'ss01', 'cv11'; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { letter-spacing: -0.02em; }
+  h1 { letter-spacing: -0.03em; }
   /* Clear, consistent keyboard focus, in the accent color. */
   :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
   ::selection { background: rgb(var(--accent) / 0.25); }
@@ -22,17 +25,17 @@ html, body { overflow-x: clip; }
 
 @layer components {
   /* Inputs: 44px tall on touch screens, 40px from sm up. */
-  .input { @apply block w-full min-h-11 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none transition placeholder:text-stone-500 focus:border-accent focus:ring-2 focus:ring-accent/25 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-500/20 disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-400 sm:min-h-10; }
+  .input { @apply block w-full min-h-11 rounded-lg border border-stone-200 bg-white shadow-soft px-3 py-2 text-sm text-stone-900 outline-none transition placeholder:text-stone-500 focus:border-accent focus:ring-2 focus:ring-accent/25 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-500/20 disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-400 sm:min-h-10; }
   .label { @apply mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-200; }
   .field-error { @apply mt-1.5 text-xs text-red-700 dark:text-red-400; }
   .field-hint { @apply mt-1.5 text-xs text-muted; }
 
   /* Buttons: primary (one per view), secondary (bordered), ghost (toolbar), danger (destructive). */
-  .btn { @apply inline-flex min-h-11 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 sm:min-h-9; }
+  .btn { @apply inline-flex min-h-11 select-none items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 sm:min-h-9; }
   .btn-sm { @apply min-h-11 px-3 py-1 text-xs sm:min-h-8; }
   .btn-icon { @apply min-w-11 px-0 sm:min-w-9; }
-  .btn-primary { @apply btn bg-stone-900 text-white shadow-sm hover:bg-stone-800 active:bg-stone-950 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white; }
-  .btn-secondary { @apply btn border border-stone-300 bg-white text-stone-800 shadow-sm hover:border-stone-400 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:border-stone-600 dark:hover:bg-stone-800; }
+  .btn-primary { @apply btn bg-stone-900 text-white shadow-soft hover:bg-stone-800 active:bg-stone-950 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white; }
+  .btn-secondary { @apply btn border border-stone-200 bg-white text-stone-800 shadow-soft hover:border-stone-400 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:border-stone-600 dark:hover:bg-stone-800; }
   .btn-ghost { @apply btn text-stone-600 hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100; }
   .btn-danger { @apply btn text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40; }
   .btn-danger-solid { @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500; }
@@ -41,25 +44,27 @@ html, body { overflow-x: clip; }
   /* Text roles. Both pass WCAG AA (4.5:1) on the page and card backgrounds in light and dark. */
   .text-muted { @apply text-stone-600 dark:text-stone-400; }
   .text-faint { @apply text-stone-500 dark:text-stone-400; }
-  .section-label { @apply text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400; }
-  .surface { @apply rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900; }
-  .kbd { @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-md border border-stone-300 bg-stone-50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200; }
+  .section-label { @apply font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400; }
+  .eyebrow { @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400; }
+  .surface { @apply rounded-xl border border-stone-200/80 bg-white shadow-soft dark:border-stone-800 dark:bg-stone-900 dark:shadow-none; }
+  .kbd { @apply inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-md border border-b-2 border-stone-200 bg-white px-1.5 font-mono text-[11px] font-medium leading-none text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200; }
+  .kbd-sm { @apply h-5 min-w-[1.25rem] px-1 text-[10px]; }
 
   /* Menus and popovers */
-  .menu { @apply z-30 min-w-[12rem] rounded-xl border border-stone-200 bg-white p-1.5 shadow-lg animate-pop-in dark:border-stone-800 dark:bg-stone-900; }
+  .menu { @apply z-30 min-w-[13rem] rounded-xl border border-stone-200/80 bg-white/95 p-1.5 shadow-float backdrop-blur animate-pop-in dark:border-stone-800 dark:bg-stone-900; }
   .menu-item { @apply flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-stone-700 outline-none transition hover:bg-stone-100 focus-visible:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-800 dark:focus-visible:bg-stone-800 sm:min-h-9; }
   .menu-sep { @apply my-1 h-px bg-stone-200 dark:bg-stone-800; }
 
   /* Dialogs */
-  .dialog-overlay { @apply fixed inset-0 z-40 grid place-items-center bg-stone-950/40 p-4 animate-fade-in dark:bg-black/60; }
-  .dialog-panel { @apply w-full rounded-xl border border-stone-200 bg-white shadow-xl outline-none animate-dialog-in dark:border-stone-800 dark:bg-stone-900; }
+  .dialog-overlay { @apply fixed inset-0 z-40 grid place-items-center bg-stone-950/30 p-4 backdrop-blur-[2px] animate-fade-in dark:bg-black/60; }
+  .dialog-panel { @apply w-full rounded-xl border border-stone-200/80 bg-white shadow-float outline-none animate-dialog-in dark:border-stone-800 dark:bg-stone-900; }
 
   /* Tooltips: data-tip="Label · shortcut". Shown on hover/keyboard focus after a short delay; not on touch. */
   [data-tip] { position: relative; }
   [data-tip]::after {
     content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 6px); z-index: 60;
     transform: translateX(-50%) translateY(-2px); white-space: nowrap; pointer-events: none;
-    padding: 4px 8px; border-radius: 6px; background: #1c1917; color: #fafaf9;
+    padding: 5px 9px; border-radius: 8px; background: #1c1917; box-shadow: 0 6px 16px rgb(0 0 0 / .18); color: #fafaf9;
     font-size: 12px; font-weight: 500; line-height: 1.35; letter-spacing: 0; text-transform: none;
     opacity: 0; transition: opacity 150ms ease, transform 150ms ease;
   }
@@ -148,4 +153,57 @@ html, body { overflow-x: clip; }
   .print-area hr { border: 0; border-top: 1px solid #ccc; margin: 12pt 0; }
   .print-area .print-tags { color: #777; font-size: 9.5pt; margin-bottom: 12pt; }
   .print-area h2, .print-area h3 { break-after: avoid; } .print-area pre, .print-area li { break-inside: avoid; }
+}
+
+/* ---- Landing ---- */
+.landing .reveal { opacity: 0; transform: translateY(18px); transition: opacity 700ms cubic-bezier(.2,.7,.2,1), transform 700ms cubic-bezier(.2,.7,.2,1); }
+.landing .reveal.in { opacity: 1; transform: none; }
+.landing .hero-in { animation: reveal 700ms cubic-bezier(.2,.7,.2,1) both; }
+@keyframes reveal { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+/* Hero: faint grid that fades out, with a warm horizon glow in the accent color. */
+.hero-bg {
+  background:
+    radial-gradient(60% 50% at 50% 0%, rgb(var(--accent) / 0.16), transparent 70%),
+    linear-gradient(to right, rgb(120 113 108 / 0.08) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(to bottom, rgb(120 113 108 / 0.08) 1px, transparent 1px) 0 0 / 56px 56px;
+  -webkit-mask-image: radial-gradient(80% 60% at 50% 20%, #000 40%, transparent 85%);
+          mask-image: radial-gradient(80% 60% at 50% 20%, #000 40%, transparent 85%);
+}
+.dark .hero-bg { background:
+    radial-gradient(60% 50% at 50% 0%, rgb(var(--accent) / 0.18), transparent 70%),
+    linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px) 0 0 / 56px 56px; }
+/* The "selected text" marker behind the second line, drawn in once. */
+.landing .marker { position: relative; white-space: nowrap; }
+.landing .marker::before {
+  content: ''; position: absolute; inset: 0.08em -0.12em 0.02em; z-index: -1; border-radius: 0.12em;
+  background: rgb(var(--accent) / 0.22); box-shadow: inset 0 0 0 1px rgb(var(--accent) / 0.35);
+  transform-origin: left; animation: marker-in 700ms cubic-bezier(.6,.1,.2,1) 450ms both;
+}
+.landing h1 { isolation: isolate; }
+@keyframes marker-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.typing { display: inline-block; width: 1.5px; height: 1.05em; margin-left: 2px; vertical-align: -0.15em; background: rgb(var(--accent)); animation: blink 1.1s steps(1) infinite; }
+.preview-float { animation: float 6s ease-in-out infinite; }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.feature-art { background: radial-gradient(120% 90% at 20% 0%, #fff7ed 0%, #fde7c7 45%, #f8d4a6 100%); }
+.feature-art-1 { background: radial-gradient(120% 90% at 80% 0%, #f0f9ff 0%, #d7ecfb 45%, #b9dcf5 100%); }
+.feature-art-2 { background: radial-gradient(120% 90% at 20% 100%, #fafaf9 0%, #ece7e2 50%, #ddd5cc 100%); }
+.feature-art-3 { background: radial-gradient(120% 90% at 80% 100%, #f5f3ff 0%, #e5e0fb 45%, #d3cbf5 100%); }
+.dark .feature-art { background: radial-gradient(120% 90% at 20% 0%, rgb(var(--accent) / 0.22), #1c1917 70%); }
+.dark .feature-art-1 { background: radial-gradient(120% 90% at 80% 0%, rgb(14 165 233 / 0.22), #1c1917 70%); }
+.dark .feature-art-2 { background: radial-gradient(120% 90% at 20% 100%, rgb(168 162 158 / 0.18), #1c1917 70%); }
+.dark .feature-art-3 { background: radial-gradient(120% 90% at 80% 100%, rgb(139 92 246 / 0.22), #1c1917 70%); }
+/* Dark "ink" bands: scanlines + a low accent glow, like a screen at night. */
+.ink-glow { background:
+  radial-gradient(70% 60% at 85% 110%, rgb(var(--accent) / 0.22), transparent 70%),
+  repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 4px); }
+.cta-glow { background: radial-gradient(60% 120% at 0% 100%, rgb(var(--accent) / 0.25), transparent 60%), repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 4px); }
+.ink .keycaps .kbd { height: 2.75rem; min-width: 2.75rem; border-color: rgb(255 255 255 / 0.14); border-bottom-width: 3px; background: rgb(255 255 255 / 0.05); color: #fafaf9; font-size: 0.95rem; border-radius: 0.6rem; padding: 0 0.7rem; }
+.ink .keycaps .text-faint { color: #a8a29e; }
+.wordmark { font-size: clamp(6rem, 27vw, 24rem); margin-top: 2.5rem; margin-bottom: -0.16em; color: rgb(28 25 23 / 0.06); }
+.dark .wordmark { color: rgb(255 255 255 / 0.05); }
+.faq summary::-webkit-details-marker { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .landing .reveal { opacity: 1; transform: none; }
+  .typing, .preview-float { animation: none; }
 }

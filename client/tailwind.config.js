@@ -3,7 +3,15 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
-      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      fontFamily: {
+        sans: ['"Geist Variable"', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['"Geist Mono Variable"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+      boxShadow: {
+        soft: '0 1px 2px rgb(28 25 23 / 0.04), 0 1px 1px rgb(28 25 23 / 0.02)',
+        lift: '0 1px 2px rgb(28 25 23 / 0.04), 0 8px 24px -8px rgb(28 25 23 / 0.12)',
+        float: '0 2px 4px rgb(28 25 23 / 0.04), 0 24px 48px -12px rgb(28 25 23 / 0.22)',
+      },
       // The accent (user-selectable) drives the logo dot, highlights, and focus rings.
       colors: { accent: 'rgb(var(--accent) / <alpha-value>)' },
       // One corner radius for every surface (cards, inputs, buttons, dialogs).
@@ -22,6 +30,8 @@ export default {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         'dialog-in': { from: { opacity: '0', transform: 'translateY(6px) scale(0.98)' }, to: { opacity: '1', transform: 'none' } },
         'pop-in': { from: { opacity: '0', transform: 'translateY(-4px) scale(0.98)' }, to: { opacity: '1', transform: 'none' } },
+        'reveal': { from: { opacity: '0', transform: 'translateY(16px)' }, to: { opacity: '1', transform: 'none' } },
+        'blink': { '0%,49%': { opacity: '1' }, '50%,100%': { opacity: '0' } },
         'toast-in': { from: { opacity: '0', transform: 'translateY(8px)' }, to: { opacity: '1', transform: 'none' } },
         'unlock': { '0%': { transform: 'rotate(0)' }, '50%': { transform: 'rotate(-12deg) translateY(-2px)' }, '100%': { transform: 'rotate(0)' } },
       },
@@ -36,6 +46,7 @@ export default {
         'fade-in': 'fade-in 150ms ease-out both',
         'dialog-in': 'dialog-in 180ms cubic-bezier(.2,.8,.2,1) both',
         'pop-in': 'pop-in 150ms cubic-bezier(.2,.8,.2,1) both',
+        'blink': 'blink 1.1s steps(1) infinite',
         'toast-in': 'toast-in 200ms cubic-bezier(.2,.8,.2,1) both',
       },
     },
