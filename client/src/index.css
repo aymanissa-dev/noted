@@ -44,8 +44,8 @@ html, body { overflow-x: clip; }
   /* Text roles. Both pass WCAG AA (4.5:1) on the page and card backgrounds in light and dark. */
   .text-muted { @apply text-stone-600 dark:text-stone-400; }
   .text-faint { @apply text-stone-500 dark:text-stone-400; }
-  .section-label { @apply font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400; }
-  .eyebrow { @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400; }
+  .section-label { @apply font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400; }
+  .eyebrow { @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400; }
   .surface { @apply rounded-xl border border-stone-200/80 bg-white shadow-soft dark:border-stone-800 dark:bg-stone-900 dark:shadow-none; }
   .kbd { @apply inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-md border border-b-2 border-stone-200 bg-white px-1.5 font-mono text-[11px] font-medium leading-none text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200; }
   .kbd-sm { @apply h-5 min-w-[1.25rem] px-1 text-[10px]; }
@@ -200,6 +200,8 @@ html, body { overflow-x: clip; }
 .cta-glow { background: radial-gradient(60% 120% at 0% 100%, rgb(var(--accent) / 0.25), transparent 60%), repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 4px); }
 .ink .keycaps .kbd { height: 2.75rem; min-width: 2.75rem; border-color: rgb(255 255 255 / 0.14); border-bottom-width: 3px; background: rgb(255 255 255 / 0.05); color: #fafaf9; font-size: 0.95rem; border-radius: 0.6rem; padding: 0 0.7rem; }
 .ink .keycaps .text-faint { color: #a8a29e; }
+.wordmark::before { content: 'noted'; }
+.wordmark::after { content: '.'; color: rgb(var(--accent) / 0.45); }
 .wordmark { font-size: clamp(6rem, 27vw, 24rem); margin-top: 2.5rem; margin-bottom: -0.16em; color: rgb(28 25 23 / 0.06); }
 .dark .wordmark { color: rgb(255 255 255 / 0.05); }
 .faq summary::-webkit-details-marker { display: none; }

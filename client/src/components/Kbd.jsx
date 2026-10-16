@@ -4,7 +4,8 @@ import { IS_MAC, keyParts } from '../lib/keys.js';
 export default function Kbd({ combo, size = '', className = '' }) {
   const steps = combo.split(' ');
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 ${className}`} aria-label={steps.map((s) => keyParts(s).join(' ')).join(' then ')}>
+    <span className={`inline-flex shrink-0 items-center gap-1 ${className}`}>
+      <span className="sr-only">{steps.map((s) => keyParts(s).join(' ')).join(' then ')}</span>
       {steps.map((step, i) => (
         <span key={i} className="inline-flex items-center gap-0.5" aria-hidden="true">
           {i > 0 && <span className="px-0.5 text-[10px] text-faint">then</span>}

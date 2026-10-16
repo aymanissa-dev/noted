@@ -213,7 +213,7 @@ function ShortcutShowcase() {
             </li>
           ))}
         </ul>
-        <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.18em] text-stone-500">{IS_MAC ? '⌘ Command · ⇧ Shift · then = press in sequence' : 'On a Mac, Ctrl is ⌘ · then = press in sequence'}</p>
+        <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.18em] text-stone-400">{IS_MAC ? '⌘ Command · ⇧ Shift · then = press in sequence' : 'On a Mac, Ctrl is ⌘ · then = press in sequence'}</p>
       </div>
     </section>
   );
@@ -268,7 +268,7 @@ export default function Landing() {
               <div key={l} className={`reveal px-5 py-8 sm:px-8 sm:py-10 ${i % 2 ? 'border-l' : ''} ${i >= 2 ? 'border-t sm:border-t-0' : ''} ${i === 2 ? 'sm:border-l' : ''} border-stone-200/80 dark:border-stone-800`}>
                 <dt className="sr-only">{l}</dt>
                 <dd className="font-mono text-4xl font-medium tracking-tight sm:text-5xl">{n}</dd>
-                <dd className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">{l}</dd>
+                <dd className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400">{l}</dd>
               </div>
             ))}
           </dl>
@@ -404,7 +404,7 @@ export default function Landing() {
             <p>No cookies for tracking. No AI. Just notes.</p>
           </div>
         </div>
-        <p aria-hidden="true" className="wordmark pointer-events-none select-none whitespace-nowrap text-center font-semibold leading-[0.8] tracking-[-0.06em]">noted<span className="text-accent/50">.</span></p>
+        <div aria-hidden="true" className="wordmark pointer-events-none select-none whitespace-nowrap text-center font-semibold leading-[0.8] tracking-[-0.06em]" />
       </footer>
     </div>
   );
