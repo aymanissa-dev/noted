@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /notes
+Disallow: /settings
+Disallow: /api/
+Sitemap: https://noted-lac-phi.vercel.app/sitemap.xml
