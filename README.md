@@ -35,6 +35,21 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Voice notes**: record up to 5 minutes (≤ 4 MB) per clip; stored privately in MongoDB, streamed only to the owner, hidden for locked notes until unlocked, deleted with the note or account
 - **Motion**: subtle 150–250ms animations, all disabled under `prefers-reduced-motion`
 
+## Keyboard shortcuts & help
+
+Press `?` anywhere for the full, searchable list, `Ctrl/⌘+K` for the command palette (search notes, jump to views, run actions), or open **How to use noted.** (`/help`) from the account menu, the sidebar or the palette. Labels adapt to the platform (⌘ on Mac, Ctrl elsewhere); the Help page also has a touch version for phones. New web sign-ups get a short, skippable tour (re-run it from Help).
+
+| Group | Shortcuts |
+|---|---|
+| Navigation | `G` `N` all notes · `G` `A` archive · `G` `T` trash · `G` `S` settings · `G` `H` help · `Esc` back / close |
+| Notes | `N` new note · `Q` quick capture · `Mod+S` save now · `Enter` / `Shift+Enter` in quick capture |
+| Editor | `/` commands · `:` emoji · `Mod+Z` undo · `Mod+Shift+Z` (Mac) / `Ctrl+Y` redo · `Alt+↑/↓` move line · `Shift+Alt+↑/↓` duplicate line · `Mod+Shift+K` delete line · `Mod+]` / `Mod+[` indent · fold/unfold `⌘⌥[` `⌘⌥]` (Mac) / `Ctrl+Shift+[` `Ctrl+Shift+]` · `Mod+A` select all |
+| Formatting | `Mod+B` bold · `Mod+I` italic · `Mod+E` inline code · `Mod+Shift+X` strikethrough · `Mod+Shift+H` highlight · `Mod+Enter` toggle checklist item |
+| Search | `/` search notes · `Mod+F` find & replace · `Mod+G` / `Shift+Mod+G` next / previous match · `Mod+D` select next occurrence · `Esc` clear |
+| App | `Mod+K` command palette · `?` shortcuts · `↑` `↓` in menus and the palette |
+
+`Mod` is ⌘ on Mac and Ctrl elsewhere. The list lives in `client/src/lib/shortcutList.js` and is checked against the real bindings by `client/src/lib/keys.test.mjs`.
+
 ## Tech stack
 
 | Layer          | Technology               |
