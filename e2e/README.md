@@ -22,7 +22,8 @@ BASE=https://noted-lac-phi.vercel.app API=https://noted-lac-phi.vercel.app/api n
 | anim.mjs | FLIP, leave/slide-in, save checkmark, PIN shake/open, dot bounce, reduced motion |
 | v4.mjs | QA v3 regressions: typewriter centering, palette Enter, `/Heading 1`, `:smile`, quick capture focus, live sidebar tags, tour replay, editor focus ring, password messages |
 | sw.mjs | service worker offline: no `no-response` errors, shell loads offline |
-| v4shots.mjs | before/after screenshots at 1920/1280/375, light + dark (`WIDTHS`, `THEMES`, `LANDING_ONLY`) |
+| v4shots.mjs | before/after screenshots at 2560/1920/1280/375, light + dark: landing, list, editor, archive empty state, note not found, settings (`OUT`, `PRE`, `WIDTHS`, `THEMES`, `LANDING_ONLY`) |
+| v5.mjs | QA v3 retest: full-width shell at 1920/2560, standalone typewriter (toolbar, palette, Alt+Shift+T), fast `/Heading 2` after an emoji line, Enter exits empty list items, note-not-found state, online status recovers without reload, landing CTA wording + axe color contrast (light/dark; needs `axe-core`) |
 | live-extra.mjs | accent color, login activity, stats, dark mode, 375px, screenshots |
 
 Server-side (`npm test` in `server/`): smoke, v2 features, password policy, and cross-account authorization + voice API.

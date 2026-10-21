@@ -1,4 +1,5 @@
-// v4 screenshots: landing + app (list, editor, archive empty, settings) at 1920 / 1280 / 375, light + dark. OUT=dir PRE=prefix
+// Screenshots: landing + app (list, editor, archive empty, note not found, settings) at 2560 / 1920 / 1280 / 375,
+// light + dark. OUT=dir PRE=prefix WIDTHS=1920,375 THEMES=dark LANDING_ONLY=1
 import { launch, newUser, pageAs, api, cleanup, BASE, sleep } from './h.mjs';
 const OUT = process.env.OUT || '/workspace', PRE = process.env.PRE || 'v4';
 const b = await launch();
@@ -21,7 +22,7 @@ try {
   for (const [title, content, tags, folderId, emoji, color] of seed) { const n = (await api('POST', '/notes', { title, content, tags, folderId, emoji, color }, u.token)).data.note; first ||= n; await sleep(30); }
   await api('PATCH', `/notes/${first._id}/pin`, null, u.token);
   const W = (process.env.WIDTHS || '1920,1280,375').split(',').map(Number); const TH = (process.env.THEMES || 'light,dark').split(',');
-  for (const [w, h] of [[1920, 1080], [1280, 800], [375, 812]].filter(([w]) => W.includes(w))) {
+  for (const [w, h] of [[2560, 1440], [1920, 1080], [1280, 800], [375, 812]].filter(([w]) => W.includes(w))) {
     for (const dark of TH.map((t) => t === 'dark')) {
       const tag = `${w}-${dark ? 'dark' : 'light'}`; const mobile = w < 500;
       const ctx = await b.createBrowserContext(); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(tag + ': ' + e.message)); // signed out
@@ -38,6 +39,8 @@ try {
       await a.screenshot({ path: `${OUT}/${PRE}-editor-${tag}.png` });
       await a.goto(BASE + '/archive', { waitUntil: 'networkidle0' }); await sleep(600);
       await a.screenshot({ path: `${OUT}/${PRE}-empty-${tag}.png` });
+      await a.goto(BASE + '/notes/6ad87c4ebbc68bed722dfa73', { waitUntil: 'networkidle0' }); await sleep(600);
+      await a.screenshot({ path: `${OUT}/${PRE}-notfound-${tag}.png` });
       if (mobile) { await a.goto(BASE + '/settings', { waitUntil: 'networkidle0' }); await sleep(600); await a.screenshot({ path: `${OUT}/${PRE}-settings-${tag}.png`, fullPage: true }); }
       await a.close();
     }
