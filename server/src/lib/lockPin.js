@@ -27,37 +27,55 @@ const waitText = (ms) => {
 };
 const lockedOut = () => Object.assign(new HttpError(429, 'Too many wrong PIN attempts. Enter your account password to use your PIN again, or set a new PIN in Settings.'), { extra: { attemptsLeft: 0, passwordRequired: true } });
 
+const blockedError = (until) => {
+  const ms = Math.max(1000, until - Date.now());
+  return Object.assign(new HttpError(429, `Too many wrong PIN attempts. Try again in ${waitText(ms)}.`), { extra: { attemptsLeft: 0, retryAfter: Math.ceil(ms / 1000) } });
+};
+
 // Verifies the user's lock PIN with a persistent (serverless-safe) limit: exponential waits that
 // don't reset the budget, then a lockout that needs the account password.
+//
+// Each attempt is reserved in ONE atomic, conditional update before the PIN is compared: the
+// filter only matches when PIN entry isn't locked out or waiting, and the same update counts the
+// attempt and — pessimistically, as if it will be wrong — sets the wait / lockout it would cause.
+// So a burst of parallel guesses can't share a count or squeeze in between "check" and "block":
+// with 0 failures, exactly 5 of 50 parallel guesses are compared and the rest get the wait.
+// A correct PIN clears it all.
 export async function verifyLockPin(userId, pin) {
-  const user = await User.findById(userId).select('+lockPinHash +lockPinFailures +lockPinBlockedUntil +lockPinLockedOut');
+  const user = await User.findById(userId).select('+lockPinHash');
   if (!user) throw new HttpError(401, 'User not found');
   if (!user.hasLockPin || !user.lockPinHash) throw new HttpError(400, 'Set a lock PIN in Settings first');
-  if (user.lockPinLockedOut) throw lockedOut();
-  if (user.lockPinBlockedUntil && user.lockPinBlockedUntil > new Date()) {
-    const ms = user.lockPinBlockedUntil - Date.now();
-    throw Object.assign(new HttpError(429, `Too many wrong PIN attempts. Try again in ${waitText(ms)}.`), { extra: { attemptsLeft: 0, retryAfter: Math.ceil(ms / 1000) } });
+  const now = new Date();
+  const n = { $add: [{ $ifNull: ['$lockPinFailures', 0] }, 1] }; // failures if this attempt is wrong
+  const reserved = await User.findOneAndUpdate(
+    { _id: user._id, lockPinLockedOut: { $ne: true }, $or: [{ lockPinBlockedUntil: null }, { lockPinBlockedUntil: { $lte: now } }] },
+    [
+      { $set: { lockPinFailures: n } },
+      { $set: {
+        lockPinBlockedUntil: { $cond: [{ $gte: ['$lockPinFailures', FREE_PIN_FAILURES] },
+          { $add: [now, { $min: [{ $multiply: [PIN_BLOCK_MS, { $pow: [2, { $subtract: ['$lockPinFailures', FREE_PIN_FAILURES] }] }] }, MAX_PIN_BLOCK_MS] }] }, null] },
+        lockPinLockedOut: { $gte: ['$lockPinFailures', PIN_LOCKOUT_FAILURES] },
+      } },
+    ],
+    { new: true },
+  ).select('+lockPinFailures +lockPinBlockedUntil +lockPinLockedOut').lean();
+  if (!reserved) {
+    const cur = await User.findById(user._id).select('+lockPinBlockedUntil +lockPinLockedOut').lean();
+    if (cur?.lockPinLockedOut) throw lockedOut();
+    throw blockedError(cur?.lockPinBlockedUntil || new Date(Date.now() + PIN_BLOCK_MS));
   }
   const ok = typeof pin === 'string' && PIN_RE.test(pin) && (await bcrypt.compare(pin, user.lockPinHash));
   if (!ok) {
-    // Atomic increment, so parallel guesses can't share one count.
-    const { lockPinFailures: failures } = await User.findOneAndUpdate({ _id: user._id }, { $inc: { lockPinFailures: 1 } }, { new: true }).select('+lockPinFailures').lean();
-    if (failures >= PIN_LOCKOUT_FAILURES) {
-      await User.updateOne({ _id: user._id }, { lockPinLockedOut: true, lockPinBlockedUntil: null });
-      throw lockedOut();
-    }
+    const failures = reserved.lockPinFailures;
+    if (reserved.lockPinLockedOut) throw lockedOut();
     const block = pinBlockMs(failures);
-    if (block) {
-      await User.updateOne({ _id: user._id }, { lockPinBlockedUntil: new Date(Date.now() + block) });
-      throw Object.assign(new HttpError(429, `Too many wrong PIN attempts. Try again in ${waitText(block)}.`), { extra: { attemptsLeft: 0, retryAfter: block / 1000 } });
-    }
+    if (block) throw Object.assign(new HttpError(429, `Too many wrong PIN attempts. Try again in ${waitText(block)}.`), { extra: { attemptsLeft: 0, retryAfter: block / 1000 } });
     const left = FREE_PIN_FAILURES - failures;
     throw Object.assign(new HttpError(403, `Incorrect PIN. ${left} ${left === 1 ? 'attempt' : 'attempts'} left before a wait.`), { extra: { attemptsLeft: left } });
   }
-  const set = {};
-  if (user.lockPinFailures || user.lockPinBlockedUntil) Object.assign(set, { lockPinFailures: 0, lockPinBlockedUntil: null });
+  const set = { lockPinFailures: 0, lockPinBlockedUntil: null, lockPinLockedOut: false };
   if (pin.length < 6 && !user.lockPinShort) set.lockPinShort = true; // Settings suggests upgrading to 6 digits
-  if (Object.keys(set).length) await User.updateOne({ _id: user._id }, set);
+  await User.updateOne({ _id: user._id }, set);
   return user;
 }
 
