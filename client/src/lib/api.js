@@ -13,6 +13,14 @@ const CACHE_LIMIT = 1000;
 
 export const queue = createQueue(localStorage);
 
+// Notes whose full body came from the server during this visit (opened, created or saved).
+// Only these can be edited, online or queued offline: a copy kept on this device may be stale or
+// partial, and saving over the server from it could wipe the real note.
+const loadedBodies = new Set();
+export const bodyLoaded = (id) => isTempId(id) || loadedBodies.has(id);
+const markLoaded = (note) => { if (note?._id && !note.excerpt && !note.redacted) loadedBodies.add(note._id); };
+const notLoadedError = () => Object.assign(new Error('This note hasn’t loaded yet, so changes to it can’t be saved. Reconnect and open it again.'), { notLoaded: true });
+
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
@@ -139,6 +147,7 @@ export function clearLocalData() {
   localStorage.removeItem(META_KEY);
   localStorage.removeItem(USER_KEY);
   queue.clear();
+  loadedBodies.clear();
 }
 
 const unlockHeaders = (t) => (t ? { headers: { 'X-Unlock-Token': t } } : {});
@@ -177,7 +186,7 @@ let syncing = null;
 export function syncQueue() {
   if (syncing || !queue.size() || !navigator.onLine || !localStorage.getItem(TOKEN_KEY)) return syncing || Promise.resolve(0);
   syncing = queue.flush(sendEntry, {
-    onIdMapped: (tempId, realId) => window.dispatchEvent(new CustomEvent('noted:id-mapped', { detail: { tempId, realId } })),
+    onIdMapped: (tempId, realId) => { loadedBodies.add(realId); window.dispatchEvent(new CustomEvent('noted:id-mapped', { detail: { tempId, realId } })); },
   }).finally(() => {
     syncing = null;
     window.dispatchEvent(new Event('noted:queue-changed'));
@@ -205,6 +214,7 @@ async function download(path, fallbackName, extraHeaders = {}) {
 // offline or unsynced notes go to the (synchronous, persistent) offline queue instead.
 export function saveOnUnload(id, body, unlockToken) {
   if (!id) return false;
+  if (!bodyLoaded(id)) return false; // never write a body that wasn't loaded (see loadedBodies)
   if (!unlockToken && (isTempId(id) || !navigator.onLine)) { queue.enqueueUpdate(id, body); return true; }
   if (!navigator.onLine) return false;
   const token = localStorage.getItem(TOKEN_KEY);
@@ -343,14 +353,16 @@ export const api = {
     try {
       const { note } = await request('GET', `/notes/${id}`);
       cacheNotes([note]);
+      markLoaded(note);
       return { note: queue.applyPending([note])[0] };
     } catch (err) {
-      // Offline/unreachable: only a full copy can stand in for the note. A list copy is attached
-      // as err.preview so the UI can show it read-only, never as an editable note.
+      // Offline/unreachable (including a blocked request): the note didn't load. Whatever this device
+      // has is attached for showing read-only — err.local (a full copy saved here before) or
+      // err.preview (a list copy) — and never opens as an editable note.
       const cached = readCache()[id];
-      if (!isNetworkError(err) || !cached) throw err;
-      if (cached._list || cached.excerpt || cached.redacted) throw Object.assign(err, { preview: cached.redacted ? null : cached });
-      return { note: queue.applyPending([cached])[0] };
+      if (!isNetworkError(err) || !cached || cached.redacted) throw err;
+      if (cached._list || cached.excerpt) throw Object.assign(err, { preview: cached });
+      throw Object.assign(err, { local: queue.applyPending([cached])[0] });
     }
   },
 
@@ -358,6 +370,7 @@ export const api = {
     try {
       const res = await request('POST', '/notes', body);
       cacheNotes([res.note]);
+      markLoaded(res.note);
       return changed(res);
     } catch (err) {
       if (!isNetworkError(err)) throw err;
@@ -368,6 +381,7 @@ export const api = {
 
   // `session` identifies one editor visit, so the server can keep a version at the start of each session.
   async updateNote(id, body, { session } = {}) {
+    if (!bodyLoaded(id)) throw notLoadedError(); // nor queued: the offline queue only takes loaded notes
     if (!isTempId(id) && !queue.entries().some((e) => e.id === id)) {
       try {
         const res = await request('PUT', `/notes/${id}`, body, session ? { headers: { 'X-Edit-Session': session } } : {});

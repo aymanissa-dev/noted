@@ -74,46 +74,46 @@ export default function NoteEditor() {
   const idRef = useRef(noteId);
   idRef.current = noteId;
 
-  // Couldn't load (network/server) and there's no copy on this device: show that instead of a
-  // blank editor (typing into it could overwrite the real note), and keep retrying.
+  // The editor is only editable once this note's full body has come from the server during this
+  // visit (`verified`). Until then a copy saved on this device is shown read-only — briefly while it
+  // checks, or for as long as noted. can't be reached (blocked, offline) — and nothing is saved or
+  // queued for it: a local copy may be stale or partial, and writing it back could wipe the note.
+  const [verified, setVerified] = useState(() => !routeId || isTempId(routeId));
+  const verifiedRef = useRef(verified);
+  // Couldn't load and there's no full copy here: say so (with a read-only list preview if there is one).
   const [loadFailed, setLoadFailed] = useState('');
-  const [loadPreview, setLoadPreview] = useState(null); // a list copy, shown read-only while it can't load
-  // Saves to an existing note are only allowed once its full body is known (opened from the server
-  // or from a full copy saved on this device). Belt and braces: the editor isn't even shown before
-  // that, but nothing may ever autosave a blank/partial body over the real note.
-  const bodyLoaded = useRef(!routeId || Boolean(initial));
-  const serverChecked = useRef(false);
+  const [loadPreview, setLoadPreview] = useState(null);
+  // Couldn't load, but a full copy saved on this device is showing (read-only).
+  const [localCopy, setLocalCopy] = useState(false);
   const [loadTick, setLoadTick] = useState(0);
-  const [refreshFailed, setRefreshFailed] = useState(false);
-  useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) || refreshFailed });
+  useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) || localCopy });
 
   useEffect(() => {
-    // Opened from a full local copy: check the server once (retried if that check fails).
-    const refresh = Boolean(initial) && routeId === initial._id && !serverChecked.current;
-    if (!routeId || (routeId === idRef.current && !loading && !refresh && !loadFailed)) return;
+    if (!routeId || (routeId === idRef.current && verifiedRef.current)) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
         const loaded = toLoaded(n);
-        serverChecked.current = true; bodyLoaded.current = true; setRefreshFailed(false);
-        if (refresh) {
-          // Opened from cache: take the server copy only if it differs and you haven't started typing.
-          if (snapshot(noteRef.current) !== lastSaved.current) return;
-          if (snapshot(loaded) === lastSaved.current && n.updatedAt === initial.updatedAt && !n.locked) return;
-        }
-        setLoadFailed(''); setLoadPreview(null);
+        verifiedRef.current = true; setVerified(true);
+        setLoadFailed(''); setLoadPreview(null); setLocalCopy(false);
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
         if (n.locked) setNeedsPin(true);
-        setPreviewOnly(Boolean(n.excerpt)); // offline and only a list excerpt is cached
+        setPreviewOnly(Boolean(n.excerpt));
       })
       .catch((e) => {
-        if (e.status === 404 || e.status === 400 || e.status === 403) setNotFound(true);
-        else if (!initial) { setLoadFailed(e.message || 'Couldn’t load this note.'); setLoadPreview(e.preview || null); }
-        else setRefreshFailed(true); // keep editing the full local copy; changes queue and sync later
+        if (e.status === 404 || e.status === 400 || e.status === 403) { setNotFound(true); return; }
+        const local = e.local || initial;
+        if (local) {
+          const loaded = toLoaded(local);
+          lastSaved.current = snapshot(loaded);
+          setNote(loaded); setUpdatedAt(local.updatedAt);
+          setLocalCopy(true); setLoadFailed('');
+        } else { setLoadFailed(e.message || 'Couldn’t load this note.'); setLoadPreview(e.preview || null); }
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId, loadTick]);
+  const readOnly = previewOnly || !verified;
 
   // Save the current note if it changed. Serialized so creates never duplicate.
   const save = useCallback(async () => {
@@ -123,7 +123,7 @@ export default function NoteEditor() {
     if (snap === lastSaved.current) { setStatus((s) => (s === 'dirty' ? 'saved' : s)); return; }
     if (!idRef.current && isEmpty(current)) return;
     if (current.locked && !unlockToken.current) return; // wait for PIN
-    if (idRef.current && !isTempId(idRef.current) && !bodyLoaded.current) return; // body never loaded: never overwrite it
+    if (idRef.current && !isTempId(idRef.current) && !verifiedRef.current) return; // body never loaded: never overwrite it
     if (previewOnlyRef.current) return; // never save a truncated excerpt over the real note
     setStatus('saving'); setError('');
     const run = (async () => {
@@ -180,7 +180,7 @@ export default function NoteEditor() {
     const fieldsOf = (n) => ({ title: n.title, content: n.content, tags: n.tags, color: n.color, emoji: n.emoji });
     // Fire a keepalive save of the latest state when the page is hidden or unloaded.
     const flush = () => {
-      if (!dirty() || !idRef.current || !bodyLoaded.current) return;
+      if (!dirty() || !idRef.current || !verifiedRef.current) return;
       if (noteRef.current.locked && !unlockToken.current) return;
       if (saveOnUnload(idRef.current, fieldsOf(noteRef.current), unlockToken.current)) lastSaved.current = snapshot(noteRef.current);
     };
@@ -393,7 +393,7 @@ export default function NoteEditor() {
           <button type="button" onClick={togglePin} data-tip={note.pinned ? 'Unpin' : 'Pin to top'} aria-label={note.pinned ? 'Unpin' : 'Pin'} aria-pressed={note.pinned}
             className={`btn-ghost btn-icon ${note.pinned ? 'text-accent' : ''}`}><PinIcon filled={note.pinned} /></button>
           {!note.deletedAt && <FolderPicker value={note.folderId} onChange={moveFolder} />}
-          <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
+          {!readOnly && <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />}
           <Menu label="More actions" tip="More" testId="note-more" buttonClass="btn-ghost btn-icon text-stone-800 dark:text-stone-100" button={<Icon name="more" size="md" />}>
             {() => (
               <>
@@ -432,6 +432,13 @@ export default function NoteEditor() {
           <button type="button" className="btn-sm btn-secondary" onClick={restore}>Restore</button>
         </div>
       )}
+      {localCopy && (
+        <div role="status" data-testid="note-local-copy" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm dark:border-stone-800 dark:bg-stone-900">
+          <span className="inline-flex items-center gap-2 text-muted"><Icon name="offline" size="xs" />
+            {online ? 'Couldn’t load this note from noted. Showing the copy saved on this device, read-only. Trying again…' : 'You’re offline. Showing the copy saved on this device, read-only until you reconnect.'}</span>
+          <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setLoadTick((t) => t + 1)}>Try again</button>
+        </div>
+      )}
       {previewOnly && (
         <div className="mb-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 px-4 py-2 text-sm text-sky-800 dark:text-sky-200">
           You’re offline and only a preview of this note is saved on this device. Reconnect to view and edit the full note.
@@ -447,20 +454,20 @@ export default function NoteEditor() {
         <div className={focusMode ? 'mx-auto max-w-reading' : 'mx-auto max-w-[40rem]'}>
         {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
         <input autoFocus={!routeId} aria-label="Title" className="editor-title w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
-          placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
+          placeholder="Title" readOnly={readOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
         {!focusMode && (
-        <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
+        <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3" inert={readOnly ? '' : undefined}>
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
           {/* Phones: these live in the ··· menu, so there's a single toolbar row. */}
           <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} typewriter={typewriter} onTypewriter={toggleTypewriter} /></div>
         </div>
         )}
         <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
-          <MarkdownEditor value={note.content} readOnly={previewOnly} placeholder="Start writing… Type / for headings, checklists and more"
+          <MarkdownEditor value={note.content} readOnly={readOnly} placeholder="Start writing… Type / for headings, checklists and more"
             persist={persist} focusMode={focusMode} typewriter={typewriter} onReady={setEditorApi}
             onChange={(content) => setNote((n) => ({ ...n, content }))} />
         </Suspense>
-        {!focusMode && !previewOnly && !note.deletedAt && (!note.locked || unlockToken.current) && (
+        {!focusMode && !readOnly && !note.deletedAt && (!note.locked || unlockToken.current) && (
           <VoiceNotes noteId={noteId && !isTempId(noteId) ? noteId : null} unlockToken={unlockToken.current}
             ensureSaved={async () => { await save(); return idRef.current && !isTempId(idRef.current) ? idRef.current : null; }} />
         )}
