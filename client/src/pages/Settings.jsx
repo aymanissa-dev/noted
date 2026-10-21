@@ -136,11 +136,12 @@ function DataSection() {
   const dialog = useDialog();
   const withPin = async (fn) => { const pin = await askPin(user, dialog); if (pin !== null) fn(pin || undefined); };
 
-  const report = ({ imported, skippedDuplicates = 0, skippedLocked = 0 }) => {
+  const report = ({ imported, skippedDuplicates = 0, skippedLocked = 0, foldersSkipped = 0, maxFolders }) => {
     const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
     const parts = [`Imported ${plural(imported, 'note')}.`];
     if (skippedDuplicates) parts.push(`Skipped ${plural(skippedDuplicates, 'duplicate')} you already have.`);
     if (skippedLocked) parts.push(`Skipped ${plural(skippedLocked, 'locked note')} without content.`);
+    if (foldersSkipped) parts.push(`${plural(foldersSkipped, 'folder')} not created (you can have up to ${maxFolders}); those notes are in All notes.`);
     setMsg({ text: parts.join(' ') });
     window.dispatchEvent(new Event('noted:folders-changed'));
   };
@@ -247,7 +248,7 @@ function LockPinSection() {
   const submit = async (e) => {
     e.preventDefault(); setMsg(null);
     if (mode === 'set') {
-      if (!/^\d{4,6}$/.test(form.pin)) return setMsg({ error: true, text: 'PIN must be 4 to 6 digits.' });
+      if (!/^\d{6}$/.test(form.pin)) return setMsg({ error: true, text: 'PIN must be 6 digits.' });
       if (form.pin !== form.confirm) return setMsg({ error: true, text: 'PINs do not match.' });
     }
     setBusy(true);
@@ -264,10 +265,11 @@ function LockPinSection() {
   };
 
   return (
-    <Card id="lock-pin" title="Note lock PIN" description="Lock individual notes behind a 4–6 digit PIN. Locked notes are hidden in lists, search, and offline storage until you enter it.">
+    <Card id="lock-pin" title="Note lock PIN" description="Lock individual notes behind a 6-digit PIN. Locked notes are hidden in lists, search, and offline storage until you enter it.">
       {!mode && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="mr-2 text-sm text-muted">{user?.hasLockPin ? 'PIN is set.' : 'No PIN set.'}</span>
+          {user?.lockPinShort && <p data-testid="pin-upgrade" className="w-full text-sm text-amber-800 dark:text-amber-200">Your PIN is shorter than 6 digits. Change it to a 6-digit PIN: it’s much harder to guess.</p>}
           <button className="btn-secondary" onClick={() => { setMode('set'); setMsg(null); }}>{user?.hasLockPin ? 'Change PIN' : 'Set PIN'}</button>
           {user?.hasLockPin && <button className="btn-danger" onClick={() => { setMode('remove'); setMsg(null); }}>Remove PIN</button>}
         </div>
@@ -276,7 +278,7 @@ function LockPinSection() {
         <form onSubmit={submit} className="space-y-3">
           <input className="input" type="password" placeholder="Account password" autoComplete="current-password" required autoFocus value={form.password} onChange={set('password')} />
           {mode === 'set' && <>
-            <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="New PIN (4–6 digits)" autoComplete="off" required value={form.pin} onChange={set('pin')} />
+            <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="New PIN (6 digits)" autoComplete="off" required value={form.pin} onChange={set('pin')} />
             <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="Confirm PIN" autoComplete="off" required value={form.confirm} onChange={set('confirm')} />
           </>}
           {mode === 'remove' && <p className="text-sm text-muted">All locked notes will be unlocked.</p>}

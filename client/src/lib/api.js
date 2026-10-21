@@ -224,10 +224,11 @@ const queued = () => window.dispatchEvent(new Event('noted:queue-changed'));
 const changed = (r) => { window.dispatchEvent(new Event('noted:notes-changed')); return r; };
 
 // Downloads a file from an authenticated endpoint.
-async function download(path, fallbackName, extraHeaders = {}) {
+async function download(path, fallbackName, body) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!navigator.onLine) throw offlineError();
-  const res = await netFetch(BASE + path, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extraHeaders } });
+  // POST with a JSON body when there's something to send (e.g. the export PIN: never in a URL/header).
+  const res = await netFetch(BASE + path, { method: body ? 'POST' : 'GET', cache: 'no-store', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body && { 'Content-Type': 'application/json' }) }, body: body ? JSON.stringify(body) : undefined });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `Download failed (${res.status})`);
   const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || fallbackName;
   const url = URL.createObjectURL(await res.blob());
@@ -424,19 +425,20 @@ export const api = {
   },
 
   togglePin: async (id) => { const r = await request('PATCH', `/notes/${id}/pin`); cacheNotes([r.note]); return r; },
-  deleteNote: (id) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`); cacheNotes([r.note]); return changed(r); }), // moves to trash
-  deleteForever: async (id) => { const r = await request('DELETE', `/notes/${id}?permanent=true`); uncache(id); return changed(r); },
+  // Locked notes need their unlock token (see unlockFor in lib/unlock.js) to be trashed or deleted.
+  deleteNote: (id, unlockToken) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`, undefined, unlockHeaders(unlockToken)); cacheNotes([r.note]); return changed(r); }), // moves to trash
+  deleteForever: async (id, unlockToken) => { const r = await request('DELETE', `/notes/${id}?permanent=true`, undefined, unlockHeaders(unlockToken)); uncache(id); return changed(r); },
   toggleArchive: (id, archived) => withMove(id, archived === undefined ? {} : archived ? { archived: true, pinned: false } : { archived: false }, async () => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return changed(r); }),
   restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return changed(r); },
-  async emptyTrash() {
-    const r = await request('DELETE', '/notes/trash');
-    // drop trashed notes from the offline cache too
-    try { const c = readCache(); for (const [id, n] of Object.entries(c)) if (n.deletedAt) delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* ignore */ }
+  async emptyTrash(pin) {
+    const r = await request('DELETE', '/notes/trash', pin ? { pin } : undefined);
+    // drop trashed notes from the offline cache too (locked ones stay if they were kept)
+    try { const c = readCache(); for (const [id, n] of Object.entries(c)) if (n.deletedAt && !(n.locked && r.keptLocked)) delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* ignore */ }
     return changed(r);
   },
-  exportJson: (pin) => download('/notes/export?format=json', 'noted.json', pin ? { 'X-Lock-Pin': pin } : {}),
-  exportMarkdown: (pin) => download('/notes/export?format=md', 'noted.zip', pin ? { 'X-Lock-Pin': pin } : {}),
-  exportData: (pin) => request('GET', '/notes/export?format=json', undefined, pin ? { headers: { 'X-Lock-Pin': pin } } : {}),
+  exportJson: (pin) => download('/notes/export', 'noted.json', { format: 'json', ...(pin && { pin }) }),
+  exportMarkdown: (pin) => download('/notes/export', 'noted.zip', { format: 'md', ...(pin && { pin }) }),
+  exportData: (pin) => request('POST', '/notes/export', { format: 'json', ...(pin && { pin }) }),
   importNotes: (data) => request('POST', '/notes/import', data).then(changed),
   listVersions: (id, { unlockToken } = {}) => request('GET', `/notes/${id}/versions`, undefined, unlockHeaders(unlockToken)),
   getVersion: (id, vid, { unlockToken } = {}) => request('GET', `/notes/${id}/versions/${vid}`, undefined, unlockHeaders(unlockToken)),
@@ -454,6 +456,7 @@ export const api = {
     return changed(r);
   },
   unlockNote: (id, pin) => request('POST', `/notes/${id}/unlock`, { pin }),
+  unblockPin: (password) => request('POST', '/auth/lock-pin/unblock', { password }),
   lockNote: async (id) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return changed(r); },
   removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return changed(r); },
   updateLockedNote: async (id, body, unlockToken, { session } = {}) => {

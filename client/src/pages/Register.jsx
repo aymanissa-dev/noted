@@ -37,7 +37,7 @@ export default function Register() {
       navigate('/notes', { replace: true });
     } catch (err) {
       if (err.data?.field === 'password') { setServerPw(err.message); setTouched((t) => ({ ...t, password: true })); document.getElementById('reg-password')?.focus(); }
-      else setError(err.status === 409 ? 'An account with this email already exists. Log in instead?' : err.message);
+      else setError(err.message); // includes the generic "couldn’t create an account… log in instead" and 429 waits
     } finally {
       setBusy(false);
     }

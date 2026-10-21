@@ -13,8 +13,9 @@ import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
-import { useOnReconnect, useRefetch, isOfflineError, isNetworkText } from '../lib/network.js';
+import { useOnReconnect, useRefetch, useIsOnline, isOfflineError, isNetworkText } from '../lib/network.js';
 import RetryStatus from '../components/RetryStatus.jsx';
+import { unlockFor, trashPin } from '../lib/unlock.js';
 
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
@@ -178,15 +179,23 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     catch (e) { setNotes((l) => [note, ...l]); setError(e.message); }
   };
   const deleteForever = async (note) => {
-    if (!(await dialog.confirm({ title: 'Delete forever?', body: `“${note.title || 'Untitled'}” and its history will be gone for good. This can’t be undone.`, confirmLabel: 'Delete forever', danger: true }))) return;
-    try { await api.deleteForever(note._id); await removeAnimated(note._id); }
-    catch (e) { setError(e.message); }
+    if (!(await dialog.confirm({ title: 'Delete forever?', body: `“${note.title || (note.locked ? 'Locked note' : 'Untitled')}” and its history will be gone for good. This can’t be undone.`, confirmLabel: 'Delete forever', danger: true }))) return;
+    try {
+      const token = await unlockFor(dialog, note, { action: 'delete it for good' });
+      if (token === null) return;
+      await api.deleteForever(note._id, token); await removeAnimated(note._id);
+    } catch (e) { setError(e.message); }
   };
   const emptyTrash = async () => {
     if (!(await dialog.confirm({ title: 'Empty the trash?', body: `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} will be deleted for good. This can’t be undone.`, confirmLabel: 'Empty trash', danger: true }))) return;
+    const pin = await trashPin(dialog, notes);
+    if (pin === null) return;
     const previous = notes;
-    setNotes([]); // optimistic
-    try { await api.emptyTrash(); }
+    setNotes(pin ? [] : notes.filter((n) => n.locked)); // optimistic (locked notes stay without the PIN)
+    try {
+      const r = await api.emptyTrash(pin);
+      if (r.keptLocked) toast.show(`${r.keptLocked} locked ${r.keptLocked === 1 ? 'note stays' : 'notes stay'} in the trash.`);
+    }
     catch (e) { setNotes(previous); setError(e.message); }
     finally { setSyncTick((t) => t + 1); } // refetch to confirm server state
   };

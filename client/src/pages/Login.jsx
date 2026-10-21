@@ -40,6 +40,7 @@ export default function Login() {
       await login({ email: form.email.trim(), password: form.password });
       navigate(postLoginTarget(location.state?.from), { replace: true });
     } catch (err) {
+      // 429: too many failed attempts; the server's message says how long to wait.
       setError(err.status === 401 ? 'Wrong email or password. Check both and try again.' : err.message);
     } finally {
       setBusy(false);

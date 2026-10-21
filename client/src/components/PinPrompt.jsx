@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
+import { api } from '../lib/api.js';
 
 // Asks for the lock PIN. `onSubmit(pin)` should throw an Error with a message on failure.
 export default function PinPrompt({ title = 'This note is locked', description = 'Enter your PIN to view it.', submitLabel = 'Unlock', onSubmit, onCancel, inline = false }) {
@@ -10,6 +11,9 @@ export default function PinPrompt({ title = 'This note is locked', description =
   const [opened, setOpened] = useState(false);
   // After too many wrong PINs the server blocks checks for a while; count down instead of letting you retry.
   const [blockedUntil, setBlockedUntil] = useState(0);
+  // After too many wrong PINs in total, PIN entry needs the account password first.
+  const [needPassword, setNeedPassword] = useState(false);
+  const [password, setPassword] = useState('');
   const [, tick] = useState(0);
   const left = Math.max(0, Math.ceil((blockedUntil - Date.now()) / 1000));
   useEffect(() => {
@@ -21,6 +25,13 @@ export default function PinPrompt({ title = 'This note is locked', description =
   const noTrap = useRef(null);
   useFocusTrap(inline ? noTrap : dialogRef, onCancel);
 
+  const unblock = async (e) => {
+    e.preventDefault(); setError(''); setBusy(true);
+    try { await api.unblockPin(password); setNeedPassword(false); setPassword(''); setError(''); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);
     try {
@@ -29,12 +40,26 @@ export default function PinPrompt({ title = 'This note is locked', description =
         beforeClose: () => new Promise((r) => { setOpened(true); setTimeout(r, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 200); }),
       });
     } catch (err) {
-      if (err.status === 429) setBlockedUntil(Date.now() + (err.data?.retryAfter || 300) * 1000);
+      if (err.status === 429 && err.data?.passwordRequired) setNeedPassword(true);
+      else if (err.status === 429) setBlockedUntil(Date.now() + (err.data?.retryAfter || 300) * 1000);
       setError(err.message); setPin(''); setBusy(false); setShake((s) => s + 1);
     }
   };
 
-  const form = (
+  const form = needPassword ? (
+    <form onSubmit={unblock} className="w-full max-w-xs text-center" data-testid="pin-password">
+      <div aria-hidden="true" className="mx-auto inline-block text-3xl">🔒</div>
+      <h2 id="pin-title" className="mt-2 font-semibold">Too many wrong PINs</h2>
+      <p className="mt-1 text-sm text-muted">For your security, enter your account password to use your PIN again. You can also set a new PIN in Settings.</p>
+      <input className="input mt-4" type="password" autoComplete="current-password" autoFocus required placeholder="Account password" aria-label="Account password"
+        aria-describedby={error ? 'pin-error' : undefined} value={password} onChange={(e) => setPassword(e.target.value)} />
+      {error && <p id="pin-error" role="alert" data-testid="pin-error" className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
+      <div className="mt-4 flex justify-center gap-2">
+        {onCancel && <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>}
+        <button className="btn-primary" disabled={busy || !password}>{busy ? 'Checking…' : 'Continue'}</button>
+      </div>
+    </form>
+  ) : (
     <form onSubmit={submit} className="w-full max-w-xs text-center">
       <div key={shake} data-testid="pin-lock" data-state={opened ? 'open' : shake ? 'shake' : 'idle'} aria-hidden="true" className={`mx-auto inline-block text-3xl ${opened ? 'animate-unlock' : shake ? 'animate-shake' : ''}`}>{opened ? '🔓' : '🔒'}</div>
       <h2 id="pin-title" className="mt-2 font-semibold">{title}</h2>

@@ -297,7 +297,7 @@ export default function NoteEditor() {
   const moveToTrash = async () => {
     const id = idRef.current;
     await save();
-    const req = api.deleteNote(id);
+    const req = api.deleteNote(id, unlockToken.current || undefined); // locked notes need the unlock
     navigate('/notes');
     const back = asListNote({ deletedAt: null });
     toast.show('Note moved to trash.', { action: { label: 'Undo', onClick: () => optimisticInsert(back, req.catch(() => {}).then(() => api.restoreNote(id))).then(() => toast.show('Note restored.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
@@ -312,7 +312,7 @@ export default function NoteEditor() {
   const deleteForever = async () => {
     try {
       lastSaved.current = snapshot(noteRef.current); // nothing to flush
-      await api.deleteForever(noteId);
+      await api.deleteForever(noteId, unlockToken.current || undefined);
       navigate('/trash');
     } catch (e) { setError(e.message); setConfirmDelete(false); }
   };
