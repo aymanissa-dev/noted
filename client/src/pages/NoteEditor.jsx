@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import { cardClass } from '../lib/colors.js';
+import { useTypewriter, toggleTypewriter, isTypewriterShortcut } from '../lib/typewriter.js';
 import { timeAgo } from '../lib/format.js';
 
 const AUTOSAVE_MS = 800;
@@ -56,6 +57,7 @@ export default function NoteEditor() {
   const [editorApi, setEditorApi] = useState(null);
   const [focusMode, setFocusMode] = useState(false);
   const [outlineSheet, setOutlineSheet] = useState(false);
+  const typewriter = useTypewriter();
   previewOnlyRef.current = previewOnly;
 
   const lastSaved = useRef(snapshot(note));
@@ -291,6 +293,13 @@ export default function NoteEditor() {
     } catch (e) { setError(e.message); setConfirmDelete(false); }
   };
 
+  // Alt+Shift+T toggles typewriter mode while a note is open (also in the palette and toolbar).
+  useEffect(() => {
+    const onKey = (e) => { if (isTypewriterShortcut(e)) { e.preventDefault(); const on = toggleTypewriter(); toast.show(on ? 'Typewriter mode on: the line you’re typing stays centered.' : 'Typewriter mode off.'); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Focus mode: Esc leaves it (unless an editor popup like search or autocomplete used the key).
   useEffect(() => {
     if (!focusMode) return;
@@ -334,6 +343,7 @@ export default function NoteEditor() {
                   <button role="menuitem" type="button" className="menu-item" onClick={() => setOutlineSheet(true)}><Icon name="outline" />Outline</button>
                   <button role="menuitem" type="button" className="menu-item" onClick={() => setTimeout(() => editorApi?.openFind(), 50)}><Icon name="find" />Find and replace</button>
                   <button role="menuitem" type="button" className="menu-item" onClick={() => setFocusMode(true)}><Icon name="focus" />Focus mode</button>
+                  <button role="menuitemcheckbox" aria-checked={typewriter} type="button" className="menu-item" onClick={toggleTypewriter}><Icon name="typewriter" />Typewriter mode{typewriter && <Icon name="check" size="xs" className="ml-auto text-accent" />}</button>
                   <div className="menu-sep" />
                 </div>
                 {saved && <button role="menuitem" type="button" className="menu-item" aria-label="Version history" onClick={openHistory}><Icon name="history" />Version history</button>}
@@ -384,12 +394,12 @@ export default function NoteEditor() {
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
           {/* Phones: these live in the ··· menu, so there's a single toolbar row. */}
-          <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} /></div>
+          <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} typewriter={typewriter} onTypewriter={toggleTypewriter} /></div>
         </div>
         )}
         <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
           <MarkdownEditor value={note.content} readOnly={previewOnly} placeholder="Start writing… Type / for headings, checklists and more"
-            persist={persist} focusMode={focusMode} onReady={setEditorApi}
+            persist={persist} focusMode={focusMode} typewriter={typewriter} onReady={setEditorApi}
             onChange={(content) => setNote((n) => ({ ...n, content }))} />
         </Suspense>
         {!focusMode && !previewOnly && !note.deletedAt && (!note.locked || unlockToken.current) && (

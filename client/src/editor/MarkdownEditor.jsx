@@ -92,7 +92,7 @@ const typewriter = [
  * Markdown editor (CodeMirror 6). Content stays a plain Markdown string, so plain-text notes
  * render as-is. `persist` = { userId, noteId } keeps the undo history in IndexedDB (omit for locked notes).
  */
-export default function MarkdownEditor({ value, onChange, readOnly = false, placeholder = '', persist, focusMode = false, onReady, autoFocus = false, label = 'Note content' }) {
+export default function MarkdownEditor({ value, onChange, readOnly = false, placeholder = '', persist, focusMode = false, typewriter: typewriterOn = false, onReady, autoFocus = false, label = 'Note content' }) {
   const host = useRef(null);
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
@@ -126,7 +126,7 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
       ...completionKeymap, ...markdownKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...defaultKeymap,
     ]),
     comps.current.ro.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
-    comps.current.tw.of(focusMode ? typewriter : []),
+    comps.current.tw.of(focusMode || typewriterOn ? typewriter : []),
     EditorView.updateListener.of((u) => {
       if (!u.docChanged) return;
       const external = u.transactions.some((tr) => tr.annotation(External));
@@ -192,9 +192,10 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    view.dispatch({ effects: comps.current.tw.reconfigure(focusMode ? typewriter : []) });
-    if (focusMode) requestAnimationFrame(() => requestAnimationFrame(() => { if (view.dom.isConnected) centerCaret(view); }));
-  }, [focusMode]);
+    const on = focusMode || typewriterOn;
+    view.dispatch({ effects: comps.current.tw.reconfigure(on ? typewriter : []) });
+    if (on && view.hasFocus) requestAnimationFrame(() => requestAnimationFrame(() => { if (view.dom.isConnected) centerCaret(view); }));
+  }, [focusMode, typewriterOn]);
 
   return <div ref={host} data-testid="md-editor" className="md-editor mt-4" />;
 }

@@ -30,6 +30,7 @@ export const SHORTCUT_GROUPS = [
     { keys: ['Mod+Alt+['], pc: ['Ctrl+Shift+['], label: 'Fold section' },
     { keys: ['Mod+Alt+]'], pc: ['Ctrl+Shift+]'], label: 'Unfold section' },
     { keys: ['Mod+A'], label: 'Select all' },
+    { keys: ['Alt+Shift+T'], label: 'Typewriter mode (keep the line centered)' },
   ] },
   { id: 'formatting', title: 'Formatting', items: [
     { keys: ['Mod+B'], label: 'Bold' },

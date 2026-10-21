@@ -5,6 +5,8 @@ import { useTheme } from '../lib/theme.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { focusSearch } from '../lib/useShortcuts.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
+import { useTypewriter, toggleTypewriter } from '../lib/typewriter.js';
+import { useToast } from '../context/ToastContext.jsx';
 import Kbd from './Kbd.jsx';
 import Icon from './Icon.jsx';
 
@@ -28,6 +30,8 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
   const navigate = useNavigate();
   const { cycle, theme } = useTheme();
   const { logout } = useAuth();
+  const typewriter = useTypewriter();
+  const toast = useToast();
   const [q, setQ] = useState('');
   const [notes, setNotes] = useState(() => (api.cachedList({}) || []).slice(0, 6));
   // Track the highlighted row by id, so results arriving late (server search) can't move it.
@@ -41,6 +45,8 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
     { id: 'new', group: 'Actions', label: 'New note', icon: 'plus', keys: 'N', run: go('/notes/new') },
     { id: 'search', group: 'Actions', label: 'Search notes', icon: 'search', keys: '/', run: () => focusSearch(navigate, location.pathname) },
     { id: 'capture', group: 'Actions', label: 'Quick capture', icon: 'bolt', keys: 'Q', run: () => { navigate('/notes'); setTimeout(() => document.getElementById('quick-capture')?.focus(), 80); } },
+    { id: 'typewriter', group: 'Actions', label: `Typewriter mode (now ${typewriter ? 'on' : 'off'})`, icon: 'typewriter', keys: 'Alt+Shift+T',
+      run: () => { const on = toggleTypewriter(); toast.show(on ? 'Typewriter mode on: the line you’re typing stays centered.' : 'Typewriter mode off.'); } },
     { id: 'theme', group: 'Actions', label: `Switch theme (now ${theme})`, icon: 'sun', run: cycle, keep: true },
     { id: 'go-notes', group: 'Go to', label: 'All notes', icon: 'notes', keys: 'G N', run: go('/notes') },
     { id: 'go-pinned', group: 'Go to', label: 'Pinned', icon: 'pin', run: go('/notes?smart=pinned') },
@@ -53,7 +59,7 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
     { id: 'shortcuts', group: 'Help', label: 'Keyboard shortcuts', icon: 'keyboard', keys: '?', run: onShortcuts },
     { id: 'tour', group: 'Help', label: 'Take the tour again', icon: 'compass', run: onTour },
     { id: 'logout', group: 'Account', label: 'Log out', icon: 'logout', run: () => logout() },
-  ], [theme]); // eslint-disable-line react-hooks/exhaustive-deps
+  ], [theme, typewriter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search notes as you type (local copy first, then the server).
   useEffect(() => {

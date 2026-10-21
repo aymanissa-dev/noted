@@ -12,7 +12,7 @@ const BASICS = [
     <>Start a note with <b>New note</b> (<Kbd combo="N" size="sm" />). The first line is the title. It saves as you type.</>,
     <>Type <Kbd combo="/" size="sm" /> at the start of a line for headings, checklists, quotes, code and today’s date. Type <Kbd combo=":" size="sm" /> for emoji.</>,
     <>Select text to highlight it, or use <Kbd combo="Mod+B" size="sm" /> <Kbd combo="Mod+I" size="sm" /> <Kbd combo="Mod+Shift+H" size="sm" />.</>,
-    <><b>Focus</b> hides everything but the text; <b>Outline</b> jumps between headings.</>,
+    <><b>Focus</b> hides everything but the text; <b>Typewriter</b> keeps the line you’re typing centered (<Kbd combo="Alt+Shift+T" size="sm" />, or search “typewriter” in the palette); <b>Outline</b> jumps between headings.</>,
   ] },
   { icon: 'folder', title: 'Organize', items: [
     <><b>Pin</b> what you need most; it stays on top.</>,

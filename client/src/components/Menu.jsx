@@ -11,7 +11,7 @@ export default function Menu({ button, label, tip, align = 'right', className = 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
     if (!open) return undefined;
-    const items = () => [...(ref.current?.querySelectorAll('[role=menuitem]:not([disabled])') || [])].filter((el) => el.getClientRects().length); // visible ones only
+    const items = () => [...(ref.current?.querySelectorAll('[role=menuitem]:not([disabled]), [role=menuitemcheckbox]:not([disabled])') || [])].filter((el) => el.getClientRects().length); // visible ones only
     requestAnimationFrame(() => items()[0]?.focus());
     const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
     const onKey = (e) => {
@@ -33,7 +33,7 @@ export default function Menu({ button, label, tip, align = 'right', className = 
       <button ref={btn} type="button" className={buttonClass} aria-label={label} data-tip={open ? undefined : tip} data-tip-align={align === 'right' ? 'end' : 'start'}
         aria-haspopup="menu" aria-expanded={open} data-testid={testId} data-tour={tour} onClick={() => setOpen((o) => !o)}>{button}</button>
       {open && (
-        <div role="menu" aria-label={label} className={`menu absolute mt-2 ${align === 'right' ? 'right-0' : 'left-0'}`} onClick={(e) => { if (e.target.closest('[role=menuitem]')) close(); }}>
+        <div role="menu" aria-label={label} className={`menu absolute mt-2 ${align === 'right' ? 'right-0' : 'left-0'}`} onClick={(e) => { if (e.target.closest('[role=menuitem], [role=menuitemcheckbox]')) close(); }}>
           {children(close)}
         </div>
       )}
