@@ -38,6 +38,12 @@ function Picture({ kind, query }) {
   if (kind === 'locked') return (
     <div className={`${card} mx-auto w-64`}><p className="flex items-center gap-1.5 text-sm font-semibold text-stone-900 dark:text-stone-100"><Icon name="lock" size="xs" />Locked note</p><p className="mt-1 text-xs italic text-muted">Open it and enter your PIN.</p></div>
   );
+  if (kind === 'missing') return (
+    <div className={`${card} mx-auto w-64 border-dashed`}>
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-stone-500 dark:text-stone-400"><Icon name="search" size="xs" />No note at this link</p>
+      <div className="mt-2 space-y-1.5 opacity-60">{line('w-4/5')}{line('w-1/2')}</div>
+    </div>
+  );
   if (kind === 'smart') return (
     <div className="mx-auto w-64 space-y-2">{[0, 1].map((i) => <div key={i} className={`${card} ${i ? 'opacity-50' : ''}`}>{line('w-2/3')}<div className="mt-2">{line('w-2/5')}</div></div>)}</div>
   );

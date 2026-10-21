@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, optimisticInsert, saveOnUnload } from '../lib/api.js';
+import EmptyState from '../components/EmptyState.jsx';
 import { isTempId } from '../lib/offlineQueue.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
@@ -46,6 +47,7 @@ export default function NoteEditor() {
   const [loading, setLoading] = useState(Boolean(routeId) && !initial);
   const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
   const [error, setError] = useState('');
+  const [notFound, setNotFound] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Locked notes: content is only available after PIN entry; the unlock token authorizes saves for 15 min.
@@ -87,7 +89,7 @@ export default function NoteEditor() {
         if (n.locked) setNeedsPin(true);
         setPreviewOnly(Boolean(n.excerpt)); // offline and only a list excerpt is cached
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => { if (e.status === 404 || e.status === 400 || e.status === 403) setNotFound(true); else setError(e.message); })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);
@@ -314,6 +316,19 @@ export default function NoteEditor() {
   const persist = !note.locked && noteId && !isTempId(noteId) && user?.id ? { userId: user.id, noteId } : null;
 
   if (loading) return <EditorSkeleton />;
+
+  // A deleted, mistyped or someone else's note: say so plainly instead of showing a blank editor.
+  if (notFound) {
+    return (
+      <div data-testid="note-not-found">
+        <EmptyState kind="missing" title="This note isn’t here"
+          body="It may have been deleted for good, or the link points to a note in another account. Check Trash if you deleted it recently."
+          primary={{ to: '/notes', label: 'Back to notes', icon: 'back' }}
+          secondary={{ to: '/notes/new', label: 'New note', icon: 'plus' }} />
+        <p className="mt-4 text-center text-sm"><Link to="/trash" className="font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-500 dark:text-stone-200 dark:decoration-stone-600">Open Trash</Link></p>
+      </div>
+    );
+  }
 
   if (needsPin && !unlockToken.current && snapshot(note) === lastSaved.current && !note.content && !note.title) {
     return (
