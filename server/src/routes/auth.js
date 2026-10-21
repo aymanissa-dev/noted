@@ -8,7 +8,7 @@ import LoginEvent, { ACTIVITY_LIMIT } from '../models/LoginEvent.js';
 import AudioClip from '../models/AudioClip.js';
 import { maskIp, parseUserAgent } from '../lib/useragent.js';
 import { asyncHandler, HttpError, REGISTER_FAILED } from '../middleware/error.js';
-import { LIMITS, bypassed, clientIp, network, peek, hit, clear, tooMany, failureDelay, sleep } from '../lib/rateLimit.js';
+import { LIMITS, bypassed, clientIp, network, reserve, release, clear, tooMany, failureDelay, sleep } from '../lib/rateLimit.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { hashPin, NEW_PIN_RE, resetPinAttempts } from '../lib/lockPin.js';
 
@@ -45,9 +45,9 @@ router.post('/register', asyncHandler(async (req, res) => {
   // Every attempt counts (valid or not), so the endpoint can't be used to probe emails in bulk.
   if (!bypassed(req)) {
     const ip = clientIp(req);
-    const [r, n] = await Promise.all([hit(`register-ip:${ip}`, LIMITS.registerIp), hit(`register-net:${network(ip)}`, LIMITS.registerNet)]);
-    if (r.count > LIMITS.registerIp.max) throw tooMany('Too many sign-ups from this network.', r.resetAt);
-    if (n.count > LIMITS.registerNet.max) throw tooMany('Too many sign-ups from this network.', n.resetAt);
+    const [r, n] = await Promise.all([reserve(`register-ip:${ip}`, LIMITS.registerIp), reserve(`register-net:${network(ip)}`, LIMITS.registerNet)]);
+    if (r.over) throw tooMany('Too many sign-ups from this network.', r.resetAt);
+    if (n.over) throw tooMany('Too many sign-ups from this network.', n.resetAt);
   }
   const name = String(req.body?.name || '').trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
@@ -77,23 +77,31 @@ router.post('/login', asyncHandler(async (req, res) => {
   const limited = !bypassed(req);
   const ip = clientIp(req);
   const emailKey = `login-email:${email}`; const ipKey = `login-ip:${ip}`; const netKey = `login-net:${network(ip)}`;
+  // Every attempt is reserved (counted atomically) before the password is checked, so parallel
+  // guesses can't slip past the limit; a successful sign-in hands its reservations back.
+  let e;
   if (limited) {
-    const [e, i, n] = await Promise.all([peek(emailKey), peek(ipKey), peek(netKey)]);
-    if (e?.count >= LIMITS.loginEmail.max) throw tooMany('Too many sign-in attempts for this account.', e.resetAt);
-    if (i?.count >= LIMITS.loginIp.max) throw tooMany('Too many sign-in attempts from this network.', i.resetAt);
-    if (n?.count >= LIMITS.loginNet.max) throw tooMany('Too many sign-in attempts from this network.', n.resetAt);
+    const [re, ri, rn] = await Promise.all([reserve(emailKey, LIMITS.loginEmail), reserve(ipKey, LIMITS.loginIp), reserve(netKey, LIMITS.loginNet)]);
+    const blocked = [[re, emailKey, 'for this account'], [ri, ipKey, 'from this network'], [rn, netKey, 'from this network']].filter(([r]) => r.over);
+    if (blocked.length) {
+      // Refused without checking the password: hand back the reservations on the other counters,
+      // so a burst against one account doesn't also use up the whole network's budget.
+      await Promise.all([[re, emailKey], [ri, ipKey], [rn, netKey]].filter(([r]) => !r.over).map(([, k]) => release(k)));
+      const [[r, , where]] = blocked;
+      throw tooMany(`Too many sign-in attempts ${where}.`, r.resetAt);
+    }
+    e = re;
   }
   const user = await User.findOne({ email }).select('+password');
   const match = await bcrypt.compare(password, user?.password || DUMMY_HASH); // same cost either way
   if (!user || !match) {
     if (limited) {
-      const [e] = await Promise.all([hit(emailKey, LIMITS.loginEmail), hit(ipKey, LIMITS.loginIp), hit(netKey, LIMITS.loginNet)]);
       await sleep(failureDelay(e.count));
       if (e.count >= LIMITS.loginEmail.max) throw tooMany('Too many sign-in attempts for this account.', e.resetAt);
     }
     throw new HttpError(401, 'Invalid email or password');
   }
-  if (limited) await clear(emailKey).catch(() => {});
+  if (limited) await Promise.all([clear(emailKey).catch(() => {}), release(ipKey), release(netKey)]);
   if (bcrypt.getRounds(user.password) !== BCRYPT_COST) {
     await User.updateOne({ _id: user._id }, { password: await bcrypt.hash(password, BCRYPT_COST) });
   }
@@ -134,12 +142,12 @@ router.patch('/preferences', requireAuth, asyncHandler(async (req, res) => {
 async function verifyPassword(userId, password, req) {
   if (!password) throw new HttpError(400, 'Current password is required');
   const key = `password:${userId}`; const limited = !bypassed(req);
-  if (limited) { const r = await peek(key); if (r?.count >= LIMITS.password.max) throw tooMany('Too many wrong passwords.', r.resetAt); }
+  let r;
+  if (limited) { r = await reserve(key, LIMITS.password); if (r.over) throw tooMany('Too many wrong passwords.', r.resetAt); } // atomic, before bcrypt
   const user = await User.findById(userId).select('+password');
   if (!user) throw new HttpError(401, 'User not found');
   if (!(await bcrypt.compare(String(password), user.password))) {
     if (limited) {
-      const r = await hit(key, LIMITS.password);
       await sleep(failureDelay(r.count));
       if (r.count >= LIMITS.password.max) throw tooMany('Too many wrong passwords.', r.resetAt);
     }

@@ -43,6 +43,16 @@ export function network(ip = '') {
   return ip || 'unknown';
 }
 
+// Atomically counts this attempt BEFORE the expensive check (bcrypt), so a burst of parallel
+// requests can't all pass a read-then-write check: each gets its own count, and only the first
+// `max` are let through. Returns { count, resetAt, over }.
+export async function reserve(key, { max, windowMs }) {
+  const r = await hit(key, { windowMs });
+  return { ...r, over: r.count > max };
+}
+// Gives back one reserved attempt (e.g. a successful sign-in doesn't count against its IP).
+export const release = (key) => RateLimit.updateOne({ _id: key, count: { $gt: 0 } }, { $inc: { count: -1 } }).catch(() => {});
+
 export async function peek(key) {
   const doc = await RateLimit.findById(key).lean();
   return doc && doc.resetAt > new Date() ? doc : null;
@@ -55,7 +65,11 @@ export async function hit(key, { windowMs }) {
   if (live) return live;
   const resetAt = new Date(now.getTime() + windowMs);
   try {
-    return await RateLimit.findOneAndUpdate({ _id: key }, { $set: { count: 1, resetAt, expireAt: resetAt } }, { upsert: true, new: true }).lean();
+    // Start a new window only if there's none or it has ended. The filter matters: an unconditional
+    // upsert here let parallel first hits each reset the count to 1 (re-verify NEW-1). With it, a
+    // window started by a parallel request makes this upsert try to insert the same _id and fail
+    // with a duplicate key, and the attempt is counted in that window instead.
+    return await RateLimit.findOneAndUpdate({ _id: key, resetAt: { $lte: now } }, { $set: { count: 1, resetAt, expireAt: resetAt } }, { upsert: true, new: true }).lean();
   } catch (err) {
     if (err?.code !== 11000) throw err; // two first hits raced: count this one in the window just created
     return RateLimit.findOneAndUpdate({ _id: key }, { $inc: { count: 1 } }, { new: true }).lean();
