@@ -17,9 +17,10 @@ import { searchEmoji } from '../lib/emoji.js';
 const External = Annotation.define();
 
 const mdHighlight = HighlightStyle.define([
-  { tag: t.heading1, fontSize: '1.6em', fontWeight: '700', lineHeight: '1.3' },
-  { tag: t.heading2, fontSize: '1.35em', fontWeight: '700', lineHeight: '1.35' },
-  { tag: t.heading3, fontSize: '1.15em', fontWeight: '650' },
+  // Editor type scale (body 16px): title 28 > H1 24 > H2 20 > H3 17 > body 16.
+  { tag: t.heading1, fontSize: '1.5em', fontWeight: '650', lineHeight: '1.3', letterSpacing: '-0.02em' },
+  { tag: t.heading2, fontSize: '1.25em', fontWeight: '600', lineHeight: '1.35', letterSpacing: '-0.01em' },
+  { tag: t.heading3, fontSize: '1.0625em', fontWeight: '600' },
   { tag: [t.heading4, t.heading5, t.heading6], fontWeight: '650' },
   { tag: t.strong, fontWeight: '700' },
   { tag: t.emphasis, fontStyle: 'italic' },
@@ -42,9 +43,9 @@ function emojiSource(context) {
 }
 
 const theme = EditorView.theme({
-  '&': { fontSize: '1.0625rem', backgroundColor: 'transparent' },
+  '&': { fontSize: '1rem', backgroundColor: 'transparent' },
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: 'inherit', lineHeight: '1.75', overflow: 'visible' },
+  '.cm-scroller': { fontFamily: 'inherit', lineHeight: '1.65', overflow: 'visible' },
   '.cm-content': { padding: '0', minHeight: '50vh', maxWidth: '70ch', caretColor: 'rgb(var(--accent))' },
   '.cm-line': { padding: '0' },
   '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },

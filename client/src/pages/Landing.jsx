@@ -83,7 +83,7 @@ function AppPreview() {
                 <div key={l} className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${a ? 'bg-stone-100 font-medium text-stone-900 dark:bg-stone-800 dark:text-white' : 'text-stone-600 dark:text-stone-400'}`}><Icon name={i} size="xs" />{l}</div>
               ))}
             </div>
-            <p className="eyebrow mt-5 px-2 !text-[10px]">Folders</p>
+            <p className="eyebrow mt-5 px-2">Folders</p>
             <div className="mt-1 space-y-0.5 text-[13px] text-stone-600 dark:text-stone-400">
               {['Personal', 'Work', 'Ideas'].map((f) => <div key={f} className="flex items-center gap-2 px-2 py-1.5"><Icon name="folder" size="xs" />{f}</div>)}
             </div>

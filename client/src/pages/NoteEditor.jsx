@@ -370,7 +370,7 @@ export default function NoteEditor() {
         : `editor-card ${note.color ? '' : 'is-default'} rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
         <div className={focusMode ? 'mx-auto max-w-reading' : ''}>
         {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
-        <input autoFocus={!routeId} className="w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300 dark:placeholder:text-stone-600"
+        <input autoFocus={!routeId} aria-label="Title" className="w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
         {!focusMode && (
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">

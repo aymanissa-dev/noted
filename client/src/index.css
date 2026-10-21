@@ -57,7 +57,7 @@ html, body { overflow-x: clip; }
   .eyebrow { @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400; }
   .surface { @apply rounded-xl border border-stone-200/80 bg-white shadow-soft dark:border-stone-800 dark:bg-stone-900 dark:shadow-none; }
   .kbd { @apply inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-md border border-b-2 border-stone-200 bg-white px-1.5 font-mono text-[11px] font-medium leading-none text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200; }
-  .kbd-sm { @apply h-5 min-w-[1.25rem] px-1 text-[10px]; }
+  .kbd-sm { @apply h-5 min-w-[1.25rem] px-1 text-[11px]; }
 
   /* Menus and popovers */
   .menu { @apply z-30 min-w-[13rem] rounded-xl border border-stone-200/80 bg-white/95 p-1.5 shadow-float backdrop-blur animate-pop-in dark:border-stone-800 dark:bg-stone-900; }
