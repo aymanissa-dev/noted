@@ -22,7 +22,8 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [touched, setTouched] = useState({});
   const [error, setError] = useState('');
-  const [flash] = useState(() => takeFlash());
+  // A one-time notice (account deleted, session expired): gone as soon as you start typing or submit.
+  const [flash, setFlash] = useState(() => takeFlash());
   useEffect(() => { sessionStorage.removeItem('noted.loggedOut'); }, []);
   const [busy, setBusy] = useState(false);
   const errors = {
@@ -33,7 +34,7 @@ export default function Login() {
 
   const submit = async (e) => {
     e.preventDefault();
-    setTouched({ email: true, password: true });
+    setTouched({ email: true, password: true }); setFlash('');
     if (errors.email || errors.password) return;
     setError(''); setBusy(true);
     try {
@@ -49,8 +50,8 @@ export default function Login() {
 
   return (
     <AuthCard title="Welcome back" footer={<>New to noted.? <Link className="font-medium text-stone-900 underline underline-offset-2 dark:text-stone-100" to="/register">Create an account</Link></>}>
-      {flash && <p role="status" className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">{flash}</p>}
-      <form onSubmit={submit} className="space-y-4" noValidate>
+      {flash && <p role="status" data-testid="login-flash" className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">{flash}</p>}
+      <form onSubmit={submit} onInput={() => flash && setFlash('')} className="space-y-4" noValidate>
         <div>
           <label className="label" htmlFor="login-email">Email</label>
           <input id="login-email" className="input" type="email" autoComplete="email" inputMode="email" autoFocus value={form.email}
