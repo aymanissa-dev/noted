@@ -98,6 +98,7 @@ html, body { overflow-x: clip; }
 .md-editor .cm-md-quote { color: #78716c; font-style: italic; }
 .dark .md-editor .cm-placeholder { color: #57534e; }
 .dark .md-editor .cm-cursor { border-left-color: rgb(var(--accent)); }
+.md-editor .cm-typewriter .cm-content { padding-bottom: 50vh !important; }
 .md-editor .cm-selectionBackground, .md-editor .cm-focused .cm-selectionBackground { background: rgb(var(--accent) / 0.22) !important; }
 .cm-hl { border-radius: 3px; padding: 0 1px; color: inherit; }
 .cm-hl-yellow, mark.hl-yellow { background: #fef08a; }

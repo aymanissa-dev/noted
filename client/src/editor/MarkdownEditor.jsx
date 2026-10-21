@@ -60,12 +60,32 @@ const foldMarker = (open) => {
   return s;
 };
 
-// Typewriter scrolling: keep the cursor line vertically centered while typing.
-const typewriter = EditorView.updateListener.of((u) => {
-  if (!(u.docChanged || u.selectionSet) || !u.view.hasFocus) return;
-  const pos = u.state.selection.main.head;
-  requestAnimationFrame(() => u.view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) }));
-});
+// Typewriter scrolling: keep the caret line vertically centered in whatever scrolls the editor
+// (the focus-mode overlay or the window). Bottom padding lets the last lines reach the middle too.
+const scrollParent = (el) => {
+  for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+  }
+  return document.scrollingElement || document.documentElement;
+};
+export const centerCaret = (view) => {
+  const c = view.coordsAtPos(view.state.selection.main.head);
+  if (!c) return;
+  const sp = scrollParent(view.dom);
+  const isRoot = sp === document.scrollingElement || sp === document.documentElement;
+  const box = isRoot ? { top: 0, height: window.innerHeight } : sp.getBoundingClientRect();
+  const delta = (c.top + c.bottom) / 2 - (box.top + box.height / 2);
+  if (Math.abs(delta) > 2) sp.scrollTop += delta;
+};
+const typewriter = [
+  EditorView.editorAttributes.of({ class: 'cm-typewriter' }), // index.css adds the bottom room
+  EditorView.updateListener.of((u) => {
+    if (!(u.docChanged || u.selectionSet || u.geometryChanged) || !u.view.hasFocus) return;
+    // After CodeMirror's own scroll-into-view has run for this update.
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (u.view.dom.isConnected) centerCaret(u.view); }));
+  }),
+];
 
 /**
  * Markdown editor (CodeMirror 6). Content stays a plain Markdown string, so plain-text notes
@@ -169,7 +189,10 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
     viewRef.current?.dispatch({ effects: comps.current.ro.reconfigure([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]) });
   }, [readOnly]);
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: comps.current.tw.reconfigure(focusMode ? typewriter : []) });
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: comps.current.tw.reconfigure(focusMode ? typewriter : []) });
+    if (focusMode) requestAnimationFrame(() => requestAnimationFrame(() => { if (view.dom.isConnected) centerCaret(view); }));
   }, [focusMode]);
 
   return <div ref={host} data-testid="md-editor" className="md-editor mt-4" />;
