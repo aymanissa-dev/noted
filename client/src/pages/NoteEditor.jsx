@@ -307,7 +307,7 @@ export default function NoteEditor() {
 
   if (needsPin && !unlockToken.current && snapshot(note) === lastSaved.current && !note.content && !note.title) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-3xl xl:max-w-none">
         <Link to="/notes" className="btn-ghost -ml-2 gap-1 pl-2 pr-3"><Icon name="back" />Notes</Link>
         <PinPrompt inline onSubmit={unlock} />
       </div>
@@ -315,7 +315,7 @@ export default function NoteEditor() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl xl:max-w-none">
       <div data-testid="editor-toolbar" className="sticky top-[var(--header-h)] z-[5] -mx-3 mb-4 flex items-center justify-between gap-2 bg-stone-50/90 px-3 py-2 backdrop-blur dark:bg-stone-950/90 sm:-mx-4 sm:px-4">
         <button type="button" onClick={done} className="btn-ghost -ml-2 min-w-11 gap-1 pl-2 pr-3" data-tip="Back to notes · Esc" data-tip-align="start" aria-label="Back to notes">
           <Icon name="back" /><span className="hidden sm:inline">Notes</span>
@@ -368,7 +368,8 @@ export default function NoteEditor() {
       <div data-testid="editor-card" className={focusMode
         ? 'fixed inset-0 z-40 overflow-y-auto bg-stone-50 px-4 py-10 dark:bg-stone-950 sm:px-8 sm:py-16'
         : `editor-card ${note.color ? '' : 'is-default'} rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
-        <div className={focusMode ? 'mx-auto max-w-reading' : ''}>
+        {/* A readable measure: the card grows with the screen, the text column stays ~70ch. */}
+        <div className={focusMode ? 'mx-auto max-w-reading' : 'mx-auto max-w-[72ch]'}>
         {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
         <input autoFocus={!routeId} aria-label="Title" className="w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />

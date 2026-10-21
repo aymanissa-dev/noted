@@ -310,7 +310,7 @@ function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compac
   return (
     <section className="mt-6">
       <h2 className="mb-3 section-label">{title}</h2>
-      <div className={`grid ${compact ? 'gap-2' : 'gap-4 sm:grid-cols-2 lg:grid-cols-3'}`}>
+      <div className={`grid ${compact ? 'gap-2' : 'grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-4'}`}>
         {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
       </div>
     </section>
