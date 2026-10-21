@@ -7,9 +7,10 @@ import Folder from '../models/Folder.js';
 import LoginEvent, { ACTIVITY_LIMIT } from '../models/LoginEvent.js';
 import AudioClip from '../models/AudioClip.js';
 import { maskIp, parseUserAgent } from '../lib/useragent.js';
-import { asyncHandler, HttpError } from '../middleware/error.js';
+import { asyncHandler, HttpError, REGISTER_FAILED } from '../middleware/error.js';
+import { LIMITS, bypassed, clientIp, peek, hit, clear, tooMany, failureDelay, sleep } from '../lib/rateLimit.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
-import { hashPin, PIN_RE } from '../lib/lockPin.js';
+import { hashPin, NEW_PIN_RE, resetPinAttempts } from '../lib/lockPin.js';
 
 // Cost 10 is ~4x faster than 12 and still strong; older cost-12 hashes are upgraded on login.
 export const BCRYPT_COST = 10;
@@ -37,8 +38,15 @@ async function keepSession(req, user) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Compared against when the email has no account, so a missing account takes as long as a wrong password.
+const DUMMY_HASH = '$2a$10$6TQtWefznh0F/InmBLdwOuUh9Cy8Zwwx3hHcMz6X2Ww61Gw9zbfii';
 
 router.post('/register', asyncHandler(async (req, res) => {
+  // Every attempt counts (valid or not), so the endpoint can't be used to probe emails in bulk.
+  if (!bypassed(req)) {
+    const r = await hit(`register-ip:${clientIp(req)}`, LIMITS.registerIp);
+    if (r.count > LIMITS.registerIp.max) throw tooMany('Too many sign-ups from this network.', r.resetAt);
+  }
   const name = String(req.body?.name || '').trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
@@ -46,10 +54,13 @@ router.post('/register', asyncHandler(async (req, res) => {
   if (!EMAIL_RE.test(email)) throw new HttpError(400, 'A valid email is required');
   const weak = localProblem(password, { email, name });
   if (weak) throw new HttpError(400, weak, { field: 'password' });
-  if (await User.exists({ email })) throw new HttpError(409, 'Email already registered');
   await assertGoodPassword(password, { email, name }); // + breach check
+  // Hash before looking the email up, so an existing account answers in the same time, and with the
+  // same generic message as any other sign-up that can't go through (no "email already registered").
+  const hash = await bcrypt.hash(password, BCRYPT_COST);
+  if (await User.exists({ email })) throw new HttpError(400, REGISTER_FAILED, { code: 'register_failed' });
 
-  const user = await User.create({ name, email, password: await bcrypt.hash(password, BCRYPT_COST) });
+  const user = await User.create({ name, email, password: hash });
   const sid = await recordSignIn(req, user, 'register');
   if (req.body?.sample === true) await createWelcomeNote(user._id).catch(() => {}); // first-run tour (web sign-ups)
   res.status(201).json({ token: signToken(user, undefined, sid), user });
@@ -59,10 +70,26 @@ router.post('/login', asyncHandler(async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   if (!email || !password) throw new HttpError(400, 'Email and password are required');
+  // Failed sign-ins are limited per email and per IP (fixed 15-minute windows, never permanent);
+  // repeated failures also slow down. A successful sign-in clears the email's counter.
+  const limited = !bypassed(req);
+  const emailKey = `login-email:${email}`; const ipKey = `login-ip:${clientIp(req)}`;
+  if (limited) {
+    const [e, i] = await Promise.all([peek(emailKey), peek(ipKey)]);
+    if (e?.count >= LIMITS.loginEmail.max) throw tooMany('Too many sign-in attempts for this account.', e.resetAt);
+    if (i?.count >= LIMITS.loginIp.max) throw tooMany('Too many sign-in attempts from this network.', i.resetAt);
+  }
   const user = await User.findOne({ email }).select('+password');
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  const match = await bcrypt.compare(password, user?.password || DUMMY_HASH); // same cost either way
+  if (!user || !match) {
+    if (limited) {
+      const [e] = await Promise.all([hit(emailKey, LIMITS.loginEmail), hit(ipKey, LIMITS.loginIp)]);
+      await sleep(failureDelay(e.count));
+      if (e.count >= LIMITS.loginEmail.max) throw tooMany('Too many sign-in attempts for this account.', e.resetAt);
+    }
     throw new HttpError(401, 'Invalid email or password');
   }
+  if (limited) await clear(emailKey).catch(() => {});
   if (bcrypt.getRounds(user.password) !== BCRYPT_COST) {
     await User.updateOne({ _id: user._id }, { password: await bcrypt.hash(password, BCRYPT_COST) });
   }
@@ -98,17 +125,29 @@ router.patch('/preferences', requireAuth, asyncHandler(async (req, res) => {
   res.json({ user });
 }));
 
-async function verifyPassword(userId, password) {
+// Account password re-checks (change password, PIN, delete account): a stolen session can't be
+// used to guess the password either — 5 wrong answers per 15 minutes per account.
+async function verifyPassword(userId, password, req) {
   if (!password) throw new HttpError(400, 'Current password is required');
+  const key = `password:${userId}`; const limited = !bypassed(req);
+  if (limited) { const r = await peek(key); if (r?.count >= LIMITS.password.max) throw tooMany('Too many wrong passwords.', r.resetAt); }
   const user = await User.findById(userId).select('+password');
   if (!user) throw new HttpError(401, 'User not found');
-  if (!(await bcrypt.compare(String(password), user.password))) throw new HttpError(403, 'Incorrect password');
+  if (!(await bcrypt.compare(String(password), user.password))) {
+    if (limited) {
+      const r = await hit(key, LIMITS.password);
+      await sleep(failureDelay(r.count));
+      if (r.count >= LIMITS.password.max) throw tooMany('Too many wrong passwords.', r.resetAt);
+    }
+    throw new HttpError(403, 'Incorrect password');
+  }
+  if (limited) await clear(key).catch(() => {});
   return user;
 }
 
 router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
-  const user = await verifyPassword(req.userId, currentPassword);
+  const user = await verifyPassword(req.userId, currentPassword, req);
   if (typeof newPassword !== 'string' || newPassword.length < 8) {
     throw new HttpError(400, 'New password must be at least 8 characters', { field: 'newPassword' });
   }
@@ -129,7 +168,7 @@ router.post('/logout-all', requireAuth, asyncHandler(async (req, res) => {
 
 // Permanently delete the account and every note it owns. Requires the password.
 router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
-  const user = await verifyPassword(req.userId, req.body?.password);
+  const user = await verifyPassword(req.userId, req.body?.password, req);
   await NoteVersion.deleteMany({ user: user._id });
   await Folder.deleteMany({ user: user._id });
   await LoginEvent.deleteMany({ user: user._id });
@@ -142,22 +181,32 @@ router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
 // Set or change the lock PIN. Requires the account password.
 router.put('/lock-pin', requireAuth, asyncHandler(async (req, res) => {
   const { password, pin } = req.body || {};
-  const user = await verifyPassword(req.userId, password);
-  if (typeof pin !== 'string' || !PIN_RE.test(pin)) throw new HttpError(400, 'PIN must be 4 to 6 digits');
+  const user = await verifyPassword(req.userId, password, req);
+  // New PINs are 6 digits (existing 4–5 digit PINs keep working until changed).
+  if (typeof pin !== 'string' || !NEW_PIN_RE.test(pin)) throw new HttpError(400, 'PIN must be 6 digits');
   user.lockPinHash = await hashPin(pin);
   user.hasLockPin = true;
   user.lockPinVersion = (user.lockPinVersion ?? 0) + 1; // expire outstanding unlock tokens
-  user.set({ lockPinFailures: 0, lockPinBlockedUntil: null });
+  user.set({ lockPinFailures: 0, lockPinBlockedUntil: null, lockPinLockedOut: false, lockPinShort: false });
   await user.save();
   res.json({ user });
 }));
 
+// After too many wrong PINs, PIN entry stays off until the account password is entered here
+// (or a new PIN is set). Resets the wrong-PIN count.
+router.post('/lock-pin/unblock', requireAuth, asyncHandler(async (req, res) => {
+  const user = await verifyPassword(req.userId, req.body?.password, req);
+  await resetPinAttempts(user._id);
+  res.json({ ok: true });
+}));
+
 // Remove the lock PIN. Requires the password; every locked note becomes unlocked.
 router.delete('/lock-pin', requireAuth, asyncHandler(async (req, res) => {
-  const user = await verifyPassword(req.userId, req.body?.password);
+  const user = await verifyPassword(req.userId, req.body?.password, req);
   user.lockPinHash = null;
   user.hasLockPin = false;
   user.lockPinVersion = (user.lockPinVersion ?? 0) + 1;
+  user.set({ lockPinFailures: 0, lockPinBlockedUntil: null, lockPinLockedOut: false, lockPinShort: false });
   await user.save();
   const { modifiedCount } = await Note.updateMany({ user: user._id, locked: true }, { locked: false }, { timestamps: false });
   res.json({ user, unlockedNotes: modifiedCount });

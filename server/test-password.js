@@ -32,6 +32,7 @@ await assertGoodPassword('hunter2-but-longer', {}, { fetchImpl: async () => { th
 
 // ---- API ----
 process.env.JWT_SECRET = 'test-secret';
+process.env.RATE_LIMITS = 'off'; // limits have their own tests (test-security.js)
 process.env.PASSWORD_BREACH_CHECK = 'off'; // deterministic in CI; the breach path is unit-tested above
 const mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
 const server = createApp().listen(0); const base = `http://127.0.0.1:${server.address().port}/api`;

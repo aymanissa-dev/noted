@@ -9,6 +9,7 @@ import { resetPurgeThrottle, EXCERPT_CHARS } from './src/routes/notes.js';
 import assert from 'node:assert/strict';
 
 process.env.JWT_SECRET = 'test-secret';
+process.env.RATE_LIMITS = 'off'; // limits have their own tests (test-security.js)
 const mongo = await MongoMemoryServer.create();
 await mongoose.connect(mongo.getUri());
 const server = createApp().listen(0);
@@ -28,7 +29,8 @@ try {
   let r = await call('POST', '/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'quiet-otter-lamp-91' });
   assert.equal(r.status, 201);
   r = await call('POST', '/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'quiet-otter-lamp-91' });
-  assert.equal(r.status, 409);
+  assert.equal(r.status, 400); // generic: doesn't say the email is taken
+  assert.ok(!/already registered|exists/i.test(r.data.error) && r.data.code === 'register_failed', r.data.error);
   r = await call('POST', '/auth/login', { email: 'ada@example.com', password: 'wrong-pass' });
   assert.equal(r.status, 401);
   r = await call('POST', '/auth/login', { email: 'ada@example.com', password: 'quiet-otter-lamp-91' });
@@ -187,10 +189,10 @@ try {
   {
     const secret = (await call('POST', '/notes', { title: 'Bank codes', content: 'secret-sauce 1234', tags: ['private'] })).data.note;
     assert.equal((await call('PATCH', `/notes/${secret._id}/lock`, { locked: true })).status, 400); // no PIN yet
-    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'wrong-pass', pin: '1234' })).status, 403);
+    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'wrong-pass', pin: '123412' })).status, 403);
     assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '12ab' })).status, 400);
     assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234567' })).status, 400);
-    r = await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '2468' }); assert.equal(r.data.user.hasLockPin, true);
+    r = await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '246824' }); assert.equal(r.data.user.hasLockPin, true);
     assert.equal((await call('GET', '/auth/me')).data.user.hasLockPin, true);
     const dbUser = await (await import('./src/models/User.js')).default.findOne({ email: 'ada@example.com' }).select('+lockPinHash');
     assert.ok(dbUser.lockPinHash.startsWith('$2')); // bcrypt-hashed, never plain
@@ -209,8 +211,8 @@ try {
     assert.ok(!JSON.stringify((await call('GET', '/notes?view=active')).data).includes('secret-sauce'));
 
     // unlock with PIN → content + unlock token, which allows edits/history for 15 min
-    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '0000' })).status, 403);
-    r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '2468' });
+    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '000000' })).status, 403);
+    r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '246824' });
     assert.equal(r.status, 200); assert.equal(r.data.note.content, 'secret-sauce 1234'); assert.ok(r.data.unlockToken);
     const ut = r.data.unlockToken;
     const withUnlock = async (m, p, b, t = ut) => {
@@ -225,7 +227,11 @@ try {
     const other = (await call('POST', '/notes', { title: 'other' })).data.note;
     await call('PATCH', `/notes/${other._id}/lock`, { locked: true });
     assert.equal((await withUnlock('GET', `/notes/${other._id}`)).data.note.content, '');
-    await call('DELETE', `/notes/${other._id}?permanent=true`);
+    // L5: a locked note can't be trashed or deleted for good without unlocking it
+    assert.equal((await call('DELETE', `/notes/${other._id}`)).status, 423);
+    assert.equal((await call('DELETE', `/notes/${other._id}?permanent=true`)).status, 423);
+    const otherUt = (await call('POST', `/notes/${other._id}/unlock`, { pin: '246824' })).data.unlockToken;
+    { const r2 = await fetch(`${base}/notes/${other._id}?permanent=true`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'X-Unlock-Token': otherUt } }); assert.equal(r2.status, 204); }
     // an access token can't be used as an unlock token and vice versa
     assert.equal((await withUnlock('GET', `/notes/${secret._id}`, undefined, token)).data.note.content, '');
     { const keep = token; token = ut; assert.equal((await call('GET', '/notes')).status, 401); token = keep; }
@@ -236,9 +242,12 @@ try {
     assert.equal(flagged.redacted, true); assert.equal(flagged.content, ''); assert.ok(!JSON.stringify(r.data).includes('secret-sauce'));
     const zipNoPin = await JSZip.loadAsync(Buffer.from(await (await fetch(`${base}/notes/export?format=md`, { headers: { Authorization: `Bearer ${token}` } })).arrayBuffer()));
     assert.ok(zipNoPin.file('locked-note.md')); assert.ok(!(await zipNoPin.file('locked-note.md').async('string')).includes('secret'));
-    const withPin = async (pin) => fetch(`${base}/notes/export`, { headers: { Authorization: `Bearer ${token}`, 'X-Lock-Pin': pin } });
-    assert.equal((await withPin('9999')).status, 403);
-    const full = await (await withPin('2468')).json();
+    // the PIN goes in a POST body (I4); the old X-Lock-Pin header on GET is ignored
+    const viaHeader = await (await fetch(`${base}/notes/export`, { headers: { Authorization: `Bearer ${token}`, 'X-Lock-Pin': '246824' } })).json();
+    assert.equal(viaHeader.notes.find((n) => n.locked).content, '');
+    const withPin = async (pin) => fetch(`${base}/notes/export`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ format: 'json', pin }) });
+    assert.equal((await withPin('999999')).status, 403);
+    const full = await (await withPin('246824')).json();
     assert.equal(full.notes.find((n) => n.locked).content, 'secret-sauce 5678');
     r = await call('POST', '/notes/import', { notes: [flagged] }); assert.equal(r.status, 400);
     r = await call('POST', '/notes/import', { notes: [flagged, { title: 'Imported ok' }] });
@@ -248,24 +257,24 @@ try {
 
     // rate limit: the 5th wrong PIN starts a 5-minute block (even the right PIN is refused); messages count down
     for (let i = 4; i >= 1; i--) {
-      r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' });
+      r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '111111' });
       assert.equal(r.status, 403); assert.equal(r.data.attemptsLeft, i); assert.match(r.data.error, new RegExp(`${i} attempts? left`));
     }
-    r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '1111' });
+    r = await call('POST', `/notes/${secret._id}/unlock`, { pin: '111111' });
     assert.equal(r.status, 429); assert.match(r.data.error, /Try again in 5 minutes/);
-    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '2468' })).status, 429);
+    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '246824' })).status, 429);
     await (await import('./src/models/User.js')).default.updateOne({ email: 'ada@example.com' }, { lockPinBlockedUntil: null, lockPinFailures: 0 });
 
     // changing the PIN requires the password and expires old unlock tokens
-    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'nope-nope', pin: '1357' })).status, 403);
-    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1357' })).status, 200);
+    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'nope-nope', pin: '135713' })).status, 403);
+    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '135713' })).status, 200);
     assert.equal((await withUnlock('GET', `/notes/${secret._id}`)).data.note.content, '');
-    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '2468' })).status, 403);
-    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '1357' })).status, 200);
+    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '246824' })).status, 403);
+    assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '135713' })).status, 200);
 
     // removing the lock from one note needs the PIN
-    assert.equal((await call('PATCH', `/notes/${secret._id}/lock`, { locked: false, pin: '0000' })).status, 403);
-    r = await call('PATCH', `/notes/${secret._id}/lock`, { locked: false, pin: '1357' });
+    assert.equal((await call('PATCH', `/notes/${secret._id}/lock`, { locked: false, pin: '000000' })).status, 403);
+    r = await call('PATCH', `/notes/${secret._id}/lock`, { locked: false, pin: '135713' });
     assert.equal(r.data.note.locked, false); assert.equal(r.data.note.content, 'secret-sauce 5678');
     // removing the PIN needs the password and unlocks every locked note
     await call('PATCH', `/notes/${secret._id}/lock`, { locked: true });

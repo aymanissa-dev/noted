@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createApp } from './src/app.js';
 
 process.env.JWT_SECRET = 'test-secret';
+process.env.RATE_LIMITS = 'off'; // limits have their own tests (test-security.js)
 const mongo = await MongoMemoryServer.create();
 await mongoose.connect(mongo.getUri());
 const server = createApp().listen(0);
@@ -125,7 +126,7 @@ test('merge notes', async () => {
   assert.deepEqual((await call('GET', '/notes')).data.notes.map((n) => n.title).sort(), ['A', 'B', 'C']);
   // trashed/foreign/locked notes can't be merged
   assert.equal((await call('POST', '/notes/merge', { ids: [a._id, r.data.note._id] })).status, 404);
-  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' });
+  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '123412' });
   await call('PATCH', `/notes/${a._id}/lock`, { locked: true });
   assert.equal((await call('POST', '/notes/merge', { ids: [a._id, b._id] })).status, 423);
 });
@@ -136,7 +137,7 @@ test('storage stats', async () => {
   await call('POST', '/notes', { title: 'Big one', content: '# Heading\n' + 'word '.repeat(50), tags: ['t1', 't2'] });
   await call('POST', '/notes', { title: 'Small', content: 'two **words**', tags: ['t1'] });
   const s3 = (await call('POST', '/notes', { title: 'Secret', content: 'x '.repeat(500) })).data.note;
-  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' });
+  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '123412' });
   await call('PATCH', `/notes/${s3._id}/lock`, { locked: true });
   const r = await call('GET', '/stats');
   assert.equal(r.status, 200);
@@ -197,16 +198,16 @@ test('voice notes', async () => {
   assert.equal((await up(n._id, audio)).status, 404);
   token = mine;
   // locked notes hide their audio until unlocked
-  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' });
+  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '123412' });
   await call('PATCH', `/notes/${n._id}/lock`, { locked: true });
   assert.equal((await call('GET', `/notes/${n._id}/audio`)).status, 423);
   assert.equal((await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}` } })).status, 423);
-  const unlock = (await call('POST', `/notes/${n._id}/unlock`, { pin: '1234' })).data.unlockToken;
+  const unlock = (await call('POST', `/notes/${n._id}/unlock`, { pin: '123412' })).data.unlockToken;
   assert.equal((await call('GET', `/notes/${n._id}/audio`, undefined, { 'X-Unlock-Token': unlock })).data.clips.length, 1);
   assert.equal((await call('GET', '/stats')).data.audio.count, 1);
   // deleted with the note
   const AudioClip = (await import('./src/models/AudioClip.js')).default;
-  await call('PATCH', `/notes/${n._id}/lock`, { locked: false, pin: '1234' });
+  await call('PATCH', `/notes/${n._id}/lock`, { locked: false, pin: '123412' });
   const n2 = (await call('POST', '/notes', { title: 'V2', content: 'v' })).data.note;
   await up(n2._id, audio);
   await call('DELETE', `/notes/${n._id}?permanent=true`);

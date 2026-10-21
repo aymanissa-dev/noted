@@ -8,4 +8,5 @@ process.env.JWT_SECRET ||= 'dev-memory-secret';
 const mongo = await MongoMemoryServer.create();
 await mongoose.connect(mongo.getUri());
 const port = Number(process.env.PORT) || 5055;
+process.env.RATE_LIMIT_BYPASS_TOKEN ||= 'local-e2e'; // local QA helpers send it (never honoured on Vercel)
 createApp().listen(port, () => console.log(`noted. API (in-memory DB) on http://localhost:${port}/api`));

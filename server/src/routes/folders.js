@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import Folder from '../models/Folder.js';
+import Folder, { MAX_FOLDERS } from '../models/Folder.js';
 import Note from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 
-export const MAX_FOLDERS = 200;
+export { MAX_FOLDERS };
 const router = Router();
 router.use(requireAuth);
 

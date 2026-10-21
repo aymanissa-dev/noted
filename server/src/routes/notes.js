@@ -6,7 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import NoteVersion from '../models/NoteVersion.js';
 import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
 import User, { RECENT_LIMIT } from '../models/User.js';
-import Folder from '../models/Folder.js';
+import Folder, { MAX_FOLDERS } from '../models/Folder.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
 import { plainText } from '../lib/plain.js';
 import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
@@ -148,24 +148,27 @@ router.get('/tags', asyncHandler(async (req, res) => {
 }));
 
 // Export all non-trashed notes as JSON (default) or a zip of Markdown files.
-router.get('/export', asyncHandler(async (req, res) => {
+// Locked notes are included only with the correct PIN, sent in the POST body (never in a URL or
+// header, where proxies and logs could keep it); otherwise they're exported redacted.
+async function sendExport(req, res, { format, pin }) {
   const notes = await Note.find({ user: req.userId, deletedAt: null }).sort({ updatedAt: -1 });
-  // Locked notes are exported only if the correct PIN is supplied (header X-Lock-Pin); otherwise flagged and redacted.
   let includeLocked = false;
-  const pin = req.get('x-lock-pin');
-  if (pin && notes.some((n) => n.locked)) { await verifyLockPin(req.userId, pin); includeLocked = true; }
+  if (pin && notes.some((n) => n.locked)) { await verifyLockPin(req.userId, String(pin)); includeLocked = true; }
   for (const n of notes) if (n.locked && !includeLocked) Object.assign(n, { title: '', content: '', tags: [], $locals: { redacted: true } });
   const stamp = new Date().toISOString().slice(0, 10);
-  if (req.query.format === 'md') {
+  if (format === 'md') {
     const buf = await toMarkdownZip(notes);
     res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="noted-${stamp}.zip"` });
     return res.send(buf);
   }
-  if (req.query.format && req.query.format !== 'json') throw new HttpError(400, 'format must be json or md');
+  if (format && format !== 'json') throw new HttpError(400, 'format must be json or md');
   res.set('Content-Disposition', `attachment; filename="noted-${stamp}.json"`);
   const folderNames = new Map((await Folder.find({ user: req.userId }).lean()).map((f) => [String(f._id), f.name]));
   res.json({ app: 'noted', version: EXPORT_VERSION, exportedAt: new Date(), notes: notes.map((n) => ({ ...toExportNote(n), ...(n.folderId && folderNames.has(String(n.folderId)) && { folder: folderNames.get(String(n.folderId)) }) })) });
-}));
+}
+router.post('/export', asyncHandler((req, res) => sendExport(req, res, { format: req.body?.format || req.query.format, pin: req.body?.pin })));
+// GET (no PIN): locked notes are always redacted. The old X-Lock-Pin header is ignored.
+router.get('/export', asyncHandler((req, res) => sendExport(req, res, { format: req.query.format })));
 
 // Import notes from a JSON export. Always scoped to the current user; ids/owners in the file are ignored.
 router.post('/import', asyncHandler(async (req, res) => {
@@ -180,10 +183,15 @@ router.post('/import', asyncHandler(async (req, res) => {
   const fresh = [];
   // Folders are matched by name (case-insensitive) and created when missing.
   const folders = new Map((await Folder.find({ user: req.userId }).lean()).map((f) => [f.name.toLowerCase(), f._id]));
+  // New folders stop at MAX_FOLDERS (like creating them by hand); past that, notes import without one.
+  let folderCount = folders.size; let foldersSkipped = 0;
   const folderFor = async (name) => {
     if (!name) return null;
     const key = name.toLowerCase();
-    if (!folders.has(key)) folders.set(key, (await Folder.create({ user: req.userId, name }))._id);
+    if (!folders.has(key)) {
+      if (folderCount >= MAX_FOLDERS) { foldersSkipped++; return null; }
+      folders.set(key, (await Folder.create({ user: req.userId, name }))._id); folderCount++;
+    }
     return folders.get(key);
   };
   for (const { sourceId, folder, ...d } of docs.notes) {
@@ -193,7 +201,7 @@ router.post('/import', asyncHandler(async (req, res) => {
     fresh.push({ ...d, plain: plainText(d.content), folderId: await folderFor(folder), user: req.userId });
   }
   const inserted = fresh.length ? await Note.insertMany(fresh, { timestamps: false }) : [];
-  res.status(fresh.length ? 201 : 200).json({ imported: inserted.length, skippedDuplicates, skippedLocked: docs.skipped });
+  res.status(fresh.length ? 201 : 200).json({ imported: inserted.length, skippedDuplicates, skippedLocked: docs.skipped, ...(foldersSkipped && { foldersSkipped, maxFolders: MAX_FOLDERS }) });
 }));
 
 // Merge 2+ notes (in the given order) into a new note. Tags are combined; the originals go to the
@@ -316,15 +324,22 @@ router.post('/:id/restore', asyncHandler(async (req, res) => {
   res.json({ note });
 }));
 
-// Empty the trash (permanently delete all trashed notes).
+// Empty the trash (permanently delete all trashed notes). Locked notes are only deleted with the
+// PIN ({ pin } in the body); without it they stay in the trash and are counted in keptLocked.
 router.delete('/trash', asyncHandler(async (req, res) => {
-  const deleted = await deleteNotesWithHistory({ user: req.userId, deletedAt: { $ne: null } });
-  res.json({ deleted });
+  const filter = { user: req.userId, deletedAt: { $ne: null } };
+  const lockedCount = await Note.countDocuments({ ...filter, locked: true });
+  let withLocked = false;
+  if (lockedCount && req.body?.pin) { await verifyLockPin(req.userId, String(req.body.pin)); withLocked = true; }
+  const deleted = await deleteNotesWithHistory(withLocked ? filter : { ...filter, locked: { $ne: true } });
+  res.json({ deleted, keptLocked: withLocked ? 0 : lockedCount });
 }));
 
-// Soft delete (move to trash). ?permanent=true deletes for good.
+// Soft delete (move to trash). ?permanent=true deletes for good. Both need the note unlocked
+// (X-Unlock-Token) if it's locked, like editing it does.
 router.delete('/:id', asyncHandler(async (req, res) => {
   const note = await findOwnNote(req);
+  requireUnlocked(note);
   if (req.query.permanent === 'true') {
     await deleteNotesWithHistory({ _id: note._id, user: req.userId });
     return res.status(204).end();

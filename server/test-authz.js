@@ -10,6 +10,7 @@ if (!base) {
   const { MongoMemoryServer } = await import('mongodb-memory-server');
   const { createApp } = await import('./src/app.js');
   process.env.JWT_SECRET = 'test-secret';
+  process.env.RATE_LIMITS = 'off'; // limits have their own tests (test-security.js)
   mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
   server = createApp().listen(0); base = `http://127.0.0.1:${server.address().port}/api`;
 }
@@ -62,17 +63,17 @@ try {
   okStatus(await call('POST', `/notes/${bNote._id}/audio`, { token: B.token, raw: audio, headers: { 'Content-Type': 'audio/x-evil' } }), 415, 'voice: unsupported type rejected');
   okStatus(await call('GET', `/audio/${bClip._id}`), 401, 'voice: playback needs auth');
   // Locked note with PIN
-  await call('PUT', '/auth/lock-pin', { token: B.token, body: { password: PW, pin: '4826' } });
+  await call('PUT', '/auth/lock-pin', { token: B.token, body: { password: PW, pin: '482648' } });
   const bLocked = (await call('POST', '/notes', { token: B.token, body: { title: `B locked ${SECRET}`, content: `locked ${SECRET}` } })).data.note;
   okStatus(await call('PATCH', `/notes/${bLocked._id}/lock`, { token: B.token, body: { locked: true } }), 200, 'B locks a note');
-  const bUnlock = await call('POST', `/notes/${bLocked._id}/unlock`, { token: B.token, body: { pin: '4826' } });
+  const bUnlock = await call('POST', `/notes/${bLocked._id}/unlock`, { token: B.token, body: { pin: '482648' } });
   okStatus(bUnlock, 200, 'B unlocks own note'); const bUnlockToken = bUnlock.data.unlockToken;
   const bLockedClip = (await call('POST', `/notes/${bLocked._id}/audio`, { token: B.token, raw: audio, headers: { 'Content-Type': 'audio/webm', 'X-Unlock-Token': bUnlockToken } })).data.clip;
   okStatus(await call('GET', `/audio/${bLockedClip._id}`, { token: B.token }), 423, 'voice on a locked note needs the unlock');
 
   // ---- A's own data (for cross-reference attacks) ----
   const aNote = (await call('POST', '/notes', { token: A.token, body: { title: 'A note', content: 'a' } })).data.note;
-  await call('PUT', '/auth/lock-pin', { token: A.token, body: { password: PW, pin: '1357' } });
+  await call('PUT', '/auth/lock-pin', { token: A.token, body: { password: PW, pin: '135713' } });
 
   const T = { token: A.token };
   const U = (h = {}) => ({ token: A.token, headers: { 'X-Unlock-Token': bUnlockToken, ...h } });
@@ -81,8 +82,8 @@ try {
     for (const [m, p, body] of [
       ['GET', `/notes/${id}`], ['GET', `/notes/${id}?prefetch=1`], ['PUT', `/notes/${id}`, { title: 'pwned' }], ['PATCH', `/notes/${id}`, { content: 'pwned' }],
       ['PATCH', `/notes/${id}/pin`], ['PATCH', `/notes/${id}/archive`], ['POST', `/notes/${id}/restore`],
-      ['PATCH', `/notes/${id}/folder`, { folderId: null }], ['PATCH', `/notes/${id}/lock`, { locked: false, pin: '4826' }], ['PATCH', `/notes/${id}/lock`, { locked: true }],
-      ['POST', `/notes/${id}/unlock`, { pin: '4826' }], ['POST', `/notes/${id}/unlock`, { pin: '1357' }],
+      ['PATCH', `/notes/${id}/folder`, { folderId: null }], ['PATCH', `/notes/${id}/lock`, { locked: false, pin: '482648' }], ['PATCH', `/notes/${id}/lock`, { locked: true }],
+      ['POST', `/notes/${id}/unlock`, { pin: '482648' }], ['POST', `/notes/${id}/unlock`, { pin: '135713' }],
       ['GET', `/notes/${id}/versions`], ['GET', `/notes/${id}/versions/${bVid}`], ['POST', `/notes/${id}/versions/${bVid}/restore`],
       ['GET', `/notes/${id}/audio`], ['POST', `/notes/${id}/audio`, undefined, audio],
       ['DELETE', `/notes/${id}`], ['DELETE', `/notes/${id}?permanent=true`],
@@ -131,7 +132,7 @@ try {
   checks++; assert.ok(folders.some((f) => f._id === bFolder._id && f.name.includes(SECRET)), 'B folder untouched');
   checks++; assert.equal((await call('GET', `/notes/${bNote._id}/audio`, { token: B.token })).data.clips.length, 1, 'B clip untouched');
   checks++; assert.equal((await call('GET', `/notes/${bLocked._id}`, { token: B.token })).data.note.locked, true, 'B locked note still locked');
-  okStatus(await call('POST', `/notes/${bLocked._id}/unlock`, { token: B.token, body: { pin: '4826' } }), 200, 'B PIN not rate-limited by A attempts');
+  okStatus(await call('POST', `/notes/${bLocked._id}/unlock`, { token: B.token, body: { pin: '482648' } }), 200, 'B PIN not rate-limited by A attempts');
   checks++; assert.ok((await call('GET', `/notes/${bNote._id}/versions`, { token: B.token })).data.versions.length >= bVersions.length, 'B history untouched');
   // voice delete by owner
   okStatus(await call('DELETE', `/audio/${bClip._id}`, { token: B.token }), 204, 'voice: owner deletes');

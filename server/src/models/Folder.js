@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+export const MAX_FOLDERS = 200; // per user (also enforced by import)
+
 const folderSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
