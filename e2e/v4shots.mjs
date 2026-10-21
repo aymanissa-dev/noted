@@ -20,14 +20,15 @@ try {
   let first;
   for (const [title, content, tags, folderId, emoji, color] of seed) { const n = (await api('POST', '/notes', { title, content, tags, folderId, emoji, color }, u.token)).data.note; first ||= n; await sleep(30); }
   await api('PATCH', `/notes/${first._id}/pin`, null, u.token);
-  for (const [w, h] of [[1920, 1080], [1280, 800], [375, 812]]) {
-    for (const dark of [false, true]) {
+  const W = (process.env.WIDTHS || '1920,1280,375').split(',').map(Number); const TH = (process.env.THEMES || 'light,dark').split(',');
+  for (const [w, h] of [[1920, 1080], [1280, 800], [375, 812]].filter(([w]) => W.includes(w))) {
+    for (const dark of TH.map((t) => t === 'dark')) {
       const tag = `${w}-${dark ? 'dark' : 'light'}`; const mobile = w < 500;
       const p = await b.newPage(); p.on('pageerror', (e) => errs.push(tag + ': ' + e.message));
       await p.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: mobile ? 2 : 1 });
       await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }]);
       await p.goto(BASE + '/', { waitUntil: 'networkidle0' }); await settle(p);
-      await p.screenshot({ path: `${OUT}/${PRE}-${PRE === 'v4' ? '' : ''}landing-${tag}.png`, fullPage: false }); await p.close();
+      await p.screenshot({ path: `${OUT}/${PRE}-landing-${tag}.png`, fullPage: false }); await p.close();
       const a = await pageAs(b, u.token, u.user, { width: w, height: h, mobile, dark }); a.on('pageerror', (e) => errs.push(tag + ' app: ' + e.message));
       await a.evaluate((d) => { localStorage.setItem('noted.theme', d ? 'dark' : 'light'); localStorage.setItem('noted.tourDone', '1'); }, dark);
       await a.goto(BASE + '/notes', { waitUntil: 'networkidle0' }); await sleep(700);
