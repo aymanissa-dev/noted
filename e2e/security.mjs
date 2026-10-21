@@ -77,8 +77,8 @@ try {
   // ---- H1 sign-up per IP (last: uses up this IP's allowance for the hour) ----
   if (process.env.SKIP_REGISTER_LIMIT !== '1') {
     let hit = null; let i = 0;
-    for (; i < 25 && !hit; i++) { const x = await raw('POST', '/auth/register', { name: '', email: 'not-an-email', password: '' }); if (x.status === 429) hit = x; }
-    ok(hit && Number(hit.headers.get('retry-after')) > 0, `H1 sign-ups per IP: 429 after ${i} more attempts, Retry-After ${hit?.headers.get('retry-after')}s (${hit && (await hit.json()).error})`);
+    for (; i < 75 && !hit; i++) { const x = await raw('POST', '/auth/register', { name: '', email: 'not-an-email', password: '' }); if (x.status === 429) hit = x; }
+    ok(hit && Number(hit.headers.get('retry-after')) > 0, `H1 sign-ups per IP/network: 429 after ${i} more attempts, Retry-After ${hit?.headers.get('retry-after')}s (${hit && (await hit.json()).error})`);
   }
   console.log(JSON.stringify(out, null, 1));
 } finally { await cleanup(); }

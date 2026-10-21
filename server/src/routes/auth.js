@@ -8,7 +8,7 @@ import LoginEvent, { ACTIVITY_LIMIT } from '../models/LoginEvent.js';
 import AudioClip from '../models/AudioClip.js';
 import { maskIp, parseUserAgent } from '../lib/useragent.js';
 import { asyncHandler, HttpError, REGISTER_FAILED } from '../middleware/error.js';
-import { LIMITS, bypassed, clientIp, peek, hit, clear, tooMany, failureDelay, sleep } from '../lib/rateLimit.js';
+import { LIMITS, bypassed, clientIp, network, peek, hit, clear, tooMany, failureDelay, sleep } from '../lib/rateLimit.js';
 import { requireAuth, signToken } from '../middleware/auth.js';
 import { hashPin, NEW_PIN_RE, resetPinAttempts } from '../lib/lockPin.js';
 
@@ -44,8 +44,10 @@ const DUMMY_HASH = '$2a$10$6TQtWefznh0F/InmBLdwOuUh9Cy8Zwwx3hHcMz6X2Ww61Gw9zbfii
 router.post('/register', asyncHandler(async (req, res) => {
   // Every attempt counts (valid or not), so the endpoint can't be used to probe emails in bulk.
   if (!bypassed(req)) {
-    const r = await hit(`register-ip:${clientIp(req)}`, LIMITS.registerIp);
+    const ip = clientIp(req);
+    const [r, n] = await Promise.all([hit(`register-ip:${ip}`, LIMITS.registerIp), hit(`register-net:${network(ip)}`, LIMITS.registerNet)]);
     if (r.count > LIMITS.registerIp.max) throw tooMany('Too many sign-ups from this network.', r.resetAt);
+    if (n.count > LIMITS.registerNet.max) throw tooMany('Too many sign-ups from this network.', n.resetAt);
   }
   const name = String(req.body?.name || '').trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
@@ -73,17 +75,19 @@ router.post('/login', asyncHandler(async (req, res) => {
   // Failed sign-ins are limited per email and per IP (fixed 15-minute windows, never permanent);
   // repeated failures also slow down. A successful sign-in clears the email's counter.
   const limited = !bypassed(req);
-  const emailKey = `login-email:${email}`; const ipKey = `login-ip:${clientIp(req)}`;
+  const ip = clientIp(req);
+  const emailKey = `login-email:${email}`; const ipKey = `login-ip:${ip}`; const netKey = `login-net:${network(ip)}`;
   if (limited) {
-    const [e, i] = await Promise.all([peek(emailKey), peek(ipKey)]);
+    const [e, i, n] = await Promise.all([peek(emailKey), peek(ipKey), peek(netKey)]);
     if (e?.count >= LIMITS.loginEmail.max) throw tooMany('Too many sign-in attempts for this account.', e.resetAt);
     if (i?.count >= LIMITS.loginIp.max) throw tooMany('Too many sign-in attempts from this network.', i.resetAt);
+    if (n?.count >= LIMITS.loginNet.max) throw tooMany('Too many sign-in attempts from this network.', n.resetAt);
   }
   const user = await User.findOne({ email }).select('+password');
   const match = await bcrypt.compare(password, user?.password || DUMMY_HASH); // same cost either way
   if (!user || !match) {
     if (limited) {
-      const [e] = await Promise.all([hit(emailKey, LIMITS.loginEmail), hit(ipKey, LIMITS.loginIp)]);
+      const [e] = await Promise.all([hit(emailKey, LIMITS.loginEmail), hit(ipKey, LIMITS.loginIp), hit(netKey, LIMITS.loginNet)]);
       await sleep(failureDelay(e.count));
       if (e.count >= LIMITS.loginEmail.max) throw tooMany('Too many sign-in attempts for this account.', e.resetAt);
     }

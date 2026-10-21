@@ -6,7 +6,9 @@ import { HttpError } from '../middleware/error.js';
 export const LIMITS = {
   loginEmail: { max: 5, windowMs: 15 * 60 * 1000 }, // failed sign-ins per email
   loginIp: { max: 20, windowMs: 15 * 60 * 1000 }, // failed sign-ins per IP (offices/NAT share IPs)
+  loginNet: { max: 60, windowMs: 15 * 60 * 1000 }, // failed sign-ins per network (IPv4 /24, IPv6 /64)
   registerIp: { max: 20, windowMs: 60 * 60 * 1000 }, // sign-up attempts per IP
+  registerNet: { max: 60, windowMs: 60 * 60 * 1000 }, // sign-up attempts per network
   password: { max: 5, windowMs: 15 * 60 * 1000 }, // wrong account passwords per signed-in user
 };
 
@@ -25,6 +27,20 @@ export function bypassed(req) {
 export function clientIp(req) {
   if (process.env.VERCEL) return req.get('x-vercel-forwarded-for')?.split(',')[0].trim() || req.get('x-real-ip') || req.ip;
   return req.socket?.remoteAddress || req.ip || 'unknown';
+}
+
+// The network an IP belongs to: IPv4 /24, IPv6 /64. Clients that rotate through a pool of
+// addresses (cloud egress, IPv6 privacy addresses) usually stay inside one of these.
+export function network(ip = '') {
+  const v4 = ip.replace(/^::ffff:/, '');
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(v4)) return v4.split('.').slice(0, 3).join('.') + '.0/24';
+  if (ip.includes(':')) {
+    const [head, tail = ''] = ip.split('::');
+    const h = head ? head.split(':') : []; const t = tail ? tail.split(':') : [];
+    const full = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+    return full.slice(0, 4).map((x) => (parseInt(x, 16) || 0).toString(16)).join(':') + '::/64';
+  }
+  return ip || 'unknown';
 }
 
 export async function peek(key) {

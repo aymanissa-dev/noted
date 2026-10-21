@@ -14,6 +14,7 @@ const { default: User } = await import('./src/models/User.js');
 const { default: RateLimit } = await import('./src/models/RateLimit.js');
 const { hashPin, pinBlockMs, PIN_LOCKOUT_FAILURES } = await import('./src/lib/lockPin.js');
 const { MAX_FOLDERS } = await import('./src/models/Folder.js');
+const { network } = await import('./src/lib/rateLimit.js');
 
 const mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
 const server = createApp().listen(0); const base = `http://127.0.0.1:${server.address().port}/api`;
@@ -79,6 +80,19 @@ try {
   check(r.status === 400, '20th attempt still answered');
   r = await reg('late@example.com');
   check(r.status === 429 && r.headers.get('retry-after') && /Too many sign-ups/.test(r.data.error), `21st sign-up attempt: 429 (${r.data.error})`);
+  await RateLimit.deleteMany({});
+
+  // networks: addresses rotating inside one /24 (IPv4) or /64 (IPv6) share a counter
+  check(network('140.248.50.101') === '140.248.50.0/24' && network('::ffff:140.248.50.7') === '140.248.50.0/24', 'IPv4 /24');
+  check(network('2001:db8:1:2:aaaa::1') === '2001:db8:1:2::/64' && network('2001:db8:1:2::9') === '2001:db8:1:2::/64' && network('2001:db8::1') === '2001:db8:0:0::/64', 'IPv6 /64');
+  process.env.VERCEL = '1';
+  const fromIp = (i) => call('POST', '/auth/register', { name: '', email: 'bad' }, { headers: { 'X-Vercel-Forwarded-For': `198.51.100.${i}` } });
+  for (let i = 0; i < 60; i++) await fromIp(i);
+  r = await fromIp(200);
+  check(r.status === 429, `sign-ups rotating through 61 addresses of one /24: 61st is a 429 (${r.status})`);
+  r = await call('POST', '/auth/register', { name: '', email: 'bad' }, { headers: { 'X-Vercel-Forwarded-For': '203.0.113.5' } });
+  check(r.status === 400, 'another network is unaffected');
+  delete process.env.VERCEL;
   await RateLimit.deleteMany({});
 
   // ---- L2: generic sign-up failure for an existing email ----

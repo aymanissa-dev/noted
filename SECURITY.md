@@ -35,14 +35,16 @@ Stored in MongoDB (`ratelimits`, TTL-indexed), so they hold across serverless in
 | What | Limit | After |
 | --- | --- | --- |
 | Failed sign-ins per email | 5 / 15 min, growing delay from the 2nd | 429 + `Retry-After` until the window ends (also for the right password) |
-| Failed sign-ins per IP | 20 / 15 min | 429 |
-| Sign-up attempts per IP | 20 / hour | 429 |
+| Failed sign-ins per IP / per network (IPv4 /24, IPv6 /64) | 20 / 60 per 15 min | 429 |
+| Sign-up attempts per IP / per network | 20 / 60 per hour | 429 |
 | Wrong account password (signed in) | 5 / 15 min per account | 429 |
 | Wrong note PIN | 4 free, then waits of 5, 10, 20… min (max 2 h); the count only resets on a correct PIN | after 10 in total, PIN entry needs the account password |
 
 Nothing locks an account permanently. Trade-off: someone who knows an email can keep that account's
 sign-ins paused for 15 minutes at a time. Client IPs come from Vercel's own headers
-(`x-vercel-forwarded-for` / `x-real-ip`), never a client-supplied `X-Forwarded-For`.
+(`x-vercel-forwarded-for` / `x-real-ip`), never a client-supplied `X-Forwarded-For`. The network
+limits exist because clients can rotate through many addresses of one pool (our own QA box egresses
+from a different 140.248.50.x address on every connection, which slipped past the per-IP limit).
 
 Tests: in-process server tests set `RATE_LIMITS=off`; the local QA stack accepts an
 `X-Rate-Limit-Bypass` header matching `RATE_LIMIT_BYPASS_TOKEN`. Neither is honoured when running on
