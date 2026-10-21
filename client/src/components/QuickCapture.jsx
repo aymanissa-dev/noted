@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { parseQuickCapture } from '../lib/quickCapture.js';
 
-// One-line capture: Enter saves, Shift+Enter adds a line. First line becomes the title.
+// One-line capture: Enter saves and closes, Shift+Enter adds a line, Esc closes. First line becomes the title.
 export default function QuickCapture({ onCapture }) {
   const [text, setText] = useState('');
   const ref = useRef(null);
@@ -10,7 +10,7 @@ export default function QuickCapture({ onCapture }) {
     const parsed = parseQuickCapture(text);
     if (!parsed) return;
     setText('');
-    if (ref.current) ref.current.style.height = '';
+    if (ref.current) { ref.current.style.height = ''; ref.current.blur(); } // done: Q (or a click) opens it again
     onCapture(parsed, text);
   };
 
