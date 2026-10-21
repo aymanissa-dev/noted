@@ -243,7 +243,15 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       </div>
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
-      {(offline || loadError === 'offline') && <p role="status" data-testid="list-offline" className="mt-4 inline-flex items-center gap-2 text-xs text-muted"><Icon name="offline" size="xs" />{loadError === 'offline' ? 'You’re offline. This list loads when you reconnect.' : 'Offline: showing the notes saved on this device.'}</p>}
+      {(offline || loadError === 'offline') && (
+        <div role="status" data-testid="list-offline" className="mt-4 flex items-center justify-between gap-3 text-xs text-muted">
+          <span className="inline-flex items-center gap-2"><Icon name="offline" size="xs" />
+            {loadError === 'offline' ? 'You’re offline. This list loads when you reconnect.'
+              : navigator.onLine ? 'Couldn’t reach noted. Showing the notes saved on this device. Trying again…'
+              : 'You’re offline. Showing the notes saved on this device.'}</span>
+          <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setSyncTick((t) => t + 1)}>Try again</button>
+        </div>
+      )}
       {loadError && loadError !== 'offline' && isNetworkText(loadError) && <RetryStatus testId="list-error" error={loadError} onRetry={() => setSyncTick((t) => t + 1)} className="mt-4" />}
       {loadError && loadError !== 'offline' && !isNetworkText(loadError) && (
         <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
