@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Logo from './Logo.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
@@ -54,9 +54,18 @@ export default function Layout() {
   useShortcuts({ helpOpen, setHelpOpen, paletteOpen, setPaletteOpen });
   const { online, pending } = useOnline();
 
+  const navigate = useNavigate();
   const open = (what) => {
     setHelpOpen(what === 'shortcuts'); setPaletteOpen(what === 'palette');
-    if (what === 'tour') setTimeout(() => setTourOpen(true), 50);
+    if (what !== 'tour') return;
+    // The tour points at things on the notes list: go there first, then start once its first target is on screen.
+    if (window.location.pathname !== '/notes' || window.location.search) navigate('/notes');
+    const started = Date.now();
+    const wait = () => {
+      const ready = [...document.querySelectorAll('[data-tour="new"]')].some((el) => el.getClientRects().length);
+      if (ready || Date.now() - started > 2500) setTourOpen(true); else setTimeout(wait, 50);
+    };
+    setTimeout(wait, 50);
   };
   useEffect(() => {
     const onOpen = (e) => open(e.detail);

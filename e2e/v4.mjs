@@ -49,6 +49,14 @@ try {
   await p.keyboard.type('long'); await sleep(900); await p.keyboard.press('Enter'); await sleep(400);
   ok(p.url().includes(n._id), 'palette: note title match still opens the note');
 
+  // Design 6: replaying the tour from Help goes to the notes list and anchors step 1 to New note.
+  await p.goto(BASE + '/help', { waitUntil: 'networkidle0' });
+  await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Take the tour/.test(x.textContent))?.click());
+  await p.waitForSelector('[data-testid=tour] [role=dialog]', { timeout: 5000 }); await sleep(300);
+  const tour = await p.evaluate(() => { const d = document.querySelector('[data-testid=tour] [role=dialog]').getBoundingClientRect(); const t = [...document.querySelectorAll('[data-tour=new]')].find((e) => e.getClientRects().length)?.getBoundingClientRect(); return { path: location.pathname, near: !!t && Math.abs(d.top - t.bottom) < 40 }; });
+  ok(tour.path === '/notes' && tour.near, `tour replay from Help opens on /notes anchored to New note (${JSON.stringify(tour)})`);
+  await p.keyboard.press('Escape'); await sleep(200);
+
   // 5. Quick capture releases focus after saving, so Q works again; 6. sidebar tags update live.
   await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' }); await sleep(400);
   await p.keyboard.press('q'); ok(await p.evaluate(() => document.activeElement?.id === 'quick-capture'), 'Q focuses quick capture');
