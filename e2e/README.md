@@ -24,6 +24,7 @@ BASE=https://noted-lac-phi.vercel.app API=https://noted-lac-phi.vercel.app/api n
 | sw.mjs | service worker offline: no `no-response` errors, shell loads offline |
 | v4shots.mjs | before/after screenshots at 2560/1920/1280/375, light + dark: landing, list, editor, archive empty state, note not found, settings (`OUT`, `PRE`, `WIDTHS`, `THEMES`, `LANDING_ONLY`) |
 | v5.mjs | QA v3 retest: full-width shell at 1920/2560, standalone typewriter (toolbar, palette, Alt+Shift+T), fast `/Heading 2` after an emoji line, Enter exits empty list items, note-not-found state, online status recovers without reload, landing CTA wording + axe color contrast (light/dark; needs `axe-core`) |
+| v6.mjs | QA retest 3: note load failure reproduced as QA did (title-only notes seen in the list, `GET /api/notes/<id>` blocked + hard reload, and an offline open) never shows an editable editor, shows "Couldn't load this note" + Try again, recovers on its own, and never writes over the server copy; Settings login activity and actions fail calmly with Try again (no raw "Failed to fetch"); build id + service worker update flags; landing CTAs in a fresh profile. Works against production with `BASE`/`API`. |
 | live-extra.mjs | accent color, login activity, stats, dark mode, 375px, screenshots |
 
 Server-side (`npm test` in `server/`): smoke, v2 features, password policy, and cross-account authorization + voice API.

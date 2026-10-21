@@ -38,6 +38,8 @@ try {
     for (let i = 0; i < 4; i++) { await typeInEditor(p, ' ' + 'word '.repeat(18)); await saved(p); }
     vs = (await api('GET', `/notes/${n._id}/versions`, null, u.token)).data.versions;
     ok(vs.length === 3, `history: ~360 chars typed over 4 saves → another version (${vs.length})`);
+    // Close it: an open, online tab shares localStorage and would sync the next test's offline queue.
+    await p.close();
   }
   if (want('capture')) {
     const u = await newUser('fix');
