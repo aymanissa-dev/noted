@@ -1,5 +1,5 @@
 import { clearAllUndo } from '../editor/undoStore.js';
-import { createQueue, isTempId } from './offlineQueue.js';
+import { createQueue, isTempId, newTempId } from './offlineQueue.js';
 import { OFFLINE_MESSAGE, NETWORK_MESSAGE } from './network.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
@@ -19,6 +19,14 @@ export const queue = createQueue(localStorage);
 // without the normal login flow, another tab switching accounts, an upgrade from before this key),
 // that data is wiped before anything can read it.
 const OWNER_KEY = 'noted.owner';
+// Local ids of synced notes → their real ids (last 50), so /notes/local-… links, history entries and
+// lists rendered before the sync still lead to the note.
+const ID_MAP_KEY = 'noted.idmap';
+const readIdMap = () => { try { return JSON.parse(localStorage.getItem(ID_MAP_KEY)) || {}; } catch { return {}; } };
+export const realIdFor = (tempId) => (isTempId(tempId) ? readIdMap()[tempId] || null : null);
+function rememberId(tempId, realId) {
+  try { const m = readIdMap(); m[tempId] = realId; localStorage.setItem(ID_MAP_KEY, JSON.stringify(Object.fromEntries(Object.entries(m).slice(-50)))); } catch { /* best effort */ }
+}
 const currentUserId = () => { try { const u = JSON.parse(localStorage.getItem(USER_KEY)); return u?.id || u?._id || null; } catch { return null; } };
 const ownedByCurrentUser = () => { const id = currentUserId(); return Boolean(id) && localStorage.getItem(OWNER_KEY) === id; };
 let signedOutPurged = false;
@@ -32,6 +40,7 @@ export function ensureOwner(userId = currentUserId()) {
     clearAllUndo();
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(META_KEY);
+    localStorage.removeItem(ID_MAP_KEY);
     // A queue from before owners were recorded was written by this session (logins always cleared
     // it), so keep it; a queue that belongs to another account never syncs under this one.
     if (owner) queue.clear();
@@ -170,6 +179,7 @@ function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
 
 export function clearLocalData() {
   clearAllUndo();
+  localStorage.removeItem(ID_MAP_KEY);
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(META_KEY);
   localStorage.removeItem(USER_KEY);
@@ -208,7 +218,9 @@ export const matchesList = (n, filters) => filterLocal([n], filters).length > 0;
 
 // ---- Sync ----
 const sendEntry = async (e) => {
-  if (e.op === 'create') return (await request('POST', '/notes', e.body)).note;
+  // clientId = the local id: if this create already reached the server (e.g. the page reloaded while
+  // it was in flight), the server returns that note instead of making a second one.
+  if (e.op === 'create') return (await request('POST', '/notes', { ...e.body, clientId: e.tempId })).note;
   return (await request('PATCH', `/notes/${e.id}`, e.body)).note;
 };
 let syncing = null;
@@ -216,7 +228,7 @@ export function syncQueue() {
   ensureOwner();
   if (syncing || !queue.size() || !navigator.onLine || !localStorage.getItem(TOKEN_KEY)) return syncing || Promise.resolve(0);
   syncing = queue.flush(sendEntry, {
-    onIdMapped: (tempId, realId) => { loadedBodies.add(realId); window.dispatchEvent(new CustomEvent('noted:id-mapped', { detail: { tempId, realId } })); },
+    onIdMapped: (tempId, realId) => { loadedBodies.add(realId); rememberId(tempId, realId); window.dispatchEvent(new CustomEvent('noted:id-mapped', { detail: { tempId, realId } })); },
   }).finally(() => {
     syncing = null;
     window.dispatchEvent(new Event('noted:queue-changed'));
@@ -378,6 +390,8 @@ export const api = {
   async getNote(id) {
     if (isTempId(id)) {
       const note = queue.localNotes().find((n) => n._id === id);
+      // Synced since this link was made: point to the real note.
+      if (!note && realIdFor(id)) throw Object.assign(new ApiError('This note has a new address', 404), { movedTo: realIdFor(id) });
       if (!note) throw new ApiError('Note not found', 404);
       return { note };
     }
@@ -398,14 +412,15 @@ export const api = {
   },
 
   async createNote(body) {
+    const clientId = newTempId(); // idempotency key, and the note's local id if it has to wait
     try {
-      const res = await request('POST', '/notes', body);
+      const res = await request('POST', '/notes', { ...body, clientId });
       cacheNotes([res.note]);
       markLoaded(res.note);
       return changed(res);
     } catch (err) {
       if (!isNetworkError(err)) throw err;
-      const tempId = queue.enqueueCreate(body); queued();
+      const tempId = queue.enqueueCreate(body, clientId); queued();
       return { note: queue.localNotes().find((n) => n._id === tempId), queued: true };
     }
   },

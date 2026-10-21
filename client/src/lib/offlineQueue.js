@@ -5,6 +5,8 @@ export const QUEUE_KEY = 'noted.queue';
 export const TEMP_PREFIX = 'local-';
 export const isTempId = (id) => typeof id === 'string' && id.startsWith(TEMP_PREFIX);
 
+export const newTempId = () => `${TEMP_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
 export function createQueue(storage) {
   const read = () => {
     try { return JSON.parse(storage.getItem(QUEUE_KEY)) || []; } catch { return []; }
@@ -16,8 +18,9 @@ export function createQueue(storage) {
     size: () => read().length,
     clear: () => storage.removeItem(QUEUE_KEY),
 
-    enqueueCreate(body) {
-      const tempId = `${TEMP_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    // `tempId` (optional) is the id the app already gave the note (see newTempId); it doubles as the
+    // create's idempotency key on the server.
+    enqueueCreate(body, tempId = newTempId()) {
       write([...read(), { op: 'create', tempId, body, at: new Date().toISOString() }]);
       return tempId;
     },

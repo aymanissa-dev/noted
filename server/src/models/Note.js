@@ -6,6 +6,7 @@ export const NOTE_COLORS = ['', 'red', 'orange', 'yellow', 'green', 'blue', 'pur
 const noteSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    clientId: { type: String, select: false }, // see the clientId index below
     title: { type: String, trim: true, default: '', maxlength: 200 },
     content: { type: String, default: '', maxlength: 100000 },
     tags: { type: [String], default: [] },
@@ -31,6 +32,9 @@ noteSchema.index({ user: 1, deletedAt: -1 });
 noteSchema.index({ user: 1, updatedAt: -1 });
 noteSchema.index({ user: 1, tags: 1 });
 noteSchema.index({ user: 1, folderId: 1 });
+// Idempotent creates: the client's local id for a new note. A create that is re-sent (the page was
+// reloaded mid-request, or the offline queue retries) returns the note it already made.
+noteSchema.index({ user: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } });
 
 noteSchema.pre('validate', function (next) {
   if (this.isNew || this.isModified('content')) this.plain = plainText(this.content);

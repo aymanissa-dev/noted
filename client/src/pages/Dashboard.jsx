@@ -110,6 +110,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     window.addEventListener('noted:notes-changed', bump);
     return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('noted:notes-changed', bump); };
   }, []);
+  // A note made on this device just synced: its card links to the real id right away.
+  useEffect(() => {
+    const onMapped = (e) => setNotes((ns) => ns.map((n) => (n._id === e.detail.tempId ? { ...n, _id: e.detail.realId, pending: false } : n)));
+    window.addEventListener('noted:id-mapped', onMapped);
+    return () => window.removeEventListener('noted:id-mapped', onMapped);
+  }, []);
 
   // debounce search input; clearing it applies immediately
   useEffect(() => {

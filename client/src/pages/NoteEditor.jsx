@@ -1,8 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, optimisticInsert, saveOnUnload } from '../lib/api.js';
+import { api, optimisticInsert, saveOnUnload, queue, realIdFor } from '../lib/api.js';
 import EmptyState from '../components/EmptyState.jsx';
 import { isTempId } from '../lib/offlineQueue.js';
+import { unlockFor } from '../lib/unlock.js';
 import TagInput from '../components/TagInput.jsx';
 import PinIcon from '../components/PinIcon.jsx';
 import AppearancePicker from '../components/AppearancePicker.jsx';
@@ -91,6 +92,13 @@ export default function NoteEditor() {
   // not knock a note that has since loaded back into the read-only state.
   const loadSeq = useRef(0);
 
+  // An old /notes/local-… link (history, a list rendered before the sync) of a note that has synced
+  // since: go to the real note, replacing the local URL.
+  useEffect(() => {
+    const real = realIdFor(routeId);
+    if (real && !queue.localNotes().some((n) => n._id === routeId)) navigate(`/notes/${real}`, { replace: true });
+  }, [routeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!routeId || (routeId === idRef.current && verifiedRef.current)) return;
     const seq = ++loadSeq.current;
@@ -108,6 +116,7 @@ export default function NoteEditor() {
       })
       .catch((e) => {
         if (stale()) return;
+        if (e.movedTo) { navigate(`/notes/${e.movedTo}`, { replace: true }); return; } // a local id that has synced
         if (e.status === 404 || e.status === 400 || e.status === 403) { setNotFound(true); return; }
         const local = e.local || initial;
         if (local) {

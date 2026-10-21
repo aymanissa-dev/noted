@@ -249,8 +249,20 @@ router.post('/', asyncHandler(async (req, res) => {
     throw new HttpError(400, 'A note needs a title or content');
   }
   if (req.body?.folderId) fields.folderId = await parseFolderId(req, req.body.folderId);
-  const note = await Note.create({ ...fields, user: req.userId });
-  res.status(201).json({ note });
+  // Idempotency: the same clientId (the app's local id for the new note) never makes a second note.
+  const clientId = typeof req.body?.clientId === 'string' && /^local-[a-z0-9]{4,40}$/.test(req.body.clientId) ? req.body.clientId : undefined;
+  const existing = () => Note.findOne({ user: req.userId, clientId });
+  // A re-sent create carries the latest local state (the offline queue merges later edits into it),
+  // so it updates the note it already made.
+  const again = async (prev) => { prev.set(fields); await prev.save(); return res.status(200).json({ note: prev, duplicate: true }); };
+  if (clientId) { const prev = await existing(); if (prev) return again(prev); }
+  try {
+    const note = await Note.create({ ...fields, user: req.userId, ...(clientId && { clientId }) });
+    res.status(201).json({ note });
+  } catch (err) {
+    if (err?.code !== 11000 || !clientId) throw err;
+    return again(await existing()); // the same create raced itself
+  }
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
