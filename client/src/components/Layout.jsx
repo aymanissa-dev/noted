@@ -71,7 +71,7 @@ export default function Layout() {
   }, [pathname]);
 
   return (
-    <div className="min-h-screen">
+    <div className="app min-h-screen">
       <header className="sticky top-0 z-10 border-b border-stone-200/70 bg-stone-50/80 backdrop-blur-md dark:border-stone-800/70 dark:bg-stone-950/80">
         <div className="mx-auto flex h-[var(--header-h)] max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3 sm:gap-6">

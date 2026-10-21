@@ -66,7 +66,7 @@ const SIZES = { xs: 'h-3.5 w-3.5', sm: 'h-4 w-4', md: 'h-5 w-5' };
 export default function Icon({ name, size = 'sm', className = '', filled = false, label }) {
   return (
     <svg aria-hidden={label ? undefined : 'true'} role={label ? 'img' : undefined} aria-label={label} viewBox="0 0 24 24"
-      className={`shrink-0 ${SIZES[size] || size} ${className}`} fill={filled ? 'currentColor' : 'none'} stroke="currentColor"
+      className={`icon shrink-0 ${SIZES[size] || size} ${className}`} fill={filled ? 'currentColor' : 'none'} stroke="currentColor"
       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={P[name]} /></svg>
   );
 }

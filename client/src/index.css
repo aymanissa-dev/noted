@@ -10,7 +10,16 @@
   --dur: 200ms;
   --header-h: 3.5rem;
 }
-.dark { color-scheme: dark; }
+.dark {
+  color-scheme: dark;
+  /* Dark elevation ramp for the app shell: page < panel < raised < lifted, with 8% white hairlines. */
+  --s0: 12 10 9;      /* page */
+  --s1: 22 19 17;     /* panels, inset inputs */
+  --s2: 33 29 26;     /* raised: cards, menus, dialogs, the editor */
+  --s3: 45 40 36;     /* lifted: selected / active rows */
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.14);
+}
 
 html, body { overflow-x: clip; }
 
@@ -83,6 +92,26 @@ html, body { overflow-x: clip; }
   .chip-off { @apply border-stone-300 text-stone-700 hover:border-stone-500 dark:border-stone-700 dark:text-stone-300 dark:hover:border-stone-500; }
 }
 
+/* ---- Dark elevation (app shell only; the landing keeps its own look) ---- */
+.dark .app .dark\:bg-stone-900 { background-color: rgb(var(--s2)); }
+.dark .app .dark\:bg-stone-800 { background-color: rgb(var(--s3)); }
+.dark .app .dark\:border-stone-800, .dark .app .dark\:border-stone-800\/70 { border-color: var(--line); }
+.dark .app .dark\:border-stone-700 { border-color: var(--line-strong); }
+.dark .app .dark\:divide-stone-800 > :not([hidden]) ~ :not([hidden]) { border-color: var(--line); }
+.dark .app :is(.surface, .menu, .dialog-panel) { background-color: rgb(var(--s2)); border-color: var(--line); }
+.dark .app .menu { background-color: rgb(var(--s2) / 0.97); }
+.dark .app .input { background-color: rgb(var(--s1)); border-color: var(--line-strong); }
+.dark .app .btn-secondary { background-color: rgb(var(--s2)); border-color: var(--line-strong); }
+.dark .app .btn-secondary:hover { background-color: rgb(var(--s3)); }
+.dark .app .btn-ghost:hover, .dark .app .menu-item:hover, .dark .app .menu-item:focus-visible { background-color: rgb(255 255 255 / 0.07); }
+.dark .cm-tooltip { background: rgb(var(--s2)) !important; border-color: var(--line-strong) !important; }
+.dark .md-editor .cm-panel.cm-search { background: rgb(var(--s2)); border-color: var(--line-strong); }
+.dark .app .card-lift { background-color: rgb(var(--s3)); }
+.dark .app .editor-card { box-shadow: 0 0 0 1px var(--line), 0 24px 48px -28px rgb(0 0 0 / 0.8); }
+.dark .app .editor-card.is-default { background-color: rgb(37 33 29); background-image: radial-gradient(70% 160px at 50% 0, rgb(var(--accent) / 0.07), transparent 70%); }
+/* Icons: a touch heavier and brighter on dark backgrounds, where thin light strokes read as dim. */
+.dark .icon { stroke-width: 2; }
+
 /* Every animation is disabled for people who ask for less motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -93,10 +122,10 @@ html, body { overflow-x: clip; }
 
 /* ---- Markdown editor (CodeMirror) ---- */
 .md-editor .cm-md-faint { color: #a8a29e; }
-.dark .md-editor .cm-md-faint { color: #57534e; }
+.dark .md-editor .cm-md-faint { color: #78716c; }
 .md-editor .cm-md-code { background: rgb(120 113 108 / 0.12); border-radius: 4px; padding: 0 2px; }
 .md-editor .cm-md-quote { color: #78716c; font-style: italic; }
-.dark .md-editor .cm-placeholder { color: #57534e; }
+.dark .md-editor .cm-placeholder { color: #78716c; }
 .dark .md-editor .cm-cursor { border-left-color: rgb(var(--accent)); }
 .md-editor .cm-typewriter .cm-content { padding-bottom: 50vh !important; }
 .md-editor .cm-selectionBackground, .md-editor .cm-focused .cm-selectionBackground { background: rgb(var(--accent) / 0.22) !important; }

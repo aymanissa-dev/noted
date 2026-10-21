@@ -26,7 +26,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
   // The card is a real link (stretched over the card via ::after), so it works with touch, keyboard, and
   // middle-click. The pin button is a sibling stacked above the link, not nested inside it.
   return (
-    <article data-flip-id={note._id} className={`${motion} group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active || selectedIndex >= 0 ? 'ring-2 ring-accent' : ''} shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-lift dark:shadow-none motion-reduce:hover:translate-y-0 active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
+    <article data-flip-id={note._id} className={`${motion} group relative flex flex-col rounded-xl border ${cardClass(note.color)} ${compact ? 'p-3' : 'p-4'} ${active || selectedIndex >= 0 ? `ring-2 ring-accent ${note.color ? '' : 'card-lift'}` : ''} shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-lift dark:shadow-none motion-reduce:hover:translate-y-0 active:translate-y-0 active:scale-[0.99] focus-within:ring-2 focus-within:ring-accent`}>
       <h3 className="pr-7 font-semibold text-stone-900 dark:text-stone-100 line-clamp-1 break-words">
         {optimistic ? (
           <span>{title}</span>
@@ -48,7 +48,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         <button type="button"
           onClick={() => { if (!note.pending) onTogglePin(note); }}
           data-tip={note.pinned ? 'Unpin' : 'Pin to top'} data-tip-align="end" aria-label={note.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={note.pinned}
-          className={`absolute right-1 top-1 z-10 grid h-11 w-11 place-items-center rounded-lg transition focus:opacity-100 sm:h-9 sm:w-9 ${note.pinned ? 'text-accent' : 'text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-200 [@media(hover:hover)]:opacity-0 group-hover:opacity-100'}`}>
+          className={`absolute right-1 top-1 z-10 grid h-11 w-11 place-items-center rounded-lg transition focus:opacity-100 sm:h-9 sm:w-9 ${note.pinned ? 'text-accent' : 'text-stone-400 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100'}`}>
           <PinIcon filled={note.pinned} />
         </button>
       )}

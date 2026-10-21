@@ -28,7 +28,7 @@ export function ToastProvider({ children }) {
               <button className="min-h-9 rounded-lg bg-white/10 px-3 font-semibold text-white transition hover:bg-white/20 dark:bg-stone-900/10 dark:text-stone-900 dark:hover:bg-stone-900/20"
                 onClick={() => { dismiss(); toast.action.onClick(); }}>{toast.action.label}</button>
             )}
-            <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-stone-300 transition hover:bg-white/10 hover:text-white dark:text-stone-600 dark:hover:bg-stone-900/10 dark:hover:text-stone-900" onClick={dismiss} aria-label="Dismiss">
+            <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-stone-300 transition hover:bg-white/10 hover:text-white dark:text-stone-700 dark:hover:bg-stone-900/10 dark:hover:text-stone-900" onClick={dismiss} aria-label="Dismiss">
               <Icon name="close" />
             </button>
           </div>

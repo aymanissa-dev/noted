@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext.jsx';
 
 const SMART_ICON = { recent: 'clock', pinned: 'pin', today: 'today', week: 'week', untagged: 'untagged', locked: 'lock' };
 
-const row = (active) => `group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition ${active ? 'bg-stone-200/70 text-stone-900 dark:bg-stone-800 dark:text-stone-100' : 'text-stone-600 hover:bg-stone-200/40 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-200'}`;
+const row = (active) => `group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition ${active ? 'bg-stone-200/70 font-medium text-stone-900 dark:bg-white/[0.09] dark:text-white dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]' : 'text-stone-600 hover:bg-stone-200/40 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-white/[0.05] dark:hover:text-white'}`;
 
 function Group({ title, action, children }) {
   return (
@@ -96,7 +96,7 @@ export default function Sidebar({ onOpen }) {
           <Group title="Recently viewed" action={<Link to="/notes?smart=recent" className="rounded px-1 text-xs text-faint transition hover:text-stone-800 dark:hover:text-stone-200">See all</Link>}>
             {recent.map((n) => (
               <Link key={n._id} to={`/notes/${n._id}`} className={row(pathname === `/notes/${n._id}`)}>
-                {n.locked ? <Icon name="lock" /> : n.emoji ? <span aria-hidden="true" className="w-4 text-center text-xs">{n.emoji}</span> : <Icon name="notes" className="text-stone-400 dark:text-stone-500" />}
+                {n.locked ? <Icon name="lock" /> : n.emoji ? <span aria-hidden="true" className="w-4 text-center text-xs">{n.emoji}</span> : <Icon name="notes" className="text-stone-400 dark:text-stone-400" />}
                 <span className="truncate">{n.locked ? 'Locked note' : n.title || 'Untitled'}</span>
               </Link>
             ))}
