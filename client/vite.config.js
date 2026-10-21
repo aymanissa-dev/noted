@@ -33,8 +33,9 @@ export default defineConfig({
         // its own offline copy in localStorage, cleared on logout.
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        // Never serve API responses from the SW cache (they are per-user and must be fresh).
-        runtimeCaching: [{ urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' }],
+        // No runtime route for /api: those requests bypass the service worker entirely, so they are never
+        // cached and, offline, fail in the page as a normal network error (which the app queues/handles)
+        // instead of a NetworkOnly "no-response" rejection logged by the worker.
         globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest,woff2}'],
       },
     }),
