@@ -13,6 +13,30 @@ const CACHE_LIMIT = 1000;
 
 export const queue = createQueue(localStorage);
 
+// ---- Whose data is on this device ----
+// Everything noted. keeps locally (note cache, list meta, offline queue, editor undo history) belongs
+// to one account: OWNER_KEY records which. If the signed-in account is ever different (a token set
+// without the normal login flow, another tab switching accounts, an upgrade from before this key),
+// that data is wiped before anything can read it.
+const OWNER_KEY = 'noted.owner';
+const currentUserId = () => { try { const u = JSON.parse(localStorage.getItem(USER_KEY)); return u?.id || u?._id || null; } catch { return null; } };
+const ownedByCurrentUser = () => { const id = currentUserId(); return Boolean(id) && localStorage.getItem(OWNER_KEY) === id; };
+export function ensureOwner(userId = currentUserId()) {
+  try {
+    if (!userId) return;
+    const owner = localStorage.getItem(OWNER_KEY);
+    if (owner === userId) return;
+    clearAllUndo();
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(META_KEY);
+    // A queue from before owners were recorded was written by this session (logins always cleared
+    // it), so keep it; a queue that belongs to another account never syncs under this one.
+    if (owner) queue.clear();
+    loadedBodies.clear();
+    localStorage.setItem(OWNER_KEY, userId);
+  } catch { /* storage unavailable */ }
+}
+
 // Notes whose full body came from the server during this visit (opened, created or saved).
 // Only these can be edited, online or queued offline: a copy kept on this device may be stale or
 // partial, and saving over the server from it could wipe the real note.
@@ -92,11 +116,11 @@ function getShared(path) {
 }
 // Small persisted copies of side data (folders, tags) so the sidebar renders instantly; refreshed on every fetch.
 const META_KEY = 'noted.meta';
-export const readMeta = (k) => { try { return JSON.parse(localStorage.getItem(META_KEY))?.[k]; } catch { return undefined; } };
-const writeMeta = (k, v) => { try { const m = JSON.parse(localStorage.getItem(META_KEY)) || {}; m[k] = v; localStorage.setItem(META_KEY, JSON.stringify(m)); } catch { /* best-effort */ } };
+export const readMeta = (k) => { try { ensureOwner(); return ownedByCurrentUser() ? JSON.parse(localStorage.getItem(META_KEY))?.[k] : undefined; } catch { return undefined; } };
+const writeMeta = (k, v) => { try { ensureOwner(); const m = JSON.parse(localStorage.getItem(META_KEY)) || {}; m[k] = v; localStorage.setItem(META_KEY, JSON.stringify(m)); } catch { /* best-effort */ } };
 
 // ---- Local read cache (for offline reading). Cleared on logout. ----
-const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch { return {}; } };
+const readCache = () => { try { ensureOwner(); return ownedByCurrentUser() ? JSON.parse(localStorage.getItem(CACHE_KEY)) || {} : {}; } catch { return {}; } };
 // `list: true` marks copies that came from a list response. Even when a short note's whole body
 // fits in the list, it may be stale and isn't proof the body was ever loaded, so only copies from a
 // single-note response (open, prefetch, save, create…) count as "full" for opening in the editor.
@@ -146,6 +170,7 @@ export function clearLocalData() {
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(META_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(OWNER_KEY);
   queue.clear();
   loadedBodies.clear();
 }
@@ -184,6 +209,7 @@ const sendEntry = async (e) => {
 };
 let syncing = null;
 export function syncQueue() {
+  ensureOwner();
   if (syncing || !queue.size() || !navigator.onLine || !localStorage.getItem(TOKEN_KEY)) return syncing || Promise.resolve(0);
   syncing = queue.flush(sendEntry, {
     onIdMapped: (tempId, realId) => { loadedBodies.add(realId); window.dispatchEvent(new CustomEvent('noted:id-mapped', { detail: { tempId, realId } })); },
@@ -435,3 +461,5 @@ export const api = {
     cacheNotes([r.note]); return r;
   },
 };
+
+ensureOwner(); // before anything reads this device's data

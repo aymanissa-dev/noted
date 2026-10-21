@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api, clearLocalData, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
+import { api, clearLocalData, ensureOwner, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
 
 import { applyAccent } from '../lib/accent.js';
 
@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     setUnauthorizedHandler(() => logout({ expired: true, flash: 'Your session expired. Please log in again.' }));
     if (!localStorage.getItem(TOKEN_KEY)) return;
     api.me()
-      .then(({ user }) => { localStorage.setItem(USER_KEY, JSON.stringify(user)); setUser(user); })
+      .then(({ user }) => { localStorage.setItem(USER_KEY, JSON.stringify(user)); ensureOwner(user.id); setUser(user); })
       .catch((err) => {
         // Offline: keep the session using the cached profile. Otherwise the token is bad.
         const cached = localStorage.getItem(USER_KEY);
@@ -46,11 +46,26 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, [logout]);
 
+  // Another tab signed out or switched accounts: this tab must not keep showing (or syncing) the
+  // previous account's data, so it starts over from the new state.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== TOKEN_KEY && e.key !== USER_KEY && e.key !== null) return;
+      const token = localStorage.getItem(TOKEN_KEY);
+      let id = null; try { id = JSON.parse(localStorage.getItem(USER_KEY))?.id || null; } catch { /* ignore */ }
+      if (!user) { if (token && id) window.location.reload(); return; }
+      if (!token || (id && id !== user.id)) window.location.reload();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [user]);
+
   const handleAuth = ({ token, user }) => {
     clearLocalData(); // never mix another account's cached notes
     sessionStorage.removeItem('noted.loggedOut');
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    ensureOwner(user.id);
     setUser(user);
   };
 
