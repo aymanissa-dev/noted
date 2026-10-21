@@ -82,7 +82,7 @@ export default function Layout() {
   return (
     <div className="app min-h-screen">
       <header className="sticky top-0 z-10 border-b border-stone-200/70 bg-stone-50/80 backdrop-blur-md dark:border-stone-800/70 dark:bg-stone-950/80">
-        <div className="mx-auto flex h-[var(--header-h)] max-w-7xl 2xl:max-w-[100rem] items-center justify-between gap-2 px-3 sm:px-4 lg:px-6">
+        <div className="flex h-[var(--header-h)] w-full items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 2xl:px-8">
           <div className="flex min-w-0 items-center gap-3 sm:gap-6">
             <Link to="/notes" className="shrink-0" aria-label="noted. – all notes"><Logo className="text-xl sm:text-[1.4rem]" /></Link>
             <nav aria-label="Main" className="hidden gap-1 text-sm sm:flex lg:hidden">
@@ -119,7 +119,7 @@ export default function Layout() {
           </span>
         </div>
       )}
-      <div className="mx-auto flex max-w-7xl 2xl:max-w-[100rem] gap-6 px-3 sm:px-4 lg:px-6">
+      <div className="flex w-full gap-6 px-3 sm:px-4 lg:px-6 2xl:gap-8 2xl:px-8">
         <Sidebar onOpen={open} />
         <main className="min-w-0 flex-1 py-6 pb-28 sm:py-8 sm:pb-8">
           <Outlet />

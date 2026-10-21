@@ -375,8 +375,8 @@ export default function NoteEditor() {
       <div data-testid="editor-card" className={focusMode
         ? 'fixed inset-0 z-40 overflow-y-auto bg-stone-50 px-4 py-10 dark:bg-stone-950 sm:px-8 sm:py-16'
         : `editor-card ${note.color ? '' : 'is-default'} rounded-2xl border p-4 sm:p-6 shadow-sm transition-colors ${cardClass(note.color)}`}>
-        {/* A readable measure: the card grows with the screen, the text column stays ~70ch. */}
-        <div className={focusMode ? 'mx-auto max-w-reading' : 'mx-auto max-w-[72ch]'}>
+        {/* A readable measure: the card grows with the screen, the text column stays ~70–80 characters (40rem). */}
+        <div className={focusMode ? 'mx-auto max-w-reading' : 'mx-auto max-w-[40rem]'}>
         {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
         <input autoFocus={!routeId} aria-label="Title" className="editor-title w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />

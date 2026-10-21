@@ -27,7 +27,7 @@ export default function NoteRoute() {
   const editor = <NoteEditor key={keyRef.current} />;
   if (!wide) return editor;
   return (
-    <div className="grid grid-cols-[20rem_minmax(0,1fr)] gap-6 2xl:grid-cols-[23rem_minmax(0,1fr)]">
+    <div className="grid grid-cols-[20rem_minmax(0,1fr)] gap-6 2xl:grid-cols-[23rem_minmax(0,1fr)] 2xl:gap-8 min-[2200px]:grid-cols-[26rem_minmax(0,1fr)]">
       <aside aria-label="Notes list" className="sticky top-[calc(var(--header-h)+1.5rem)] max-h-[calc(100vh-var(--header-h)-3rem)] overflow-y-auto rounded-2xl border border-stone-200/70 bg-stone-100/60 p-3 dark:border-white/[0.06] dark:bg-[rgb(var(--s1))]">
         <Dashboard view="active" compact activeId={id} />
       </aside>
