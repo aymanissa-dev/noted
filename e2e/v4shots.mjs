@@ -24,11 +24,12 @@ try {
   for (const [w, h] of [[1920, 1080], [1280, 800], [375, 812]].filter(([w]) => W.includes(w))) {
     for (const dark of TH.map((t) => t === 'dark')) {
       const tag = `${w}-${dark ? 'dark' : 'light'}`; const mobile = w < 500;
-      const p = await b.newPage(); p.on('pageerror', (e) => errs.push(tag + ': ' + e.message));
+      const ctx = await b.createBrowserContext(); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(tag + ': ' + e.message)); // signed out
       await p.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: mobile ? 2 : 1 });
       await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }]);
       await p.goto(BASE + '/', { waitUntil: 'networkidle0' }); await settle(p);
-      await p.screenshot({ path: `${OUT}/${PRE}-landing-${tag}.png`, fullPage: false }); await p.close();
+      await p.screenshot({ path: `${OUT}/${PRE}-landing-${tag}.png`, fullPage: false }); await ctx.close();
+      if (process.env.LANDING_ONLY) continue;
       const a = await pageAs(b, u.token, u.user, { width: w, height: h, mobile, dark }); a.on('pageerror', (e) => errs.push(tag + ' app: ' + e.message));
       await a.evaluate((d) => { localStorage.setItem('noted.theme', d ? 'dark' : 'light'); localStorage.setItem('noted.tourDone', '1'); }, dark);
       await a.goto(BASE + '/notes', { waitUntil: 'networkidle0' }); await sleep(700);

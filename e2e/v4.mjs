@@ -33,6 +33,14 @@ try {
   ok(c.includes('\n# Big title') && !c.includes('/Heading'), 'slash: "/Heading 1" + Enter makes an H1');
   ok(c.includes('hi 😄'), `emoji: ":smile" + Enter inserts 😄 (${c.split('\n').pop()})`);
 
+  // Minor: keyboard focus on the editor body shows a ring.
+  await p.click('input[aria-label=Title]'); await p.keyboard.down('Shift'); await p.keyboard.press('Tab'); await p.keyboard.up('Shift');
+  await p.focus('input[aria-label=Title]'); await p.keyboard.press('Tab');
+  const ring = async () => p.evaluate(() => { const e = document.activeElement?.closest('.cm-editor') || document.activeElement; const cs = getComputedStyle(e); return { tag: e.className, style: cs.outlineStyle, w: cs.outlineWidth }; });
+  let fr = await ring();
+  for (let i = 0; i < 4 && !String(fr.tag).includes('cm-editor'); i++) { await p.keyboard.press('Tab'); fr = await ring(); }
+  ok(String(fr.tag).includes('cm-editor') && fr.style === 'solid' && fr.w === '2px', `editor body shows a focus ring when tabbed into (${JSON.stringify(fr)})`);
+
   // 2. Palette: Enter on Settings / Trash / How to use goes there, even right after typing.
   for (const [q, path] of [['settings', '/settings'], ['trash', '/trash'], ['how to use', '/help'], ['sett', '/settings']]) {
     await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' }); await sleep(300);
