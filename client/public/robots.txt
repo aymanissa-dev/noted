@@ -1,6 +1,6 @@
+# noted. — the landing and sign-in pages are public. Everything else needs an account
+# (and is marked noindex), so crawlers only ever see the public pages.
 User-agent: *
 Allow: /
-Disallow: /notes
-Disallow: /settings
 Disallow: /api/
 Sitemap: https://noted-lac-phi.vercel.app/sitemap.xml

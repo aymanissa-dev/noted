@@ -19,6 +19,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Landing from './pages/Landing.jsx';
 import { useAuth } from './context/AuthContext.jsx';
+import { useHead } from './lib/useHead.js';
 
 // Public landing page for visitors; signed-in users go straight to their notes.
 function Home() {
@@ -29,6 +30,7 @@ function Home() {
 }
 
 export default function App() {
+  useHead();
   return (
     <Suspense fallback={null}>
     <Routes>
