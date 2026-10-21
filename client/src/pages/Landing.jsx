@@ -108,7 +108,7 @@ function AppPreview() {
             <p className="mt-3 text-xl font-semibold tracking-tight text-stone-900 dark:text-white">🌊 Trip to Lamu</p>
             <div className="mt-3 space-y-2 font-mono text-[12.5px] leading-6 text-stone-700 dark:text-stone-300">
               <p><span className="text-stone-400">## </span><b className="font-sans text-[14px] text-stone-900 dark:text-white">Before we go</b></p>
-              <p className="flex items-center gap-2"><span className="grid h-3.5 w-3.5 place-items-center rounded-[4px] bg-accent text-white"><Icon name="check" size="xs" className="!h-2.5 !w-2.5" /></span><span className="text-stone-400 line-through">Book the ferry</span></p>
+              <p className="flex items-center gap-2"><span className="grid h-3.5 w-3.5 place-items-center rounded-[4px] bg-accent text-white"><Icon name="check" size="xs" className="!h-2.5 !w-2.5" /></span><span className="text-stone-500 line-through dark:text-stone-400">Book the ferry</span></p>
               <p className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded-[4px] border border-stone-300 dark:border-stone-600" />Pack the <mark className="hl-yellow rounded px-0.5 text-stone-900">snorkel</mark></p>
               <p className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded-[4px] border border-stone-300 dark:border-stone-600" />Ask Amina about the dhow</p>
               <p className="pt-1 font-sans text-[13px]">Ferry leaves 9:30<span className="typing" /></p>
@@ -118,7 +118,7 @@ function AppPreview() {
       </div>
       <div className="preview-float absolute -bottom-6 right-4 hidden w-72 rounded-xl border border-stone-200/80 bg-white/95 p-2 text-left shadow-float backdrop-blur dark:border-stone-700 dark:bg-stone-900/95 sm:block lg:-right-8">
         <div className="flex items-center gap-2 border-b border-stone-100 px-2 pb-2 text-xs text-stone-500 dark:border-stone-800 dark:text-stone-400"><Icon name="search" size="xs" />lamu<span className="ml-auto"><Kbd combo="Mod+K" size="sm" /></span></div>
-        <div className="mt-1 flex items-center gap-2 rounded-md bg-stone-100 px-2 py-1.5 text-xs text-stone-800 dark:bg-stone-800 dark:text-stone-100">🌊 Trip to Lamu<span className="ml-auto text-[10px] text-stone-500 dark:text-stone-400">#travel</span></div>
+        <div className="mt-1 flex items-center gap-2 rounded-md bg-stone-100 px-2 py-1.5 text-xs text-stone-800 dark:bg-stone-800 dark:text-stone-100">🌊 Trip to Lamu<span className="ml-auto text-[11px] text-stone-600 dark:text-stone-300">#travel</span></div>
         <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-stone-600 dark:text-stone-300"><Icon name="plus" size="xs" />New note<span className="ml-auto"><Kbd combo="N" size="sm" /></span></div>
       </div>
     </div>
