@@ -378,7 +378,7 @@ export default function NoteEditor() {
         {/* A readable measure: the card grows with the screen, the text column stays ~70ch. */}
         <div className={focusMode ? 'mx-auto max-w-reading' : 'mx-auto max-w-[72ch]'}>
         {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
-        <input autoFocus={!routeId} aria-label="Title" className="w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
+        <input autoFocus={!routeId} aria-label="Title" className="editor-title w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={previewOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
         {!focusMode && (
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">

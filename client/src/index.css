@@ -127,6 +127,9 @@ html, body { overflow-x: clip; }
 .md-editor .cm-md-quote { color: #78716c; font-style: italic; }
 .dark .md-editor .cm-placeholder { color: #78716c; }
 .dark .md-editor .cm-cursor { border-left-color: rgb(var(--accent)); }
+/* Keyboard focus on the writing surface: a calm accent ring around the text (title + body). */
+html[data-input=keyboard] .md-editor .cm-editor.cm-focused,
+html[data-input=keyboard] .editor-title:focus { outline: 2px solid rgb(var(--accent) / 0.8); outline-offset: 6px; border-radius: 6px; }
 .md-editor .cm-typewriter .cm-content { padding-bottom: 50vh !important; }
 .md-editor .cm-selectionBackground, .md-editor .cm-focused .cm-selectionBackground { background: rgb(var(--accent) / 0.22) !important; }
 .cm-hl { border-radius: 3px; padding: 0 1px; color: inherit; }
