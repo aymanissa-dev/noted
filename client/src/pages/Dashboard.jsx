@@ -142,7 +142,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
 
   useEffect(() => {
     api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
-  }, []);
+  }, [syncTick]);
 
   const sortNotes = (list) => [...list].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt)));
   // Optimistic pin: flip immediately, roll back if the server refuses.
@@ -164,7 +164,6 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       const { note } = await api.createNote(folder ? { ...fields, folderId: folder } : fields);
       setNotes((l) => l.map((n) => (n._id === tempId ? note : n)));
       setEntering((e) => (e === tempId ? note._id : e));
-      if (fields.tags.length) api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
     } catch (e) {
       setNotes((l) => l.filter((n) => n._id !== tempId));
       setError(`Couldn't save quick note: ${e.message}`);

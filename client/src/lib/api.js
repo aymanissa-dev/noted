@@ -53,9 +53,11 @@ async function request(method, path, body, { headers: extra, signal, retried } =
 
 // Identical GETs that overlap share one request (the sidebar and the list both ask for folders/tags).
 const inflightGets = new Map();
+// Once notes or folders change, a GET that started earlier may carry stale data: don't share it.
+if (typeof window !== 'undefined') ['noted:notes-changed', 'noted:folders-changed'].forEach((ev) => window.addEventListener(ev, () => inflightGets.clear()));
 function getShared(path) {
   if (inflightGets.has(path)) return inflightGets.get(path);
-  const p = request('GET', path).finally(() => inflightGets.delete(path));
+  const p = request('GET', path).finally(() => { if (inflightGets.get(path) === p) inflightGets.delete(path); });
   inflightGets.set(path, p);
   return p;
 }
@@ -326,7 +328,7 @@ export const api = {
     try {
       const res = await request('POST', '/notes', body);
       cacheNotes([res.note]);
-      return res;
+      return changed(res);
     } catch (err) {
       if (!isNetworkError(err)) throw err;
       const tempId = queue.enqueueCreate(body); queued();
