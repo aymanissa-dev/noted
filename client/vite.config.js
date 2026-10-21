@@ -40,8 +40,13 @@ export default defineConfig({
         start_url: '/notes',
         scope: '/',
         shortcuts: [
-          { name: 'New note', short_name: 'New', url: '/notes/new', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] },
-          { name: 'Archive', url: '/archive' },
+          { name: 'New note', short_name: 'New', url: '/notes/new', icons: [{ src: '/shortcut-new-96x96.png', sizes: '96x96', type: 'image/png' }] },
+          { name: 'Archive', url: '/archive', icons: [{ src: '/shortcut-archive-96x96.png', sizes: '96x96', type: 'image/png' }] },
+        ],
+        // Install-dialog previews (richer install UI). WebP, so they stay out of the precache.
+        screenshots: [
+          { src: '/screenshots/notes-wide.webp', sizes: '1280x800', type: 'image/webp', form_factor: 'wide', label: 'Your notes, folders and tags' },
+          { src: '/screenshots/notes-narrow.webp', sizes: '780x1688', type: 'image/webp', form_factor: 'narrow', label: 'Your notes on your phone' },
         ],
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
