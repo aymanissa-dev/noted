@@ -7,6 +7,7 @@ import { decryptBackup, encryptBackup, isBackup } from '../lib/backup.js';
 import PasswordDialog from '../components/PasswordDialog.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from '../components/Icon.jsx';
+import { passwordProblem, PASSWORD_HINT } from '../lib/passwordHints.js';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 // Resolves to the PIN, '' (export locked notes as placeholders), or null (cancelled).
@@ -176,6 +177,7 @@ function DataSection() {
 }
 
 function PasswordSection() {
+  const { user } = useAuth();
   const [form, setForm] = useState({ current: '', next: '', confirm: '' });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -183,7 +185,8 @@ function PasswordSection() {
 
   const submit = async (e) => {
     e.preventDefault(); setMsg(null);
-    if (form.next.length < 8) return setMsg({ error: true, text: 'New password must be at least 8 characters.' });
+    const weak = passwordProblem(form.next, { email: user?.email, name: user?.name });
+    if (weak) return setMsg({ error: true, text: weak });
     if (form.next !== form.confirm) return setMsg({ error: true, text: 'New passwords do not match.' });
     setBusy(true);
     try {
@@ -198,7 +201,8 @@ function PasswordSection() {
     <Card title="Change password">
       <form onSubmit={submit} className="space-y-3">
         <input className="input" type="password" placeholder="Current password" autoComplete="current-password" required value={form.current} onChange={set('current')} />
-        <input className="input" type="password" placeholder="New password (min 8 characters)" autoComplete="new-password" required value={form.next} onChange={set('next')} />
+        <input className="input" type="password" placeholder="New password" autoComplete="new-password" required value={form.next} onChange={set('next')} aria-describedby="pw-hint" />
+        <p id="pw-hint" className="field-hint">{PASSWORD_HINT} We also check it against known data breaches (only a partial hash leaves our server).</p>
         <input className="input" type="password" placeholder="Confirm new password" autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} />
         {msg && <p className={`text-sm ${msg.error ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{msg.text}</p>}
         <button className="btn-primary" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button>

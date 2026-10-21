@@ -70,4 +70,16 @@ try {
   await p.waitForFunction(() => ![...document.querySelectorAll('nav[aria-label=Sidebar] a')].some((a) => a.textContent.trim() === 'editortag'), { timeout: 6000 }).catch(() => {});
   ok(!(await sidebarHas('editortag')), 'sidebar drops a removed tag without reload');
   ok(p.errors.length === 0, 'no page errors ' + p.errors.join(' | '));
+
+  // 8. Password rules: common passwords get a clear, field-level message (client hint + server verdict).
+  const ctx = await b.createBrowserContext(); const r = await ctx.newPage(); await r.setViewport({ width: 1280, height: 900 });
+  await r.goto(BASE + '/register', { waitUntil: 'networkidle0' });
+  await r.type('#reg-name', 'Pw Tester'); await r.type('#reg-email', `pw+${Date.now()}@noted.test`);
+  await r.type('#reg-password', 'Password1!'); await r.click('button[type=submit]'); await sleep(300);
+  ok(/too common/.test(await r.$eval('#reg-password-error', (e) => e.textContent).catch(() => '')), 'register: instant "too common" hint for Password1!');
+  await r.$eval('#reg-password', (e) => e.select()); await r.type('#reg-password', 'charlie123'); await r.click('button[type=submit]');
+  await r.waitForFunction(() => /too common/.test(document.querySelector('#reg-password-error')?.textContent || ''), { timeout: 8000 }).catch(() => {});
+  ok(/too common/.test(await r.$eval('#reg-password-error', (e) => e.textContent).catch(() => '')) && r.url().includes('/register'), 'register: server rejects charlie123 with a field message');
+  ok(await r.evaluate(() => document.activeElement?.id === 'reg-password'), 'register: focus moves to the password field');
+  await ctx.close();
 } finally { await cleanup(); await b.close(); }
