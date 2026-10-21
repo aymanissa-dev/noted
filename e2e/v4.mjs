@@ -38,7 +38,7 @@ try {
   await p.focus('input[aria-label=Title]'); await p.keyboard.press('Tab');
   const ring = async () => { await sleep(150); return p.evaluate(() => { const e = document.activeElement?.closest('.cm-editor') || document.activeElement; const cs = getComputedStyle(e); return { tag: e.className, style: cs.outlineStyle, w: cs.outlineWidth }; }); };
   let fr = await ring();
-  for (let i = 0; i < 4 && !String(fr.tag).includes('cm-editor'); i++) { await p.keyboard.press('Tab'); fr = await ring(); }
+  for (let i = 0; i < 8 && !String(fr.tag).includes('cm-editor'); i++) { await p.keyboard.press('Tab'); fr = await ring(); }
   ok(String(fr.tag).includes('cm-editor') && fr.style === 'solid' && fr.w === '2px', `editor body shows a focus ring when tabbed into (${JSON.stringify(fr)})`);
 
   // 2. Palette: Enter on Settings / Trash / How to use goes there, even right after typing.
