@@ -48,9 +48,22 @@ export function matchSlash(query) {
   });
 }
 
+// "/query" right before the cursor: at line start or after a space, up to two spaces inside so
+// "/Heading 1" works. Positions are document offsets (UTF-16), so emoji earlier on the line or on
+// the line before don't shift anything.
+const SLASH_RE = /(?:^|\s)\/[\w-]*(?: [\w-]*){0,2}$/;
+export function slashBefore(state, pos = state.selection.main.head) {
+  const line = state.doc.lineAt(pos);
+  const before = state.sliceDoc(line.from, pos);
+  const m = SLASH_RE.exec(before);
+  if (!m) return null;
+  const slash = m[0].indexOf('/');
+  return { from: line.from + m.index + slash, to: pos, query: before.slice(m.index + slash + 1) };
+}
+
 export function slashSource(context) {
   // Allow up to two spaces in the query so "/Heading 1" works; stop matching once nothing fits.
-  const m = context.matchBefore(/(?:^|\s)\/[\w-]*(?: [\w-]*){0,2}$/);
+  const m = context.matchBefore(SLASH_RE);
   if (!m) return null;
   const slash = m.text.indexOf('/');
   const from = m.from + slash;

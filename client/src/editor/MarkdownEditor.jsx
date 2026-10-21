@@ -10,6 +10,7 @@ import { search, searchKeymap, openSearchPanel, closeSearchPanel, searchPanelOpe
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { slashSource } from './slash.js';
+import { smartEnter } from './enter.js';
 import { checkboxes, highlightMarks, highlightTooltip, setHighlight } from './highlights.js';
 import { loadUndo, saveUndo, dropUndo } from './undoStore.js';
 import { searchEmoji } from '../lib/emoji.js';
@@ -123,6 +124,7 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
       { key: 'Mod-e', run: toggleWrap('`'), preventDefault: true },
       { key: 'Mod-Shift-x', run: toggleWrap('~~'), preventDefault: true },
       { key: 'Mod-Enter', run: toggleTask, preventDefault: true },
+      { key: 'Enter', run: smartEnter },
       ...completionKeymap, ...markdownKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...defaultKeymap,
     ]),
     comps.current.ro.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
