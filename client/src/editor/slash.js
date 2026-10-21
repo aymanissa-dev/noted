@@ -36,15 +36,28 @@ export function applySlash(view, cmd, from, to) {
   view.dispatch({ changes: { from: start, to: end, insert }, selection: { anchor: cursor }, scrollIntoView: true, userEvent: 'input.slash' });
 }
 
+const squash = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Commands matching a query ("h1", "head", "heading 1", "heading1").
+export function matchSlash(query) {
+  const q = squash(query); const tight = q.replace(/ /g, '');
+  if (!q) return SLASH_COMMANDS;
+  return SLASH_COMMANDS.filter((c) => {
+    const l = c.label.toLowerCase();
+    return l.includes(q) || l.replace(/ /g, '').includes(tight) || c.id.startsWith(tight);
+  });
+}
+
 export function slashSource(context) {
-  const m = context.matchBefore(/(?:^|\s)\/[\w-]*$/);
+  // Allow up to two spaces in the query so "/Heading 1" works; stop matching once nothing fits.
+  const m = context.matchBefore(/(?:^|\s)\/[\w-]*(?: [\w-]*){0,2}$/);
   if (!m) return null;
   const slash = m.text.indexOf('/');
   const from = m.from + slash;
-  const query = m.text.slice(slash + 1).toLowerCase();
+  const query = m.text.slice(slash + 1);
   if (!query && !context.explicit && m.to !== context.pos) return null;
-  const options = SLASH_COMMANDS
-    .filter((c) => !query || c.label.toLowerCase().includes(query) || c.id.startsWith(query))
-    .map((c) => ({ label: `/${c.id}`, displayLabel: c.label, detail: c.detail, type: 'keyword', apply: (view, _c, f, t) => applySlash(view, c, f, t) }));
+  const matches = matchSlash(query);
+  if (/\s/.test(query) && !matches.length) return null;
+  const options = matches.map((c) => ({ label: `/${c.id}`, displayLabel: c.label, detail: c.detail, type: 'keyword', apply: (view, _c, f, t) => applySlash(view, c, f, t) }));
   return { from, options, filter: false };
 }
