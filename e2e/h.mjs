@@ -21,7 +21,8 @@ export async function cleanup() {
   }
 }
 export async function launch() {
-  return puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+  // PROFILE=/dir reuses a Chrome profile between runs (service worker, caches and storage of earlier builds).
+  return puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: 'new', ...(process.env.PROFILE && { userDataDir: process.env.PROFILE }), args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
 }
 export async function pageAs(browser, token, user, { width = 1440, height = 900, mobile = false, dark = false } = {}) {
   const p = await browser.newPage();
