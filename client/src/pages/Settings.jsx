@@ -8,7 +8,7 @@ import PasswordDialog from '../components/PasswordDialog.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from '../components/Icon.jsx';
 import { passwordProblem, PASSWORD_HINT } from '../lib/passwordHints.js';
-import { useIsOnline, useOnReconnect, useClearOfflineMessage, isOfflineError } from '../lib/network.js';
+import { useIsOnline, useRefetch, useClearOfflineMessage, isOfflineError } from '../lib/network.js';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 // Resolves to the PIN, '' (export locked notes as placeholders), or null (cancelled).
@@ -64,7 +64,7 @@ function ActivitySection() {
   const online = useIsOnline();
   const loadRef = useRef(() => {});
   // Back online: fetch again right away (and drop the offline note) instead of waiting for a reload.
-  useOnReconnect(() => loadRef.current());
+  useRefetch(() => loadRef.current(), { failing: Boolean(error) });
   // Keep it current: on open, when you come back to the tab, every 30s while visible, and after
   // session changes (sign out everywhere, password change).
   useEffect(() => {

@@ -8,8 +8,8 @@ export default function FolderPicker({ value, onChange, disabled }) {
   useEffect(() => {
     const load = () => api.folders().then(({ folders }) => setFolders(folders)).catch(() => setFolders((f) => f || []));
     load();
-    window.addEventListener('noted:folders-changed', load);
-    return () => window.removeEventListener('noted:folders-changed', load);
+    window.addEventListener('noted:folders-changed', load); window.addEventListener('online', load);
+    return () => { window.removeEventListener('noted:folders-changed', load); window.removeEventListener('online', load); };
   }, []);
   const dialog = useDialog();
   const pick = async (e) => {

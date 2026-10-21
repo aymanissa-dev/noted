@@ -4,6 +4,7 @@ import { api, readMeta } from '../lib/api.js';
 import { SMART } from '../lib/smart.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
+import { useRefetch } from '../lib/network.js';
 import { useToast } from '../context/ToastContext.jsx';
 
 const SMART_ICON = { recent: 'clock', pinned: 'pin', today: 'today', week: 'week', untagged: 'untagged', locked: 'lock' };
@@ -29,11 +30,16 @@ export default function Sidebar({ onOpen }) {
   const [tags, setTags] = useState(() => readMeta('tags') || []);
   const [recent, setRecent] = useState(() => (readMeta('recent') || []).slice(0, 5));
 
+  const [failing, setFailing] = useState(false);
   const load = useCallback(() => {
-    api.folders().then(({ folders }) => setFolders(folders)).catch(() => {});
-    api.tags().then(({ tags }) => setTags(tags)).catch(() => {});
-    api.recentNotes().then(({ notes }) => setRecent(notes.slice(0, 5))).catch(() => {});
+    Promise.all([
+      api.folders().then(({ folders }) => setFolders(folders)),
+      api.tags().then(({ tags }) => setTags(tags)),
+      api.recentNotes().then(({ notes }) => setRecent(notes.slice(0, 5))),
+    ]).then(() => setFailing(false), () => setFailing(true));
   }, []);
+  // Showing cached copies while a refresh fails: retry on reconnect / focus / backoff.
+  useRefetch(load, { failing });
   useEffect(() => {
     load();
     // Coalesce bursts (autosave, bulk actions) into one refresh.

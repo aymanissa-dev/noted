@@ -13,7 +13,7 @@ import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
-import { useOnReconnect, isOfflineError } from '../lib/network.js';
+import { useOnReconnect, useRefetch, isOfflineError } from '../lib/network.js';
 
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
@@ -35,8 +35,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   useEffect(() => preloadEditor(), []);
   useEffect(() => {
     const load = () => api.folders().then(({ folders }) => setFolders(folders)).catch(() => {});
-    load(); window.addEventListener('noted:folders-changed', load);
-    return () => window.removeEventListener('noted:folders-changed', load);
+    load(); window.addEventListener('noted:folders-changed', load); window.addEventListener('online', load);
+    return () => { window.removeEventListener('noted:folders-changed', load); window.removeEventListener('online', load); };
   }, []);
   const folderName = folders.find((f) => f._id === folder)?.name;
   const [loading, setLoading] = useState(true); // a refresh is in flight (cached rows may be showing)
@@ -45,7 +45,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   const [offline, setOffline] = useState(false);
   const [syncTick, setSyncTick] = useState(0);
   // Back online: drop the offline notices now and refetch (retried briefly; see useOnReconnect).
-  useOnReconnect(() => { setOffline(false); setLoadError((e) => (e === 'offline' ? '' : e)); setSyncTick((t) => t + 1); });
+  useOnReconnect(() => { setOffline(false); setLoadError((e) => (e === 'offline' ? '' : e)); });
+  useRefetch(() => setSyncTick((t) => t + 1), { failing: Boolean(loadError) || offline });
   const listRef = useRef(null);
   const [leaving, setLeaving] = useState(() => new Set());
   const leavingRef = useRef(leaving);

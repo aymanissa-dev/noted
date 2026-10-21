@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { api } from '../lib/api.js';
 import { timeAgo } from '../lib/format.js';
-import { useOnReconnect, OFFLINE_MESSAGE } from '../lib/network.js';
+import { useOnReconnect, useRefetch, OFFLINE_MESSAGE } from '../lib/network.js';
 import Icon from './Icon.jsx';
 
 // `current` is the note as it is now (listed first, preview only); versions are earlier states.
@@ -17,10 +17,11 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken,
   useFocusTrap(dialogRef, onClose);
 
   const [retry, setRetry] = useState(0);
-  useOnReconnect(() => { setError((e) => (e.includes(OFFLINE_MESSAGE) ? '' : e)); setRetry((r) => r + 1); });
+  useOnReconnect(() => setError((e) => (e.includes(OFFLINE_MESSAGE) ? '' : e)));
+  useRefetch(() => setRetry((r) => r + 1), { failing: Boolean(error) && !versions });
   useEffect(() => {
     api.listVersions(noteId, { unlockToken })
-      .then(({ versions }) => { setVersions(versions); setSelected((cur) => cur || versions[0]?._id || 'current'); })
+      .then(({ versions }) => { setVersions(versions); setError(''); setSelected((cur) => cur || versions[0]?._id || 'current'); })
       .catch((e) => setError(e.message));
   }, [noteId, unlockToken, retry]);
 

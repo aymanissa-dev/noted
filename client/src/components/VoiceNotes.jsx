@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { audioApi } from '../lib/api.js';
-import { useIsOnline, useClearOfflineMessage } from '../lib/network.js';
+import { useIsOnline, useClearOfflineMessage, useRefetch } from '../lib/network.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
 
@@ -40,10 +40,13 @@ export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
   const rec = useRef(null);
   const supported = typeof window !== 'undefined' && 'MediaRecorder' in window && navigator.mediaDevices?.getUserMedia;
 
+  const [listTick, setListTick] = useState(0);
+  const [listFailed, setListFailed] = useState(false);
   useEffect(() => {
     if (!noteId || !online) return;
-    audioApi.list(noteId, unlockToken).then(({ clips }) => setClips(clips)).catch(() => {});
-  }, [noteId, unlockToken, online]);
+    audioApi.list(noteId, unlockToken).then(({ clips }) => { setClips(clips); setListFailed(false); }).catch(() => setListFailed(true));
+  }, [noteId, unlockToken, online, listTick]);
+  useRefetch(() => setListTick((t) => t + 1), { failing: listFailed });
   useEffect(() => () => rec.current?.stop?.(), []);
 
   const start = async () => {
