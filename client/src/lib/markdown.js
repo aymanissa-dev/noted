@@ -22,6 +22,17 @@ export function plainText(md = '') {
     .trim();
 }
 
+// Card preview: plain text only. No leftover syntax (lone list markers, dividers, a stray slash
+// command), no blank lines, and no first line that just repeats the title.
+const SLASH_LINE = /^\/(?:h[1-3]|heading ?[1-3]|checklist|bullet(?:ed list)?|divider|date|code(?: block)?|quote)$/i;
+export function previewText(md = '', title = '') {
+  const t = String(title).trim().toLowerCase();
+  const lines = plainText(md).split('\n').map((l) => l.trim())
+    .filter((l) => l && !/^[-–—*_=+•·.:|>#\s]+$/.test(l) && !SLASH_LINE.test(l));
+  if (t && lines[0]?.toLowerCase() === t) lines.shift();
+  return lines.join('\n');
+}
+
 // Headings (outside code fences) for the outline: { level, text, line } (line is 1-based).
 export function headings(md = '') {
   const out = [];

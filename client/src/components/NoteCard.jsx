@@ -4,7 +4,7 @@ import { timeAgo } from '../lib/format.js';
 import PinIcon from './PinIcon.jsx';
 import Icon from './Icon.jsx';
 import { cardClass } from '../lib/colors.js';
-import { plainText } from '../lib/markdown.js';
+import { previewText } from '../lib/markdown.js';
 
 export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
   const motion = leaving ? 'animate-leave pointer-events-none' : entering ? 'animate-slide-in' : '';
@@ -12,7 +12,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
     return (
       <div data-flip-id={note._id} className={`${motion} flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4`}>
         <h3 className="flex items-center gap-1.5 font-semibold text-stone-700 dark:text-stone-200 line-clamp-1 break-words">{note.locked ? <><Icon name="lock" />Locked note</> : note.title || 'Untitled'}</h3>
-        <p className="mt-1 flex-1 whitespace-pre-line text-sm text-muted line-clamp-3">{plainText(note.content)}</p>
+        <p className="mt-1 flex-1 whitespace-pre-line text-sm text-muted line-clamp-3">{previewText(note.content, note.title)}</p>
         <div className="mt-3 flex items-center gap-1">
           <span className="text-xs text-faint">Deleted {timeAgo(note.deletedAt)}</span>
           <button className="btn-secondary btn-sm ml-auto" onClick={() => onRestore(note)}>Restore</button>
@@ -52,7 +52,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
           <PinIcon filled={note.pinned} />
         </button>
       )}
-      <p className={`mt-1 flex-1 whitespace-pre-line break-words text-sm text-stone-600 dark:text-stone-300 ${compact ? "line-clamp-2" : "line-clamp-4"}`}>{note.locked ? <span className="inline-flex items-center gap-1.5 italic text-muted"><Icon name="lock" size="xs" />Locked. Open it and enter your PIN.</span> : plainText(note.content)}</p>
+      <p className={`mt-1 flex-1 whitespace-pre-line break-words text-sm text-stone-600 dark:text-stone-300 ${compact ? "line-clamp-2" : "line-clamp-4"}`}>{note.locked ? <span className="inline-flex items-center gap-1.5 italic text-muted"><Icon name="lock" size="xs" />Locked. Open it and enter your PIN.</span> : previewText(note.content, note.title)}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {note.tags.map((t) => (
           <span key={t} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300">#{t}</span>
