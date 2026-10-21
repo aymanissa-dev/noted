@@ -117,7 +117,39 @@ try {
     const hasSel = !!(await p.$(sel));
     ok(!/You are offline|You’re offline/.test(t2) && hasSel, `${path}: offline message clears and content loads after reconnect (no reload)`);
   }
+  // Stats: recovers after reconnect (online event) …
+  await open(p, '/stats'); await p.waitForSelector('[data-testid=stats]');
+  await net(true); await p.evaluate(() => window.dispatchEvent(new Event('offline')));
+  const spa = (to) => p.evaluate((t) => { history.pushState({}, '', t); dispatchEvent(new PopStateEvent('popstate')); }, to);
+  await spa('/notes'); await sleep(400); await spa('/stats');
+  await p.waitForSelector('[data-testid=stats-error]', { timeout: 5000 });
+  await net(false); await sleep(2000);
+  ok(!!(await p.$('[data-testid=stats]')) && !(await p.$('[data-testid=stats-error]')), '/stats: error clears and numbers load within 2s of reconnecting (no reload)');
   await cdp.detach();
+  // … and when requests fail while the browser still says it's online ("Failed to fetch", no online event).
+  let block = true;
+  await p.setRequestInterception(true);
+  const onReq = (r) => (block && r.url().includes('/api/stats') ? r.abort('failed') : r.continue());
+  p.on('request', onReq);
+  await open(p, '/stats'); await p.waitForSelector('[data-testid=stats-error]', { timeout: 8000 });
+  ok(await p.evaluate(() => navigator.onLine), '/stats: request failed while navigator.onLine is true');
+  block = false; await sleep(4500);
+  ok(!!(await p.$('[data-testid=stats]')) && !(await p.$('[data-testid=stats-error]')), '/stats: retries on its own (backoff) and recovers without an online event or reload');
+  block = true; await open(p, '/stats'); await p.waitForSelector('[data-testid=stats-error]', { timeout: 8000 });
+  block = false; await p.evaluate(() => window.dispatchEvent(new Event('focus'))); await sleep(800);
+  ok(!!(await p.$('[data-testid=stats]')), '/stats: refetches when the window regains focus');
+  p.off('request', onReq); await p.setRequestInterception(false);
+  // A note that fails to load (not a 404) shows a retrying error, not a blank editable editor.
+  const ln = (await api('POST', '/notes', { title: 'Loads later', content: 'body text' }, u.token)).data.note;
+  await p.setRequestInterception(true);
+  block = true;
+  const onReq2 = (r) => (block && r.url().includes(`/api/notes/${ln._id}`) && r.method() === 'GET' ? r.abort('failed') : r.continue());
+  p.on('request', onReq2);
+  await open(p, `/notes/${ln._id}`); await p.waitForSelector('[data-testid=note-load-failed]', { timeout: 8000 });
+  ok(!(await p.$('.cm-content')), 'note load failure: no editor shown while it can’t load');
+  block = false; await sleep(4500);
+  ok(!!(await p.$('.cm-content')) && (await p.$eval('.cm-content', (x) => x.innerText)).includes('body text'), 'note load failure: retries and opens the note');
+  p.off('request', onReq2); await p.setRequestInterception(false);
   ok(p.errors.length === 0, `no page errors (${p.errors.join(' | ')})`);
 
   // B + 1. Landing (signed out): one CTA label everywhere; AA contrast in light and dark.
@@ -126,8 +158,14 @@ try {
   for (const dark of [false, true]) {
     await lp.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }]);
     await lp.goto(BASE + '/', { waitUntil: 'networkidle0' });
-    const ctas = await lp.$$eval('a[href="/register"]', (xs) => xs.map((x) => x.textContent.trim()).filter((t) => /free/.test(t)));
-    if (!dark) ok(ctas.length >= 3 && new Set(ctas).size === 1, `landing: every “free” CTA reads the same (${[...new Set(ctas)].join(' | ')})`);
+    if (!dark) {
+      // Every sign-up link uses the shared label, except the sticky header's intentional compact one.
+      const links = await lp.$$eval('a[href="/register"]', (xs) => xs.map((x) => ({ t: x.textContent.trim(), compact: x.dataset.cta === 'compact', header: !!x.closest('header, nav') })));
+      const full = links.filter((l) => !l.compact).map((l) => l.t);
+      const compact = links.filter((l) => l.compact);
+      ok(full.length >= 4 && full.every((t) => t === 'Start writing — it’s free'), `landing: all non-header sign-up links read 'Start writing — it’s free' (${JSON.stringify(full)})`);
+      ok(compact.length === 1 && compact[0].header && compact[0].t === 'Start writing', `landing: only the header uses the compact 'Start writing' (${JSON.stringify(compact)})`);
+    }
     if (axePath) {
       await lp.addScriptTag({ path: axePath });
       const r = await lp.evaluate(async () => (await window.axe.run(document, { runOnly: ['color-contrast'] })).violations.flatMap((v) => v.nodes.map((n) => n.target.join(' '))));
