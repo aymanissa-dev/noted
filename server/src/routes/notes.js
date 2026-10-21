@@ -7,6 +7,7 @@ import NoteVersion from '../models/NoteVersion.js';
 import { deleteNotesWithHistory, maybeSnapshot, pickVersionFields, snapshotForRestore } from '../lib/versions.js';
 import User, { RECENT_LIMIT } from '../models/User.js';
 import Folder, { MAX_FOLDERS } from '../models/Folder.js';
+import { createFolderWithinCap } from '../lib/folderQuota.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
 import { plainText } from '../lib/plain.js';
 import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
@@ -183,14 +184,26 @@ router.post('/import', asyncHandler(async (req, res) => {
   const fresh = [];
   // Folders are matched by name (case-insensitive) and created when missing.
   const folders = new Map((await Folder.find({ user: req.userId }).lean()).map((f) => [f.name.toLowerCase(), f._id]));
-  // New folders stop at MAX_FOLDERS (like creating them by hand); past that, notes import without one.
-  let folderCount = folders.size; let foldersSkipped = 0;
+  // New folders stop at MAX_FOLDERS (like creating them by hand); past that, notes import without
+  // one. The cap is reserved atomically per folder (lib/folderQuota.js), so parallel imports and
+  // creates can't overshoot it together.
+  let foldersSkipped = 0; let capped = false;
   const folderFor = async (name) => {
     if (!name) return null;
     const key = name.toLowerCase();
     if (!folders.has(key)) {
-      if (folderCount >= MAX_FOLDERS) { foldersSkipped++; return null; }
-      folders.set(key, (await Folder.create({ user: req.userId, name }))._id); folderCount++;
+      if (capped) { foldersSkipped++; return null; }
+      try {
+        const f = await createFolderWithinCap(req.userId, name);
+        if (!f) { capped = true; foldersSkipped++; return null; }
+        folders.set(key, f._id);
+      } catch (err) {
+        if (err?.code !== 11000) throw err;
+        // created by a parallel request a moment ago: use that one
+        const f = await Folder.findOne({ user: req.userId, name }).collation({ locale: 'en', strength: 2 }).lean();
+        if (!f) throw err;
+        folders.set(key, f._id);
+      }
     }
     return folders.get(key);
   };

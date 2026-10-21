@@ -20,6 +20,9 @@ const userSchema = new mongoose.Schema(
     lockPinLockedOut: { type: Boolean, default: false, select: false },
     // The PIN in use is shorter than 6 digits (known after it's entered once); Settings suggests a new one.
     lockPinShort: { type: Boolean, default: false },
+    // Folders this account has, kept atomically by lib/folderQuota.js (cap: MAX_FOLDERS). No default on
+    // purpose: missing means "not counted yet" and is filled in from the folders on first use.
+    folderCount: { type: Number, select: false },
     // Recently opened notes, newest first (max RECENT_LIMIT).
     recent: { type: [{ _id: false, note: mongoose.Schema.Types.ObjectId, at: Date }], default: [], select: false },
     preferences: {

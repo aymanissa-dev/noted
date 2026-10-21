@@ -4,6 +4,7 @@ import Folder, { MAX_FOLDERS } from '../models/Folder.js';
 import Note from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
+import { createFolderWithinCap, releaseFolder } from '../lib/folderQuota.js';
 
 export { MAX_FOLDERS };
 const router = Router();
@@ -39,8 +40,8 @@ router.get('/', asyncHandler(async (req, res) => {
 
 router.post('/', asyncHandler(async (req, res) => {
   const name = parseName(req.body?.name);
-  if (await Folder.countDocuments({ user: req.userId }) >= MAX_FOLDERS) throw new HttpError(400, `You can have at most ${MAX_FOLDERS} folders`);
-  const folder = await Folder.create({ user: req.userId, name }).catch(duplicate);
+  const folder = await createFolderWithinCap(req.userId, name).catch(duplicate); // atomic cap
+  if (!folder) throw new HttpError(400, `You can have at most ${MAX_FOLDERS} folders`);
   res.status(201).json({ folder: { ...folder.toJSON(), count: 0 } });
 }));
 
@@ -55,7 +56,8 @@ router.patch('/:id', asyncHandler(async (req, res) => {
 router.delete('/:id', asyncHandler(async (req, res) => {
   const folder = await findOwnFolder(req);
   const { modifiedCount } = await Note.updateMany({ user: req.userId, folderId: folder._id }, { $set: { folderId: null } }, { timestamps: false });
-  await folder.deleteOne();
+  const { deletedCount } = await Folder.deleteOne({ _id: folder._id, user: req.userId });
+  if (deletedCount) await releaseFolder(req.userId); // only the request that actually deleted it
   res.json({ ok: true, movedNotes: modifiedCount });
 }));
 
