@@ -3,13 +3,19 @@ const RAW = `😀 grinning smile happy|😃 smiley happy joy|😄 smile happy la
 
 export const EMOJI = RAW.split('|').map((e) => { const [char, ...words] = e.split(' '); return { char, name: words[0], keywords: words.join(' ') }; });
 
+// Ranking: exact name, name prefix, exact keyword, keyword prefix, then substring.
 export function searchEmoji(query, limit = 40) {
   const q = query.trim().toLowerCase();
   if (!q) return EMOJI.slice(0, limit);
-  const starts = []; const contains = [];
-  for (const e of EMOJI) {
-    if (e.keywords.split(' ').some((w) => w.startsWith(q))) starts.push(e);
-    else if (e.keywords.includes(q)) contains.push(e);
-  }
-  return [...starts, ...contains].slice(0, limit);
+  const rank = (e) => {
+    if (e.name === q) return 0;
+    if (e.name.startsWith(q)) return 1;
+    const words = e.keywords.split(' ');
+    if (words.includes(q)) return 2;
+    if (words.some((w) => w.startsWith(q))) return 3;
+    if (e.keywords.includes(q)) return 4;
+    return -1;
+  };
+  return EMOJI.map((e, i) => [rank(e), i, e]).filter(([r]) => r >= 0)
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, limit).map(([, , e]) => e);
 }
