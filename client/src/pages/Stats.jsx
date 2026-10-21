@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { useOnReconnect } from '../lib/network.js';
+import { useRefetch, useIsOnline, isOfflineError } from '../lib/network.js';
 import { Bar } from '../components/Skeleton.jsx';
+import Icon from '../components/Icon.jsx';
 
 const fmt = (n) => new Intl.NumberFormat().format(n);
 const bytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`);
@@ -20,15 +21,23 @@ function Tile({ label, value, hint }) {
 export default function Stats() {
   const [s, setS] = useState(null);
   const [error, setError] = useState('');
-  const load = () => api.stats().then((x) => { setS(x); setError(''); }).catch((e) => setError(e.message));
+  const online = useIsOnline();
+  const load = () => api.stats().then((x) => { setS(x); setError(''); })
+    .catch((e) => setError(isOfflineError(e) || e instanceof TypeError ? 'network' : e.message));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useOnReconnect(load);
+  // Back online, back to the tab, or (while it's failing) every few seconds: try again.
+  useRefetch(load, { failing: Boolean(error), onFocus: 'always' });
   return (
     <div className="mx-auto max-w-3xl">
       <Link to="/settings" className="btn-ghost -ml-3">← Settings</Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">Storage</h1>
       <p className="text-sm text-muted">What’s in your notebook. Locked notes are counted but their words stay private.</p>
-      {error && <p className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p>}
+      {error && (
+        <div role="status" data-testid="stats-error" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm dark:border-stone-800 dark:bg-stone-900">
+          <span className="inline-flex items-center gap-2 text-muted"><Icon name="offline" size="xs" />{error === 'network' ? (online ? 'Couldn’t reach noted. Trying again…' : 'You’re offline. These numbers load when you reconnect.') : error}</span>
+          <button type="button" className="btn-secondary btn-sm" onClick={load}>Try again</button>
+        </div>
+      )}
       {!s && !error && <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="surface p-4"><Bar className="h-3 w-16" /><Bar className="mt-3 h-6 w-12" /></div>)}</div>}
       {s && (
         <>
