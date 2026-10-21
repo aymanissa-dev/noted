@@ -18,11 +18,11 @@ try {
   ok(!(await p.$('[data-testid=caps-warning]')), 'caps warning clears');
   const email = `ux+${Date.now()}@noted.test`;
   await p.$eval('#reg-email', (e) => { e.select(); }); await p.type('#reg-email', email);
-  await p.$eval('#reg-password', (e) => e.select()); await p.type('#reg-password', 'password123');
+  await p.$eval('#reg-password', (e) => e.select()); await p.type('#reg-password', 'quiet-otter-lamp-91');
   await p.type('#reg-name', 'UX Tester');
   await p.click('form button[type=submit]');
   await p.waitForFunction(() => location.pathname === '/notes', { timeout: 15000 });
-  const login = await api('POST', '/auth/login', { email, password: 'password123' });
+  const login = await api('POST', '/auth/login', { email, password: 'quiet-otter-lamp-91' });
   created.push({ email, token: login.data.token });
   await p.waitForFunction(() => document.querySelector('main')?.innerText.includes('Welcome'), { timeout: 10000 }).catch(() => {});
   ok(await p.$eval('main', (e) => e.innerText.includes('Welcome')), 'welcome note on first run');

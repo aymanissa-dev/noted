@@ -95,7 +95,7 @@ try {
   }
   if (want('pin')) {
     const u = await newUser('fix');
-    await api('PUT', '/auth/lock-pin', { password: 'password123', pin: '2468' }, u.token);
+    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '2468' }, u.token);
     const n = (await api('POST', '/notes', { title: 'Secret', content: 'hidden' }, u.token)).data.note;
     await api('PATCH', `/notes/${n._id}/lock`, { locked: true }, u.token);
     const p = await page(u);
@@ -155,7 +155,7 @@ try {
       await p.evaluate(() => { localStorage.clear(); sessionStorage.clear(); }).catch(() => {});
       await p.goto(BASE + path, { waitUntil: 'networkidle0' });
       await p.waitForSelector('input[type=email]');
-      await p.type('input[type=email]', u.email); await p.type('input[autocomplete=current-password]', 'password123');
+      await p.type('input[type=email]', u.email); await p.type('input[autocomplete=current-password]', 'quiet-otter-lamp-91');
       await Promise.all([p.waitForFunction(() => !location.pathname.startsWith('/login'), { timeout: 15000 }), p.click('form button.btn-primary')]);
       await sleep(300); return new URL(p.url()).pathname;
     };
@@ -200,7 +200,7 @@ try {
   }
   if (want('recent')) {
     const u = await newUser('fix');
-    await api('PUT', '/auth/lock-pin', { password: 'password123', pin: '2468' }, u.token);
+    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '2468' }, u.token);
     const mk = async (title) => (await api('POST', '/notes', { title, content: title }, u.token)).data.note;
     const a = await mk('Alpha recent'), bn = await mk('Beta recent'), l = await mk('Secret recent');
     await api('PATCH', `/notes/${l._id}/lock`, { locked: true }, u.token);
@@ -222,7 +222,7 @@ try {
     // remove the PIN in Settings → the sidebar shows the note's real title without a reload
     await p.goto(`${BASE}/settings`, { waitUntil: 'networkidle0' });
     await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Remove PIN').click());
-    await p.waitForSelector('input[placeholder="Account password"]'); await p.type('input[placeholder="Account password"]', 'password123');
+    await p.waitForSelector('input[placeholder="Account password"]'); await p.type('input[placeholder="Account password"]', 'quiet-otter-lamp-91');
     await p.evaluate(() => [...document.querySelectorAll('form button')].find((x) => /Remove PIN/.test(x.innerText)).click());
     await p.waitForFunction(() => /PIN removed/.test(document.body.innerText), { timeout: 8000 });
     const t0 = Date.now();
@@ -237,7 +237,7 @@ try {
     const c0 = await count();
     p.on('dialog', (d) => d.accept());
 
-    const other = await api('POST', '/auth/login', { email: u.email, password: 'password123' });
+    const other = await api('POST', '/auth/login', { email: u.email, password: 'quiet-otter-lamp-91' });
     await p.evaluate(() => window.dispatchEvent(new Event('focus'))); // you come back to the tab
     await p.waitForFunction((n) => document.querySelectorAll('[data-testid=activity] li').length > n, { timeout: 5000 }, c0).catch(() => {});
     ok((await count()) === c0 + 1, `activity: a new sign-in shows when you return to the tab (${c0} → ${await count()})`);

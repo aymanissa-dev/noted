@@ -25,7 +25,7 @@ const test = (name, fn) => tests.push([name, fn]);
 
 // ---- accent preference ----
 test('accent preference', async () => {
-  let r = await call('POST', '/auth/register', { name: 'Vee', email: 'vee@example.com', password: 'password123' });
+  let r = await call('POST', '/auth/register', { name: 'Vee', email: 'vee@example.com', password: 'quiet-otter-lamp-91' });
   token = r.data.token;
   assert.equal(r.data.user.preferences.accent, 'amber');
   assert.equal((await call('PATCH', '/auth/preferences', { accent: 'neon' })).status, 400);
@@ -50,7 +50,7 @@ test('folders', async () => {
   r = await call('PATCH', `/folders/${home._id}`, { name: 'House' }); assert.equal(r.data.folder.name, 'House');
   // another user can't see or use my folder
   const mine = token;
-  token = (await call('POST', '/auth/register', { name: 'Eve', email: 'eve@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Eve', email: 'eve@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   assert.equal((await call('PATCH', `/folders/${work._id}`, { name: 'x' })).status, 404);
   const eveNote = (await call('POST', '/notes', { title: 'e', content: 'e' })).data.note;
   assert.equal((await call('PATCH', `/notes/${eveNote._id}/folder`, { folderId: work._id })).status, 404);
@@ -67,7 +67,7 @@ test('folders survive export/import', async () => {
   const exp = (await call('GET', '/notes/export')).data;
   assert.equal(exp.notes.find((n) => n.title === 'Lamu').folder, 'Trips');
   const mine = token;
-  token = (await call('POST', '/auth/register', { name: 'Imp', email: 'imp@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Imp', email: 'imp@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   const r = await call('POST', '/notes/import', exp); assert.equal(r.status, 201);
   const trips = (await call('GET', '/folders')).data.folders.find((x) => x.name === 'Trips');
   assert.ok(trips); assert.equal(trips.count, 1);
@@ -75,7 +75,7 @@ test('folders survive export/import', async () => {
 });
 
 test('recently viewed and smart filters', async () => {
-  token = (await call('POST', '/auth/register', { name: 'Rec', email: 'rec@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Rec', email: 'rec@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   const ids = [];
   for (let i = 0; i < 12; i++) ids.push((await call('POST', '/notes', { title: `n${i}`, content: 'x', tags: i % 2 ? ['odd'] : [] })).data.note._id);
   for (const id of ids) await call('GET', `/notes/${id}`);
@@ -106,7 +106,7 @@ test('markdown search matches plain text', async () => {
 });
 
 test('merge notes', async () => {
-  token = (await call('POST', '/auth/register', { name: 'Mer', email: 'mer@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Mer', email: 'mer@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   const a = (await call('POST', '/notes', { title: 'A', content: 'alpha', tags: ['x'] })).data.note;
   const b = (await call('POST', '/notes', { title: 'B', content: 'beta', tags: ['y', 'x'] })).data.note;
   const c = (await call('POST', '/notes', { title: 'C', content: 'gamma' })).data.note;
@@ -125,18 +125,18 @@ test('merge notes', async () => {
   assert.deepEqual((await call('GET', '/notes')).data.notes.map((n) => n.title).sort(), ['A', 'B', 'C']);
   // trashed/foreign/locked notes can't be merged
   assert.equal((await call('POST', '/notes/merge', { ids: [a._id, r.data.note._id] })).status, 404);
-  await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' });
+  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' });
   await call('PATCH', `/notes/${a._id}/lock`, { locked: true });
   assert.equal((await call('POST', '/notes/merge', { ids: [a._id, b._id] })).status, 423);
 });
 
 test('storage stats', async () => {
-  token = (await call('POST', '/auth/register', { name: 'Sta', email: 'sta@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Sta', email: 'sta@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   await call('POST', '/folders', { name: 'F' });
   await call('POST', '/notes', { title: 'Big one', content: '# Heading\n' + 'word '.repeat(50), tags: ['t1', 't2'] });
   await call('POST', '/notes', { title: 'Small', content: 'two **words**', tags: ['t1'] });
   const s3 = (await call('POST', '/notes', { title: 'Secret', content: 'x '.repeat(500) })).data.note;
-  await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' });
+  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' });
   await call('PATCH', `/notes/${s3._id}/lock`, { locked: true });
   const r = await call('GET', '/stats');
   assert.equal(r.status, 200);
@@ -153,28 +153,28 @@ test('login activity', async () => {
   assert.deepEqual(parseUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0'), { browser: 'Edge 129', os: 'Windows', device: 'desktop' });
   assert.equal(maskIp('203.0.113.77'), '203.0.x.x'); assert.equal(maskIp('::ffff:10.1.2.3'), '10.1.x.x'); assert.equal(maskIp('2001:db8:85a3:0:0:8a2e:370:7334'), '2001:db8:85a3:…');
   const UA = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36' };
-  const reg = await fetch(base + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA }, body: JSON.stringify({ name: 'Act', email: 'act@example.com', password: 'password123' }) }).then((r) => r.json());
+  const reg = await fetch(base + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA }, body: JSON.stringify({ name: 'Act', email: 'act@example.com', password: 'quiet-otter-lamp-91' }) }).then((r) => r.json());
   token = reg.token;
   let r = await call('GET', '/auth/activity');
   assert.equal(r.data.events.length, 1);
   assert.equal(r.data.events[0].kind, 'register'); assert.equal(r.data.events[0].browser, 'Chrome 129'); assert.equal(r.data.events[0].os, 'Linux');
   assert.equal(r.data.events[0].current, true); assert.ok(!/\d+\.\d+\.\d+\.\d+/.test(r.data.events[0].ip));
-  for (let i = 0; i < 22; i++) await call('POST', '/auth/login', { email: 'act@example.com', password: 'password123' });
+  for (let i = 0; i < 22; i++) await call('POST', '/auth/login', { email: 'act@example.com', password: 'quiet-otter-lamp-91' });
   r = await call('GET', '/auth/activity');
   assert.equal(r.data.events.length, 20); // capped
   assert.equal(r.data.events.filter((e) => e.current).length, 0); // the register session was pruned
-  token = (await call('POST', '/auth/login', { email: 'act@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/login', { email: 'act@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   r = await call('POST', '/auth/logout-all'); token = r.data.token;
   r = await call('GET', '/auth/activity');
   assert.equal(r.data.events[0].current, true); assert.equal(r.data.events[0].active, true);
   assert.ok(r.data.events.slice(1).every((e) => !e.active)); // other sessions revoked
-  await call('DELETE', '/auth/me', { password: 'password123' });
+  await call('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' });
   const LoginEvent = (await import('./src/models/LoginEvent.js')).default;
   assert.equal(await LoginEvent.countDocuments({}), await LoginEvent.countDocuments({ user: { $ne: null } }));
 });
 
 test('voice notes', async () => {
-  token = (await call('POST', '/auth/register', { name: 'Aud', email: 'aud@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Aud', email: 'aud@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   const n = (await call('POST', '/notes', { title: 'Voice', content: 'v' })).data.note;
   const audio = Buffer.from(Array.from({ length: 5000 }, (_, i) => i % 256));
   const up = (id, body, type = 'audio/webm;codecs=opus', dur = '3') => fetch(`${base}/notes/${id}/audio`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': type, 'X-Audio-Duration': dur }, body });
@@ -192,12 +192,12 @@ test('voice notes', async () => {
   assert.equal(s.status, 206); assert.equal(s.headers.get('content-range'), 'bytes 100-199/5000'); assert.ok(Buffer.from(await s.arrayBuffer()).equals(audio.subarray(100, 200)));
   assert.equal((await fetch(`${base}/audio/${clip._id}`)).status, 401);
   const mine = token;
-  token = (await call('POST', '/auth/register', { name: 'Thief', email: 'thief@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Thief', email: 'thief@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   assert.equal((await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}` } })).status, 404);
   assert.equal((await up(n._id, audio)).status, 404);
   token = mine;
   // locked notes hide their audio until unlocked
-  await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' });
+  await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' });
   await call('PATCH', `/notes/${n._id}/lock`, { locked: true });
   assert.equal((await call('GET', `/notes/${n._id}/audio`)).status, 423);
   assert.equal((await fetch(`${base}/audio/${clip._id}`, { headers: { Authorization: `Bearer ${token}` } })).status, 423);
@@ -212,13 +212,13 @@ test('voice notes', async () => {
   await call('DELETE', `/notes/${n._id}?permanent=true`);
   assert.equal(await AudioClip.countDocuments({ note: n._id }), 0);
   // ...and with the account
-  await call('DELETE', '/auth/me', { password: 'password123' });
+  await call('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' });
   assert.equal(await AudioClip.countDocuments({ note: n2._id }), 0);
   // clip deletion
 });
 
 test('history: QA repro (3 edits ~3.5s apart) + sessions + cumulative change', async () => {
-  token = (await call('POST', '/auth/register', { name: 'Hist', email: 'hist@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Hist', email: 'hist@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   const n = (await call('POST', '/notes', { title: 'Beta pancakes', content: 'Body of Beta pancakes' })).data.note;
   const versions = async () => (await call('GET', `/notes/${n._id}/versions`)).data.versions;
   const edit = (content, session) => call('PATCH', `/notes/${n._id}`, { content }, session ? { 'X-Edit-Session': session } : {});
@@ -246,13 +246,13 @@ test('history: QA repro (3 edits ~3.5s apart) + sessions + cumulative change', a
 });
 
 test('welcome note on web sign-up only', async () => {
-  let r = await call('POST', '/auth/register', { name: 'New', email: 'new@example.com', password: 'password123', sample: true });
+  let r = await call('POST', '/auth/register', { name: 'New', email: 'new@example.com', password: 'quiet-otter-lamp-91', sample: true });
   token = r.data.token;
   let notes = (await call('GET', '/notes')).data.notes;
   assert.equal(notes.length, 1); assert.equal(notes[0].title, 'Welcome to noted.'); assert.equal(notes[0].pinned, true);
   assert.deepEqual(notes[0].tags, ['welcome']);
   assert.equal((await call('DELETE', `/notes/${notes[0]._id}?permanent=true`)).status, 204); // deletable
-  r = await call('POST', '/auth/register', { name: 'Api', email: 'api@example.com', password: 'password123' });
+  r = await call('POST', '/auth/register', { name: 'Api', email: 'api@example.com', password: 'quiet-otter-lamp-91' });
   token = r.data.token;
   assert.equal((await call('GET', '/notes')).data.notes.length, 0); // API clients start empty
 });

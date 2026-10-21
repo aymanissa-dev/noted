@@ -25,13 +25,13 @@ const call = async (method, path, body) => {
 };
 
 try {
-  let r = await call('POST', '/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'password123' });
+  let r = await call('POST', '/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'quiet-otter-lamp-91' });
   assert.equal(r.status, 201);
-  r = await call('POST', '/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'password123' });
+  r = await call('POST', '/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'quiet-otter-lamp-91' });
   assert.equal(r.status, 409);
   r = await call('POST', '/auth/login', { email: 'ada@example.com', password: 'wrong-pass' });
   assert.equal(r.status, 401);
-  r = await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' });
+  r = await call('POST', '/auth/login', { email: 'ada@example.com', password: 'quiet-otter-lamp-91' });
   assert.equal(r.status, 200); token = r.data.token;
   r = await call('GET', '/auth/me'); assert.equal(r.data.user.email, 'ada@example.com');
 
@@ -167,7 +167,7 @@ try {
 
   // sign out of all devices
   {
-    const login = async () => (await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' })).data.token;
+    const login = async () => (await call('POST', '/auth/login', { email: 'ada@example.com', password: 'quiet-otter-lamp-91' })).data.token;
     const deviceA = token; const deviceB = await login();
     const asToken = async (t, m, p, b) => { const keep = token; token = t; const out = await call(m, p, b); token = keep; return out; };
     assert.equal((await asToken(deviceB, 'GET', '/auth/me')).status, 200);
@@ -188,9 +188,9 @@ try {
     const secret = (await call('POST', '/notes', { title: 'Bank codes', content: 'secret-sauce 1234', tags: ['private'] })).data.note;
     assert.equal((await call('PATCH', `/notes/${secret._id}/lock`, { locked: true })).status, 400); // no PIN yet
     assert.equal((await call('PUT', '/auth/lock-pin', { password: 'wrong-pass', pin: '1234' })).status, 403);
-    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '12ab' })).status, 400);
-    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234567' })).status, 400);
-    r = await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '2468' }); assert.equal(r.data.user.hasLockPin, true);
+    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '12ab' })).status, 400);
+    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234567' })).status, 400);
+    r = await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '2468' }); assert.equal(r.data.user.hasLockPin, true);
     assert.equal((await call('GET', '/auth/me')).data.user.hasLockPin, true);
     const dbUser = await (await import('./src/models/User.js')).default.findOne({ email: 'ada@example.com' }).select('+lockPinHash');
     assert.ok(dbUser.lockPinHash.startsWith('$2')); // bcrypt-hashed, never plain
@@ -258,7 +258,7 @@ try {
 
     // changing the PIN requires the password and expires old unlock tokens
     assert.equal((await call('PUT', '/auth/lock-pin', { password: 'nope-nope', pin: '1357' })).status, 403);
-    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'password123', pin: '1357' })).status, 200);
+    assert.equal((await call('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1357' })).status, 200);
     assert.equal((await withUnlock('GET', `/notes/${secret._id}`)).data.note.content, '');
     assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '2468' })).status, 403);
     assert.equal((await call('POST', `/notes/${secret._id}/unlock`, { pin: '1357' })).status, 200);
@@ -270,7 +270,7 @@ try {
     // removing the PIN needs the password and unlocks every locked note
     await call('PATCH', `/notes/${secret._id}/lock`, { locked: true });
     assert.equal((await call('DELETE', '/auth/lock-pin', { password: 'nope-nope' })).status, 403);
-    r = await call('DELETE', '/auth/lock-pin', { password: 'password123' });
+    r = await call('DELETE', '/auth/lock-pin', { password: 'quiet-otter-lamp-91' });
     assert.equal(r.data.user.hasLockPin, false); assert.equal(r.data.unlockedNotes, 1);
     assert.equal((await call('GET', `/notes/${secret._id}`)).data.note.content, 'secret-sauce 5678');
     await call('DELETE', `/notes/${secret._id}?permanent=true`);
@@ -298,46 +298,46 @@ try {
     const U = (await import('./src/models/User.js')).default;
     const ada = await U.findOne({ email: 'ada@example.com' }).select('+password');
     assert.equal(bcrypt.getRounds(ada.password), 10);
-    await U.updateOne({ _id: ada._id }, { password: await bcrypt.hash('password123', 12) });
-    assert.equal((await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' })).status, 200);
+    await U.updateOne({ _id: ada._id }, { password: await bcrypt.hash('quiet-otter-lamp-91', 12) });
+    assert.equal((await call('POST', '/auth/login', { email: 'ada@example.com', password: 'quiet-otter-lamp-91' })).status, 200);
     assert.equal(bcrypt.getRounds((await U.findById(ada._id).select('+password')).password), 10);
   }
 
   // @@MORE@@
 
   // isolation: another user can't see Ada's notes
-  token = (await call('POST', '/auth/register', { name: 'Bob', email: 'bob@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/register', { name: 'Bob', email: 'bob@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   assert.equal((await call('GET', `/notes/${a._id}`)).status, 404);
   assert.equal((await call('GET', '/notes')).data.notes.length, 0);
   token = 'bad'; assert.equal((await call('GET', '/notes')).status, 401);
 
   // account: change password, delete account + notes
-  token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   const bobNote = (await call('POST', '/notes', { title: 'Bob note' })).data.note;
   await call('PATCH', `/notes/${bobNote._id}`, { title: 'Bob note edited' }); // creates a version
   // Bob cannot see Ada's versions
   assert.equal((await call('GET', `/notes/${a._id}/versions`)).status, 404);
-  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'wrong-pass', newPassword: 'newpassword1' })).status, 403);
-  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'short' })).status, 400);
-  const bobOther = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).data.token;
-  r = await call('PATCH', '/auth/password', { currentPassword: 'password123', newPassword: 'newpassword1' });
+  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'wrong-pass', newPassword: 'brisk-heron-sail-27' })).status, 403);
+  assert.equal((await call('PATCH', '/auth/password', { currentPassword: 'quiet-otter-lamp-91', newPassword: 'short' })).status, 400);
+  const bobOther = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'quiet-otter-lamp-91' })).data.token;
+  r = await call('PATCH', '/auth/password', { currentPassword: 'quiet-otter-lamp-91', newPassword: 'brisk-heron-sail-27' });
   assert.equal(r.status, 200); assert.ok(r.data.token);
   assert.equal((await call('GET', '/auth/me')).status, 401);           // this request's old token is revoked…
   token = r.data.token; assert.equal((await call('GET', '/auth/me')).status, 200); // …but the fresh one works
   { const keep = token; token = bobOther; assert.equal((await call('GET', '/auth/me')).status, 401); token = keep; }
-  assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'password123' })).status, 401);
-  token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'newpassword1' })).data.token;
+  assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'quiet-otter-lamp-91' })).status, 401);
+  token = (await call('POST', '/auth/login', { email: 'bob@example.com', password: 'brisk-heron-sail-27' })).data.token;
   assert.equal((await call('DELETE', '/auth/me', {})).status, 400);
-  assert.equal((await call('DELETE', '/auth/me', { password: 'password123' })).status, 403);
+  assert.equal((await call('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' })).status, 403);
   const bobId = (await call('GET', '/auth/me')).data.user.id;
-  r = await call('DELETE', '/auth/me', { password: 'newpassword1' });
+  r = await call('DELETE', '/auth/me', { password: 'brisk-heron-sail-27' });
   assert.equal(r.status, 200); assert.equal(r.data.deletedNotes, 1);
   assert.equal(await Note.countDocuments({ user: bobId }), 0);
   assert.equal(await NoteVersion.countDocuments({ user: bobId }), 0);
   assert.equal((await call('GET', '/auth/me')).status, 401);
-  assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'newpassword1' })).status, 401);
+  assert.equal((await call('POST', '/auth/login', { email: 'bob@example.com', password: 'brisk-heron-sail-27' })).status, 401);
   // Ada's data is untouched
-  token = (await call('POST', '/auth/login', { email: 'ada@example.com', password: 'password123' })).data.token;
+  token = (await call('POST', '/auth/login', { email: 'ada@example.com', password: 'quiet-otter-lamp-91' })).data.token;
   assert.ok((await call('GET', '/notes')).data.notes.length >= 1);
 
   console.log('✅ All smoke tests passed');

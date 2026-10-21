@@ -35,7 +35,7 @@ try {
   // real browser login → dashboard, and it shows up as "This device" in login activity
   const bc = await b.createBrowserContext(); const lp = await bc.newPage(); await lp.setViewport({ width: 1280, height: 860 });
   await lp.goto(BASE + '/login', { waitUntil: 'networkidle0' });
-  await lp.type('input[type=email]', u.email); await lp.type('input[type=password]', 'password123');
+  await lp.type('input[type=email]', u.email); await lp.type('input[type=password]', 'quiet-otter-lamp-91');
   await Promise.all([lp.waitForFunction(() => location.pathname === '/notes', { timeout: 15000 }), lp.click('form button.btn-primary')]);
   ok(true, 'browser login lands on /notes');
   await lp.goto(BASE + '/settings', { waitUntil: 'networkidle0' }); await lp.waitForSelector('[data-testid=activity] li');

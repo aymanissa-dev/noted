@@ -2,7 +2,7 @@ import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep } from './h.mjs'
 const b = await launch();
 try {
   const u = await newUser('anim');
-  await api('PUT', '/auth/lock-pin', { password: 'password123', pin: '1234' }, u.token);
+  await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' }, u.token);
   const ids = [];
   for (const t of ['A', 'B', 'C']) { ids.push((await api('POST', '/notes', { title: t, content: t }, u.token)).data.note._id); await sleep(20); }
   const p = await pageAs(b, u.token, { ...u.user, hasLockPin: true });

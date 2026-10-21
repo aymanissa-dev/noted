@@ -15,6 +15,7 @@ import { hashPin, PIN_RE } from '../lib/lockPin.js';
 export const BCRYPT_COST = 10;
 
 import { createWelcomeNote } from '../lib/welcome.js';
+import { assertGoodPassword, localProblem } from '../lib/passwordPolicy.js';
 
 const router = Router();
 // Record a sign-in and keep only the newest ACTIVITY_LIMIT. Returns the event id (stored in the token as sid).
@@ -43,8 +44,10 @@ router.post('/register', asyncHandler(async (req, res) => {
   const password = String(req.body?.password || '');
   if (!name) throw new HttpError(400, 'Name is required');
   if (!EMAIL_RE.test(email)) throw new HttpError(400, 'A valid email is required');
-  if (password.length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
+  const weak = localProblem(password, { email, name });
+  if (weak) throw new HttpError(400, weak, { field: 'password' });
   if (await User.exists({ email })) throw new HttpError(409, 'Email already registered');
+  await assertGoodPassword(password, { email, name }); // + breach check
 
   const user = await User.create({ name, email, password: await bcrypt.hash(password, BCRYPT_COST) });
   const sid = await recordSignIn(req, user, 'register');
@@ -107,8 +110,10 @@ router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   const user = await verifyPassword(req.userId, currentPassword);
   if (typeof newPassword !== 'string' || newPassword.length < 8) {
-    throw new HttpError(400, 'New password must be at least 8 characters');
+    throw new HttpError(400, 'New password must be at least 8 characters', { field: 'newPassword' });
   }
+  if (newPassword === currentPassword) throw new HttpError(400, 'Choose a password different from your current one', { field: 'newPassword' });
+  await assertGoodPassword(newPassword, { email: user.email, name: user.name });
   user.password = await bcrypt.hash(newPassword, BCRYPT_COST);
   user.tokenVersion = (user.tokenVersion ?? 0) + 1; // sign out other devices
   await user.save();

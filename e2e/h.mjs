@@ -10,13 +10,13 @@ export const api = async (method, path, body, token) => {
 export const created = [];
 export async function newUser(tag = 'ui') {
   const email = `${tag}+${Date.now()}${Math.floor(Math.random() * 1e4)}@noted.test`;
-  const r = await api('POST', '/auth/register', { name: 'Tester', email, password: 'password123' });
+  const r = await api('POST', '/auth/register', { name: 'Tester', email, password: 'quiet-otter-lamp-91' });
   created.push({ email, token: r.data.token });
   return { email, token: r.data.token, user: r.data.user };
 }
 export async function cleanup() {
   for (const u of created) {
-    const r = await api('DELETE', '/auth/me', { password: 'password123' }, u.token);
+    const r = await api('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' }, u.token);
     console.log('cleanup', u.email, r.status);
   }
 }
