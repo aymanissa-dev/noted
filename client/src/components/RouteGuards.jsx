@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { AppSkeleton } from './Skeleton.jsx';
+import { postLoginTarget } from '../pages/Login.jsx';
 
 const Splash = AppSkeleton;
 
@@ -16,6 +17,9 @@ export function ProtectedRoute() {
 
 export function GuestRoute() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <Splash />;
-  return user ? <Navigate to="/notes" replace /> : <Outlet />;
+  // Signing in on this page also re-renders this guard: send you to the same place the login form
+  // does (the page you came from), or the two redirects race (react-router 7 runs them in a transition).
+  return user ? <Navigate to={postLoginTarget(location.state?.from)} replace /> : <Outlet />;
 }
