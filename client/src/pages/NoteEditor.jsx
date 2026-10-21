@@ -24,7 +24,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import { cardClass } from '../lib/colors.js';
-import { useClearOfflineMessage, useRefetch, useIsOnline } from '../lib/network.js';
+import { useClearOfflineMessage, useRefetch, useIsOnline, isNetworkText } from '../lib/network.js';
 import { useTypewriter, toggleTypewriter, isTypewriterShortcut } from '../lib/typewriter.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -77,23 +77,30 @@ export default function NoteEditor() {
   // Couldn't load (network/server) and there's no copy on this device: show that instead of a
   // blank editor (typing into it could overwrite the real note), and keep retrying.
   const [loadFailed, setLoadFailed] = useState('');
+  const [loadPreview, setLoadPreview] = useState(null); // a list copy, shown read-only while it can't load
+  // Saves to an existing note are only allowed once its full body is known (opened from the server
+  // or from a full copy saved on this device). Belt and braces: the editor isn't even shown before
+  // that, but nothing may ever autosave a blank/partial body over the real note.
+  const bodyLoaded = useRef(!routeId || Boolean(initial));
+  const serverChecked = useRef(false);
   const [loadTick, setLoadTick] = useState(0);
-  useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) });
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) || refreshFailed });
 
-  const revalidated = useRef(false);
   useEffect(() => {
-    const refresh = initial && !revalidated.current && routeId === initial._id;
-    revalidated.current = true;
+    // Opened from a full local copy: check the server once (retried if that check fails).
+    const refresh = Boolean(initial) && routeId === initial._id && !serverChecked.current;
     if (!routeId || (routeId === idRef.current && !loading && !refresh && !loadFailed)) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
         const loaded = toLoaded(n);
+        serverChecked.current = true; bodyLoaded.current = true; setRefreshFailed(false);
         if (refresh) {
           // Opened from cache: take the server copy only if it differs and you haven't started typing.
           if (snapshot(noteRef.current) !== lastSaved.current) return;
           if (snapshot(loaded) === lastSaved.current && n.updatedAt === initial.updatedAt && !n.locked) return;
         }
-        setLoadFailed('');
+        setLoadFailed(''); setLoadPreview(null);
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
         if (n.locked) setNeedsPin(true);
@@ -101,8 +108,8 @@ export default function NoteEditor() {
       })
       .catch((e) => {
         if (e.status === 404 || e.status === 400 || e.status === 403) setNotFound(true);
-        else if (!initial) setLoadFailed(e.message || 'Couldn’t load this note.');
-        else setError(e.message);
+        else if (!initial) { setLoadFailed(e.message || 'Couldn’t load this note.'); setLoadPreview(e.preview || null); }
+        else setRefreshFailed(true); // keep editing the full local copy; changes queue and sync later
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,6 +123,7 @@ export default function NoteEditor() {
     if (snap === lastSaved.current) { setStatus((s) => (s === 'dirty' ? 'saved' : s)); return; }
     if (!idRef.current && isEmpty(current)) return;
     if (current.locked && !unlockToken.current) return; // wait for PIN
+    if (idRef.current && !isTempId(idRef.current) && !bodyLoaded.current) return; // body never loaded: never overwrite it
     if (previewOnlyRef.current) return; // never save a truncated excerpt over the real note
     setStatus('saving'); setError('');
     const run = (async () => {
@@ -172,7 +180,7 @@ export default function NoteEditor() {
     const fieldsOf = (n) => ({ title: n.title, content: n.content, tags: n.tags, color: n.color, emoji: n.emoji });
     // Fire a keepalive save of the latest state when the page is hidden or unloaded.
     const flush = () => {
-      if (!dirty() || !idRef.current) return;
+      if (!dirty() || !idRef.current || !bodyLoaded.current) return;
       if (noteRef.current.locked && !unlockToken.current) return;
       if (saveOnUnload(idRef.current, fieldsOf(noteRef.current), unlockToken.current)) lastSaved.current = snapshot(noteRef.current);
     };
@@ -341,6 +349,13 @@ export default function NoteEditor() {
           <button type="button" className="btn-primary" onClick={() => setLoadTick((t) => t + 1)}><Icon name="refresh" />Try again</button>
           <Link to="/notes" className="btn-ghost"><Icon name="back" />Back to notes</Link>
         </div>
+        {loadPreview && (
+          <div data-testid="note-load-preview" className="mt-8 rounded-xl border border-dashed border-stone-200 p-4 text-left dark:border-stone-800">
+            <p className="text-xs text-faint">Only a preview of this note is saved on this device (read-only).</p>
+            <p className="mt-2 font-semibold text-stone-800 dark:text-stone-100">{loadPreview.emoji ? `${loadPreview.emoji} ` : ''}{loadPreview.title || 'Untitled'}</p>
+            {loadPreview.content && <p className="mt-1 line-clamp-6 whitespace-pre-line text-sm text-muted">{loadPreview.content}{loadPreview.excerpt ? '…' : ''}</p>}
+          </div>
+        )}
       </div>
     );
   }
@@ -460,7 +475,9 @@ export default function NoteEditor() {
         <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>
         <span className="hidden sm:inline">Saves as you type</span>
       </div>
-      {error && <p className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
+      {error && (isNetworkText(error)
+        ? <p role="status" className="mt-3 inline-flex items-center gap-2 text-sm text-muted"><Icon name="offline" size="xs" />{error} Your changes are kept and sync when you’re back.</p>
+        : <p className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>)}
 
       {outlineSheet && (
         <Dialog title="Outline" description="Jump to a heading." closeButton onClose={() => setOutlineSheet(false)}>

@@ -5,7 +5,10 @@ import { OFFLINE_MESSAGE, NETWORK_MESSAGE } from './network.js';
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 export const TOKEN_KEY = 'noted.token';
 export const USER_KEY = 'noted.user';
-const CACHE_KEY = 'noted.cache';
+// v2: list copies are marked (`_list`) so they're never mistaken for a full, editable note.
+// Older caches can't tell the two apart, so they're dropped (the next list fetch refills it).
+const CACHE_KEY = 'noted.cache.v2';
+try { localStorage.removeItem('noted.cache'); } catch { /* storage unavailable */ }
 const CACHE_LIMIT = 1000;
 
 export const queue = createQueue(localStorage);
@@ -86,18 +89,23 @@ const writeMeta = (k, v) => { try { const m = JSON.parse(localStorage.getItem(ME
 
 // ---- Local read cache (for offline reading). Cleared on logout. ----
 const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch { return {}; } };
-function cacheNotes(notes, { replaceView } = {}) {
+// `list: true` marks copies that came from a list response. Even when a short note's whole body
+// fits in the list, it may be stale and isn't proof the body was ever loaded, so only copies from a
+// single-note response (open, prefetch, save, create…) count as "full" for opening in the editor.
+function cacheNotes(notes, { replaceView, list = false } = {}) {
   try {
     let cache = readCache();
+    const old = cache; // full copies survive a view refresh when the list shows the same version
     if (replaceView) { // drop stale notes of a fully-fetched view
       cache = Object.fromEntries(Object.entries(cache).filter(([, n]) => viewOf(n) !== replaceView));
     }
     for (const n of notes) {
       if (n.locked) { cache[n._id] = { ...n, title: '', content: '', tags: [], redacted: true }; continue; }
-      const prev = cache[n._id];
-      // Never replace a full cached note with a list excerpt of the same version.
-      if (n.excerpt && prev && !prev.excerpt && prev.updatedAt === n.updatedAt) continue;
-      cache[n._id] = n;
+      const prev = cache[n._id] || old[n._id];
+      // Never replace a full cached note with a list copy of the same version.
+      if (list && prev && !prev._list && !prev.excerpt && prev.updatedAt === n.updatedAt) { cache[n._id] = prev; continue; }
+      if (list) cache[n._id] = { ...n, _list: true };
+      else { const { _list, ...full } = n; cache[n._id] = full; }
     }
     const entries = Object.entries(cache).sort((a, b) => new Date(b[1].updatedAt) - new Date(a[1].updatedAt)).slice(0, CACHE_LIMIT);
     localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
@@ -261,19 +269,19 @@ export const api = {
   prefetchNote(id) {
     if (!id || isTempId(id) || prefetched.has(id) || !navigator.onLine) return;
     const c = readCache()[id];
-    if (c && !c.excerpt && !c.redacted) return; // full copy already here
+    if (c && !c._list && !c.excerpt && !c.redacted) return; // full copy already here
     prefetched.add(id);
     getShared(`/notes/${id}?prefetch=1`).then(({ note }) => cacheNotes([note])).catch(() => {}).finally(() => setTimeout(() => prefetched.delete(id), 30000));
   },
   // A full (non-excerpt, non-locked) cached copy, for opening a note instantly.
   cachedNote(id) {
     const c = readCache()[id];
-    if (!c || c.excerpt || c.redacted || c.locked) return null;
+    if (!c || c._list || c.excerpt || c.redacted || c.locked) return null;
     return queue.applyPending([c])[0];
   },
 
   async recentNotes(signal) {
-    try { const r = await (signal ? request('GET', '/notes/recent', undefined, { signal }) : getShared('/notes/recent')); cacheNotes(r.notes); writeMeta('recent', r.notes.slice(0, 10).map((n) => ({ _id: n._id, title: n.locked ? '' : n.title, emoji: n.locked ? '' : n.emoji, locked: n.locked }))); return { notes: r.notes, offline: false }; }
+    try { const r = await (signal ? request('GET', '/notes/recent', undefined, { signal }) : getShared('/notes/recent')); cacheNotes(r.notes, { list: true }); writeMeta('recent', r.notes.slice(0, 10).map((n) => ({ _id: n._id, title: n.locked ? '' : n.title, emoji: n.locked ? '' : n.emoji, locked: n.locked }))); return { notes: r.notes, offline: false }; }
     catch (err) { if (err?.name === 'AbortError' || !isNetworkError(err)) throw err; return { notes: [], offline: true }; }
   },
 
@@ -289,7 +297,7 @@ export const api = {
     let notes, offline = false;
     try {
       ({ notes } = await request('GET', `/notes${qs ? `?${qs}` : ''}`, undefined, { signal }));
-      cacheNotes(notes, { replaceView: !search && !tag && !folder && !smart ? view : undefined });
+      cacheNotes(notes, { list: true, replaceView: !search && !tag && !folder && !smart ? view : undefined });
     } catch (err) {
       if (err?.name === 'AbortError' || !isNetworkError(err)) throw err;
       offline = true;
@@ -337,8 +345,11 @@ export const api = {
       cacheNotes([note]);
       return { note: queue.applyPending([note])[0] };
     } catch (err) {
+      // Offline/unreachable: only a full copy can stand in for the note. A list copy is attached
+      // as err.preview so the UI can show it read-only, never as an editable note.
       const cached = readCache()[id];
       if (!isNetworkError(err) || !cached) throw err;
+      if (cached._list || cached.excerpt || cached.redacted) throw Object.assign(err, { preview: cached.redacted ? null : cached });
       return { note: queue.applyPending([cached])[0] };
     }
   },
