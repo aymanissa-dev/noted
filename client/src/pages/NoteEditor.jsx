@@ -14,7 +14,7 @@ import EditorTools from '../editor/EditorTools.jsx';
 import Icon from '../components/Icon.jsx';
 import Menu from '../components/Menu.jsx';
 import Dialog from '../components/Dialog.jsx';
-import { toHtml } from '../lib/markdown.js';
+import { toHtml, headings } from '../lib/markdown.js';
 import { dropUndo } from '../editor/undoStore.js';
 import { loadEditor } from '../editor/preload.js';
 
@@ -55,6 +55,7 @@ export default function NoteEditor() {
   const previewOnlyRef = useRef(false);
   const [editorApi, setEditorApi] = useState(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [outlineSheet, setOutlineSheet] = useState(false);
   previewOnlyRef.current = previewOnly;
 
   const lastSaved = useRef(snapshot(note));
@@ -326,9 +327,15 @@ export default function NoteEditor() {
             className={`btn-ghost btn-icon ${note.pinned ? 'text-accent' : ''}`}><PinIcon filled={note.pinned} /></button>
           {!note.deletedAt && <FolderPicker value={note.folderId} onChange={moveFolder} />}
           <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />
-          <Menu label="More actions" tip="More" testId="note-more" button={<Icon name="more" />}>
+          <Menu label="More actions" tip="More" testId="note-more" buttonClass="btn-ghost btn-icon text-stone-800 dark:text-stone-100" button={<Icon name="more" size="md" />}>
             {() => (
               <>
+                <div className="sm:hidden">
+                  <button role="menuitem" type="button" className="menu-item" onClick={() => setOutlineSheet(true)}><Icon name="outline" />Outline</button>
+                  <button role="menuitem" type="button" className="menu-item" onClick={() => setTimeout(() => editorApi?.openFind(), 50)}><Icon name="find" />Find and replace</button>
+                  <button role="menuitem" type="button" className="menu-item" onClick={() => setFocusMode(true)}><Icon name="focus" />Focus mode</button>
+                  <div className="menu-sep" />
+                </div>
                 {saved && <button role="menuitem" type="button" className="menu-item" aria-label="Version history" onClick={openHistory}><Icon name="history" />Version history</button>}
                 {saved && !note.deletedAt && (note.locked
                   ? <button role="menuitem" type="button" className="menu-item" aria-label="Remove lock" onClick={() => setRemoveLockOpen(true)}><Icon name="unlock" />Remove lock…</button>
@@ -376,7 +383,8 @@ export default function NoteEditor() {
         {!focusMode && (
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3">
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
-          <EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} />
+          {/* Phones: these live in the ··· menu, so there's a single toolbar row. */}
+          <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} /></div>
         </div>
         )}
         <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
@@ -401,6 +409,16 @@ export default function NoteEditor() {
       </div>
       {error && <p className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
 
+      {outlineSheet && (
+        <Dialog title="Outline" description="Jump to a heading." closeButton onClose={() => setOutlineSheet(false)}>
+          {headings(note.content).length === 0
+            ? <p className="text-sm text-muted">No headings yet. Type / at the start of a line and pick a heading.</p>
+            : <div className="-mx-2 max-h-[60vh] overflow-y-auto">{headings(note.content).map((h) => (
+              <button key={h.line} type="button" className="menu-item" style={{ paddingLeft: `${0.75 + (h.level - 1) * 0.875}rem` }}
+                onClick={() => { setOutlineSheet(false); setTimeout(() => editorApi?.jumpToLine(h.line), 50); }}>{h.text || 'Untitled heading'}</button>
+            ))}</div>}
+        </Dialog>
+      )}
       {historyOpen && <HistoryPanel noteId={noteId} current={{ ...note, updatedAt }} unlockToken={unlockToken.current} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
       {needsPin && unlockToken.current === null && (snapshot(note) !== lastSaved.current || note.content || note.title) && (
         <PinPrompt title="Unlock expired" description="Enter your PIN to keep saving this note." onSubmit={unlock} />

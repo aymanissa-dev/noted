@@ -67,6 +67,8 @@ export default function Icon({ name, size = 'sm', className = '', filled = false
   return (
     <svg aria-hidden={label ? undefined : 'true'} role={label ? 'img' : undefined} aria-label={label} viewBox="0 0 24 24"
       className={`icon shrink-0 ${SIZES[size] || size} ${className}`} fill={filled ? 'currentColor' : 'none'} stroke="currentColor"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={P[name]} /></svg>
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {name === 'more' ? <g fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></g> : <path d={P[name]} />}
+    </svg>
   );
 }

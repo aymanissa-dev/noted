@@ -11,7 +11,7 @@ export default function Menu({ button, label, tip, align = 'right', className = 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
     if (!open) return undefined;
-    const items = () => [...(ref.current?.querySelectorAll('[role=menuitem]:not([disabled])') || [])];
+    const items = () => [...(ref.current?.querySelectorAll('[role=menuitem]:not([disabled])') || [])].filter((el) => el.getClientRects().length); // visible ones only
     requestAnimationFrame(() => items()[0]?.focus());
     const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
     const onKey = (e) => {

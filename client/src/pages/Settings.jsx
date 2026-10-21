@@ -43,10 +43,10 @@ function AccentSection() {
   };
   return (
     <Card title="Accent color" description="Used for the logo dot, highlights, and focus rings. Synced to your account.">
-      <div role="radiogroup" aria-label="Accent color" className="flex flex-wrap gap-3">
+      <div role="radiogroup" aria-label="Accent color" className="grid grid-cols-6 gap-2 sm:flex sm:flex-wrap sm:gap-3">
         {Object.entries(ACCENTS).map(([key, a]) => (
           <button key={key} type="button" role="radio" aria-checked={current === key} aria-label={a.label} title={a.label} onClick={() => choose(key)}
-            className={`h-11 w-11 sm:h-8 sm:w-8 rounded-full transition ${current === key ? 'ring-2 ring-offset-2 ring-stone-900 dark:ring-stone-100 ring-offset-white dark:ring-offset-stone-900' : 'hover:scale-110'}`}
+            className={`mx-auto aspect-square w-full max-w-11 rounded-full transition sm:mx-0 sm:h-8 sm:w-8 sm:max-w-none ${current === key ? 'ring-2 ring-offset-2 ring-stone-900 dark:ring-stone-100 ring-offset-white dark:ring-offset-stone-900' : 'hover:scale-110'}`}
             style={{ background: `rgb(${a.rgb})` }} />
         ))}
       </div>
@@ -158,7 +158,7 @@ function DataSection() {
 
   return (
     <Card title="Your data" description="Download a copy of your notes, or import a noted. JSON export or encrypted backup. Trashed notes are not exported; locked notes are included only if you enter your PIN.">
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:w-full [&>button]:px-3 sm:[&>button]:w-auto sm:[&>button]:px-4">
         <button className="btn-secondary" disabled={busy} onClick={() => withPin((pin) => run(() => api.exportJson(pin)))}><Icon name="download" />Export JSON</button>
         <button className="btn-secondary" disabled={busy} onClick={() => withPin((pin) => run(() => api.exportMarkdown(pin)))}><Icon name="download" />Markdown (.zip)</button>
         <button className="btn-secondary" disabled={busy} onClick={() => withPin((pin) => setModal({ encrypt: pin }))}><Icon name="lock" />Encrypted backup…</button>
