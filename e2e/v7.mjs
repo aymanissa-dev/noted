@@ -164,7 +164,64 @@ try {
     await p.goto(BASE + path, { waitUntil: 'networkidle0' }); await p.waitForSelector('[data-testid=empty-state]', { timeout: 8000 }).catch(() => {});
     const pic = await p.evaluate(() => document.querySelector('[data-testid=empty-state] [aria-hidden=true]')?.innerText || '');
     ok(!/Old draft|Old project|Deleted \d|ago/i.test(pic), `${path} empty-state picture has no note-like titles or dates ("${pic.replace(/\n/g, ' ')}")`);
+    ok(!/\w/.test(pic) && await p.$('[data-testid=empty-state] > [aria-hidden=true]'), `R5.3 ${path} empty-state picture has no readable words at all, and is aria-hidden ("${pic.trim()}")`);
   }
+
+  // ---------- R5: QA retest 5 ----------
+  // R5.1 Offline trash: cached trashed notes can't be restored / deleted for good (server actions).
+  const tn = (await api('POST', '/notes', { title: 'R5 Trashed', content: 'x' }, u.token)).data.note;
+  await api('DELETE', `/notes/${tn._id}`, null, u.token);
+  await p.goto(BASE + '/trash', { waitUntil: 'networkidle0' });
+  await p.waitForFunction(() => /R5 Trashed/.test(document.body.innerText), { timeout: 8000 }).catch(() => {});
+  const trashButtons = () => p.evaluate(() => [...document.querySelectorAll('button')].filter((x) => /^(Restore|Delete forever|Empty trash)$/.test(x.textContent.trim())).map((x) => ({ t: x.textContent.trim(), d: x.disabled, tip: x.closest('[title]')?.title || '' })));
+  ok((await trashButtons()).every((x) => !x.d), 'R5.1 online: Restore / Delete forever / Empty trash enabled');
+  await net(true); await sleep(600);
+  let tbs = await trashButtons();
+  ok(tbs.length >= 3 && tbs.every((x) => x.d && x.tip === 'Needs a connection'), `R5.1 offline: all disabled with "Needs a connection" (${JSON.stringify(tbs)})`);
+  await p.reload({ waitUntil: 'domcontentloaded' }).catch(() => {}); await sleep(2000);
+  tbs = await trashButtons();
+  ok(/R5 Trashed/.test(await p.evaluate(() => document.body.innerText)) && tbs.length >= 3 && tbs.every((x) => x.d && x.tip === 'Needs a connection'), `R5.1 offline reload: cached item shown, actions disabled (${JSON.stringify(tbs)})`);
+  // R5.2 offline, nothing saved for the list: say so instead of "Nothing archived" / "Trash is empty".
+  await p.goto(BASE + '/archive', { waitUntil: 'domcontentloaded' }).catch(() => {}); await sleep(1500);
+  let txt = await p.evaluate(() => document.body.innerText);
+  ok(/Nothing saved on this device/.test(txt) && !/Nothing archived/.test(txt), 'R5.2 offline /archive with nothing saved: "Nothing saved on this device", not "Nothing archived"');
+  await p.evaluate(() => localStorage.removeItem('noted.cache.v2'));
+  await p.goto(BASE + '/trash', { waitUntil: 'domcontentloaded' }).catch(() => {}); await sleep(1500);
+  txt = await p.evaluate(() => document.body.innerText);
+  ok(/Nothing saved on this device/.test(txt) && !/Trash is empty/.test(txt), 'R5.2 offline /trash with nothing saved: "Nothing saved on this device", not "Trash is empty"');
+  await net(false); await sleep(2500);
+  txt = await p.evaluate(() => document.body.innerText);
+  ok(/R5 Trashed/.test(txt) && !/Nothing saved on this device/.test(txt), 'R5.2 back online: the trash loads by itself');
+  await api('DELETE', `/notes/${tn._id}?permanent=true`, null, u.token);
+
+  // R5.5 offline hard load of a never-opened note with only a list preview here: honest wording.
+  const pv = (await api('POST', '/notes', { title: 'R5 Preview', content: 'preview body '.repeat(5) }, u.token)).data.note;
+  await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' }); await sleep(800);
+  await net(true);
+  await p.goto(BASE + `/notes/${pv._id}`, { waitUntil: 'domcontentloaded' }).catch(() => {}); await sleep(1500);
+  let s5 = await st(p);
+  ok(s5.failed && !s5.editable && /Couldn’t load this note/.test(s5.msg) && /preview saved on this device/.test(s5.msg) && !/isn’t saved on this device/.test(s5.msg), `R5.5 offline unopened note: "Couldn't load" + "preview saved on this device" (${s5.msg})`);
+  await net(false);
+
+  // R5.4 auto-recovery: (a) after reconnecting while noted. still needs a moment, no clicks;
+  // (b) one Try again click is enough even if the network isn't back yet.
+  await block([`${API}/notes/${pv._id}*`]);
+  await p.goto(BASE + `/notes/${pv._id}`, { waitUntil: 'domcontentloaded' }); await sleep(1500);
+  ok((await st(p)).failed || (await st(p)).localCopy, 'R5.4 blocked: load failed');
+  await net(true); await sleep(1000); await net(false); // the 'online' event fires, requests still fail…
+  await sleep(2000); await block([]); //                 …for 2 more seconds
+  let t0 = Date.now();
+  await p.waitForFunction(() => document.querySelector('.cm-content')?.getAttribute('contenteditable') === 'true', { timeout: 12000 }).catch(() => {});
+  ok((await st(p)).editable, `R5.4a recovered on its own after reconnect (${Date.now() - t0}ms after noted. answered, no clicks)`);
+  await block([`${API}/notes/${pv._id}*`]);
+  await p.reload({ waitUntil: 'domcontentloaded' }); await sleep(1500);
+  ok(!(await st(p)).editable, 'R5.4 blocked again after reload');
+  await sleep(4000); // the failing backoff is in its longer waits now
+  await p.evaluate(() => [...document.querySelectorAll('[data-testid=note-load-failed] button, [data-testid=note-local-copy] button')].find((x) => /Try again/.test(x.textContent)).click());
+  await sleep(1200); await block([]); // the click's own attempt failed; the network comes back right after
+  t0 = Date.now();
+  await p.waitForFunction(() => document.querySelector('.cm-content')?.getAttribute('contenteditable') === 'true', { timeout: 4000 }).catch(() => {});
+  ok((await st(p)).editable, `R5.4b one Try again click was enough (${Date.now() - t0}ms after unblocking)`);
   ok(p.errors.length === 0, `no page errors (${p.errors.join(' | ')})`);
   await cdp.detach(); await p.close();
 
@@ -187,21 +244,33 @@ try {
     const r = await pg.evaluate(async () => {
       const ls = JSON.stringify(localStorage);
       let idb = '';
-      try { for (const d of await indexedDB.databases()) idb += d.name + ';'; } catch { /* ignore */ }
+      try {
+        for (const d of await indexedDB.databases()) {
+          // any database left must hold nothing of A's (noted-undo keys are `<userId>:<noteId>`)
+          const keys = await new Promise((res) => { const r = indexedDB.open(d.name); r.onsuccess = () => { const db = r.result; const out = []; let left = db.objectStoreNames.length; if (!left) { db.close(); res(out); } for (const s of db.objectStoreNames) { const g = db.transaction(s).objectStore(s).getAllKeys(); g.onsuccess = () => { out.push(...g.result.map(String)); if (!--left) { db.close(); res(out); } }; } }; r.onerror = () => res([]); });
+          idb += `${d.name}(${keys.length} keys: ${keys.join(',').slice(0, 80)});`;
+        }
+      } catch { /* ignore */ }
       let api = [];
       try { for (const k of await caches.keys()) { const c = await caches.open(k); api = api.concat((await c.keys()).map((r) => r.url).filter((u) => u.includes('/api/'))); } } catch { /* ignore */ }
       return { ls, idb, api, body: document.body.innerText };
     });
     const ids = aNotes.map((n) => n._id);
-    const hit = /Asecret/.test(r.ls + r.body) || ids.some((x) => r.ls.includes(x) || r.body.includes(x)) || r.api.length > 0;
+    const hit = /Asecret/.test(r.ls + r.body) || ids.some((x) => r.ls.includes(x) || r.body.includes(x) || r.idb.includes(x)) || r.idb.includes(A.user.id) || r.api.length > 0;
     ok(!hit, `${label}: no trace of account A (localStorage, page, cached API responses: ${r.api.length}; idb: ${r.idb || 'none'})`);
   };
-  // log out through the account menu, register B in the same profile
-  await q.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
+  // A edits a note (editor undo history goes to IndexedDB), then logs out from the editor itself
+  await q.goto(BASE + `/notes/${aid(secrets[0])}`, { waitUntil: 'networkidle0' });
+  await q.waitForFunction(() => document.querySelector('.cm-content')?.getAttribute('contenteditable') === 'true', { timeout: 10000 });
+  await q.evaluate(() => document.querySelector('.cm-content').focus()); await q.keyboard.type(' Asecret typed'); await sleep(1800);
+  ok(await q.evaluate(async () => (await indexedDB.databases()).some((d) => d.name === 'noted-undo')), 'R5.6 setup: A has editor undo history in IndexedDB');
   await q.click('[data-testid=account-menu]'); await q.waitForSelector('[role=menuitem]');
   await q.evaluate(() => [...document.querySelectorAll('[role=menuitem]')].find((x) => /Log out/.test(x.textContent)).click());
   await q.waitForFunction(() => location.pathname === '/login' || location.pathname === '/', { timeout: 10000 });
-  await leak(q, '2 after logout');
+  await sleep(1000); // let an unmounting editor try to write its undo history
+  await leak(q, '2 after logout (R5.6 incl. IndexedDB contents)');
+  await q.reload({ waitUntil: 'networkidle0' }); await sleep(800);
+  await leak(q, '2 after logout + reload');
   const bEmail = `v7b+${Date.now()}@noted.test`;
   await register(q, bEmail);
   for (const path of ['/notes', '/trash', '/archive', '/stats']) { await q.goto(BASE + path, { waitUntil: 'networkidle0' }); await sleep(500); await leak(q, `2 B online ${path}`); }

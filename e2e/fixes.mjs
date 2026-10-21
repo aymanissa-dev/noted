@@ -97,7 +97,7 @@ try {
   }
   if (want('pin')) {
     const u = await newUser('fix');
-    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '2468' }, u.token);
+    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '246800' }, u.token);
     const n = (await api('POST', '/notes', { title: 'Secret', content: 'hidden' }, u.token)).data.note;
     await api('PATCH', `/notes/${n._id}/lock`, { locked: true }, u.token);
     const p = await page(u);
@@ -105,7 +105,7 @@ try {
     const msgs = [];
     for (let i = 1; i <= 5; i++) {
       await p.waitForSelector('input[aria-label=PIN]:not([disabled])');
-      await p.type('input[aria-label=PIN]', '1111'); await p.keyboard.press('Enter');
+      await p.type('input[aria-label=PIN]', '111111'); await p.keyboard.press('Enter');
       await p.waitForFunction((k) => document.querySelector('[data-testid=pin-error]') && !document.querySelector('form button.btn-primary')?.innerText.includes('Checking'), {}, i);
       await sleep(150);
       msgs.push(await p.$eval('[data-testid=pin-error]', (e) => e.innerText));
@@ -113,7 +113,7 @@ try {
     ok(/4 attempts left/.test(msgs[0]) && /1 attempt left/.test(msgs[3]), `wrong PINs count down: ${msgs.slice(0, 4).join(' / ')}`);
     ok(/Too many wrong attempts\. Try again in [45]:\d\d/.test(msgs[4]), `5th wrong PIN blocks immediately: ${msgs[4]}`);
     ok(await p.$eval('input[aria-label=PIN]', (e) => e.disabled), 'PIN input disabled during the block');
-    const r = await api('POST', `/notes/${n._id}/unlock`, { pin: '2468' }, u.token);
+    const r = await api('POST', `/notes/${n._id}/unlock`, { pin: '246800' }, u.token);
     ok(r.status === 429, 'server refuses even the right PIN during the block');
   }
   if (want('leave')) {
@@ -202,7 +202,7 @@ try {
   }
   if (want('recent')) {
     const u = await newUser('fix');
-    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '2468' }, u.token);
+    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '246800' }, u.token);
     const mk = async (title) => (await api('POST', '/notes', { title, content: title }, u.token)).data.note;
     const a = await mk('Alpha recent'), bn = await mk('Beta recent'), l = await mk('Secret recent');
     await api('PATCH', `/notes/${l._id}/lock`, { locked: true }, u.token);

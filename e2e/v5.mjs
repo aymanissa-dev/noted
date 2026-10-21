@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // v5 regressions for the QA v3 retest: wide screens, landing CTA + contrast, standalone typewriter,
 // fast "/Heading 2" after an emoji line, list exit on Enter, note-not-found, reactive online state.
 import { createRequire } from 'node:module';
@@ -167,7 +168,7 @@ try {
       ok(compact.length === 1 && compact[0].header && compact[0].t === 'Start writing', `landing: only the header uses the compact 'Start writing' (${JSON.stringify(compact)})`);
     }
     if (axePath) {
-      await lp.addScriptTag({ path: axePath });
+      await lp.evaluate(readFileSync(axePath, 'utf8')); // not a <script> tag: the app's CSP (rightly) blocks inline scripts
       const r = await lp.evaluate(async () => (await window.axe.run(document, { runOnly: ['color-contrast'] })).violations.flatMap((v) => v.nodes.map((n) => n.target.join(' '))));
       ok(r.length === 0, `landing ${dark ? 'dark' : 'light'}: no color-contrast violations (${r.slice(0, 4).join(' ; ')})`);
     }

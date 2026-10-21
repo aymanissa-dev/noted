@@ -2,7 +2,7 @@ import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep } from './h.mjs'
 const b = await launch();
 try {
   const u = await newUser('anim');
-  await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '1234' }, u.token);
+  await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '123456' }, u.token);
   const ids = [];
   for (const t of ['A', 'B', 'C']) { ids.push((await api('POST', '/notes', { title: t, content: t }, u.token)).data.note._id); await sleep(20); }
   const p = await pageAs(b, u.token, { ...u.user, hasLockPin: true });
@@ -34,10 +34,10 @@ try {
   // PIN: shake on wrong, open on right
   await api('PATCH', `/notes/${ids[1]}/lock`, { locked: true }, u.token);
   await p.goto(BASE + `/notes/${ids[1]}`, { waitUntil: 'networkidle0' });
-  await p.type('input[aria-label=PIN]', '9999'); await p.keyboard.press('Enter');
+  await p.type('input[aria-label=PIN]', '999999'); await p.keyboard.press('Enter');
   await p.waitForSelector('[data-testid=pin-lock][data-state=shake]');
   ok(await p.$eval('[data-testid=pin-lock]', (e) => getComputedStyle(e).animationName === 'shake' && parseFloat(getComputedStyle(e).animationDuration) === 0.25), 'lock shakes on wrong PIN (250ms)');
-  await p.type('input[aria-label=PIN]', '1234'); await p.keyboard.press('Enter');
+  await p.type('input[aria-label=PIN]', '123456'); await p.keyboard.press('Enter');
   await p.waitForSelector('[data-testid=pin-lock][data-state=open]', { timeout: 3000 });
   ok(await p.$eval('[data-testid=pin-lock]', (e) => e.textContent === '🔓'), 'lock opens on correct PIN');
   await p.waitForSelector('.cm-content', { timeout: 3000 }); ok(true, 'note opens after unlock');
