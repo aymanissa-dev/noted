@@ -264,7 +264,7 @@ export default function NoteEditor() {
 
   const lockNote = async () => {
     if (!user?.hasLockPin) {
-      const go = await dialog.confirm({ title: 'Set a PIN first', body: 'Locked notes open with a 4–6 digit PIN. You can set one in Settings; this note is saved before you go.', confirmLabel: 'Go to Settings', cancelLabel: 'Not now' });
+      const go = await dialog.confirm({ title: 'Set a PIN first', body: 'Locked notes open with a 6-digit PIN. You can set one in Settings; this note is saved before you go.', confirmLabel: 'Go to Settings', cancelLabel: 'Not now' });
       if (go) { await save(); navigate('/settings#lock-pin'); }
       return;
     }
@@ -312,8 +312,13 @@ export default function NoteEditor() {
 
   const moveToTrash = async () => {
     const id = idRef.current;
+    // Locked: the editor's unlock (15-minute window) covers this; once it has expired, ask again.
+    let token;
+    try { token = await unlockFor(dialog, noteRef.current, { action: 'move it to the trash', held: unlockToken.current }); }
+    catch (e) { toast.show(`Couldn’t delete the note: ${e.message}`); return; }
+    if (token === null) return;
     await save();
-    const req = api.deleteNote(id, unlockToken.current || undefined); // locked notes need the unlock
+    const req = api.deleteNote(id, token);
     navigate('/notes');
     const back = asListNote({ deletedAt: null });
     toast.show('Note moved to trash.', { action: { label: 'Undo', onClick: () => optimisticInsert(back, req.catch(() => {}).then(() => api.restoreNote(id))).then(() => toast.show('Note restored.')).catch((e) => toast.show(`Couldn’t undo: ${e.message}`)) } });
@@ -328,7 +333,10 @@ export default function NoteEditor() {
   const deleteForever = async () => {
     try {
       lastSaved.current = snapshot(noteRef.current); // nothing to flush
-      await api.deleteForever(noteId, unlockToken.current || undefined);
+      // Same rule as moving to the trash: the open unlock covers it, an expired one asks for the PIN.
+      const token = await unlockFor(dialog, noteRef.current, { action: 'delete it for good', held: unlockToken.current });
+      if (token === null) { setConfirmDelete(false); return; }
+      await api.deleteForever(noteId, token);
       navigate('/trash');
     } catch (e) { setError(e.message); setConfirmDelete(false); }
   };
