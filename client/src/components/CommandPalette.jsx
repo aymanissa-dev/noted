@@ -10,6 +10,16 @@ import Icon from './Icon.jsx';
 
 const norm = (s) => (s || '').toLowerCase();
 
+// How well a label matches the query: 3 exact, 2 prefix, 1 word prefix, 0.5 substring, 0 none.
+export const matchScore = (label, s) => {
+  const l = norm(label);
+  if (!s) return 0.5;
+  if (l === s) return 3;
+  if (l.startsWith(s)) return 2;
+  if (l.split(/[^a-z0-9]+/).some((w) => w.startsWith(s))) return 1;
+  return l.includes(s) ? 0.5 : 0;
+};
+
 // Ctrl/⌘+K: search notes, jump to a view, or run an action. Each command shows its shortcut.
 export default function CommandPalette({ onClose, onShortcuts, onTour }) {
   const navigate = useNavigate();
@@ -17,7 +27,8 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
   const { logout } = useAuth();
   const [q, setQ] = useState('');
   const [notes, setNotes] = useState(() => (api.cachedList({}) || []).slice(0, 6));
-  const [active, setActive] = useState(0);
+  // Track the highlighted row by id, so results arriving late (server search) can't move it.
+  const [activeId, setActiveId] = useState(null);
   const ref = useRef(null);
   const listRef = useRef(null);
   useFocusTrap(ref, onClose);
@@ -52,19 +63,29 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
   }, [q]);
 
   const s = norm(q.trim());
-  const cmdMatches = commands.filter((c) => !s || norm(c.label).includes(s) || norm(c.group).includes(s));
-  const items = [
-    ...notes.map((n) => ({ id: `note-${n._id}`, group: 'Notes', label: n.locked ? 'Locked note' : (n.title || 'Untitled'), emoji: n.emoji, icon: n.locked ? 'lock' : 'notes', hint: n.tags?.slice(0, 2).map((t) => `#${t}`).join(' '), run: go(`/notes/${n._id}`) })),
-    ...cmdMatches,
-  ];
-  useEffect(() => { setActive(0); }, [q]);
+  const cmdMatches = commands
+    .map((c, i) => ({ c, i, score: Math.max(matchScore(c.label, s), norm(c.group).includes(s) ? 0.5 : 0) }))
+    .filter((x) => !s || x.score > 0)
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((x) => x.c);
+  const noteItems = notes.map((n) => ({ id: `note-${n._id}`, group: 'Notes', label: n.locked ? 'Locked note' : (n.title || 'Untitled'), emoji: n.emoji, icon: n.locked ? 'lock' : 'notes', hint: n.tags?.slice(0, 2).map((t) => `#${t}`).join(' '), run: go(`/notes/${n._id}`) }));
+  // A command whose name starts with the query ("sett", "trash", "how to") outranks notes that
+  // only mention the word in their body.
+  const bestCmd = cmdMatches.length ? matchScore(cmdMatches[0].label, s) : 0;
+  const bestNote = noteItems.reduce((m, n) => Math.max(m, matchScore(n.label, s)), 0);
+  const commandsFirst = !!s && bestCmd >= 2 && bestCmd >= bestNote;
+  const items = commandsFirst ? [...cmdMatches, ...noteItems] : [...noteItems, ...cmdMatches];
+  const found = items.findIndex((it) => it.id === activeId);
+  const active = found >= 0 ? found : 0;
+  const setActive = (fn) => { const i = typeof fn === 'function' ? fn(active) : fn; setActiveId(items[i]?.id ?? null); };
+  useEffect(() => { setActiveId(null); }, [q]);
   useEffect(() => { listRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' }); }, [active]);
 
   const run = (item) => { if (!item) return; if (!item.keep) onClose(); item.run?.(); };
   const onKey = (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(items.length - 1, a + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
-    else if (e.key === 'Enter') { e.preventDefault(); run(items[active]); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (!e.isComposing) run(items[active]); }
   };
 
   let last = null;
