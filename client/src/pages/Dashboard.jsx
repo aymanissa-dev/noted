@@ -8,16 +8,12 @@ import { preloadEditor } from '../editor/preload.js';
 import Icon from '../components/Icon.jsx';
 import NoteCard from '../components/NoteCard.jsx';
 import QuickCapture from '../components/QuickCapture.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 
-const VIEWS = {
-  active: { icon: 'notes', title: 'No notes yet', empty: 'Write your first one, or type a quick note above.' },
-  archive: { icon: 'archive', title: 'Nothing archived', empty: 'Archive notes you want to keep but not see every day.' },
-  trash: { icon: 'trash', title: 'Trash is empty', empty: 'Deleted notes wait here for 30 days before they’re gone for good.' },
-};
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
   const [params, setParams] = useSearchParams();
@@ -199,7 +195,6 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   // Mobile/tablet scope picker (desktop uses the sidebar).
   const scope = folder ? `folder:${folder}` : smart ? `smart:${smart}` : '';
   const pickScope = (v) => { const [k, id] = v.split(':'); navigate(v ? `/notes?${k}=${id}` : '/notes'); };
-  const copy = VIEWS[view];
 
   return (
     <div>
@@ -277,20 +272,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         <ListSkeleton />
       ) : notes.length === 0 ? (
         loadError ? null : (
-        <div className="mx-auto mt-16 max-w-sm text-center" data-testid="empty-state">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400">
-            <Icon name={query || tag ? 'search' : folder ? 'folder' : smart ? (smart === 'locked' ? 'lock' : 'star') : copy.icon} size="md" />
-          </span>
-          <h2 className="mt-4 font-semibold">{query || tag ? 'No matches' : folder ? 'This folder is empty' : smart ? 'Nothing here right now' : copy.title}</h2>
-          <p className="mt-1 text-sm text-muted">{query || tag ? `No notes match ${query ? `“${query}”` : `#${tag}`}. Try fewer words or another tag.` : folder ? 'Move notes here from the editor, or create one in this folder.' : smart ? 'Notes show up here as soon as they match.' : copy.empty}</p>
-          <div className="mt-5">
-          {(query || tag)
-            ? <button type="button" className="btn-secondary" onClick={() => { setSearch(''); setTag(''); }}>Clear search</button>
-            : smart ? <Link to="/notes" className="btn-secondary">Show all notes</Link>
-            : view === 'active' ? <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className="btn-primary"><Icon name="plus" />New note</Link>
-            : <Link to="/notes" className="btn-secondary">Back to notes</Link>}
-          </div>
-        </div>
+        <Empty compact={compact} view={view} query={query} tag={tag} folder={folder} smart={smart}
+          clear={() => { setSearch(''); setTag(''); }} focusCapture={() => document.getElementById('quick-capture')?.focus()} />
         )
       ) : (
         <>
@@ -315,4 +298,26 @@ function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compac
       </div>
     </section>
   );
+}
+
+// What to show when a list is empty: teach the feature and offer the real next step.
+function Empty({ compact, view, query, tag, folder, smart, clear, focusCapture }) {
+  const newNote = { to: folder ? `/notes/new?folder=${folder}` : '/notes/new', label: 'New note', icon: 'plus' };
+  let p;
+  if (query || tag) p = { kind: 'search', title: 'No matches', body: `No notes match ${query ? `“${query}”` : `#${tag}`}. Try fewer words, another tag, or search the archive.`, primary: { onClick: clear, label: 'Clear search' }, secondary: newNote, shortcuts: [['Esc', 'clear search'], ['Mod+K', 'search everywhere']] };
+  else if (folder) p = { kind: 'folder', title: 'This folder is empty', body: 'Create a note here, or open any note and use its folder button to move it in.', primary: { ...newNote, label: 'New note in this folder' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['N', 'new note']] };
+  else if (smart === 'locked') p = { kind: 'locked', title: 'No locked notes', body: 'Lock a private note from its ··· menu (Lock with PIN). Set your PIN in Settings first.', primary: { to: '/settings', label: 'Set up a PIN', icon: 'lock' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['G S', 'settings']] };
+  else if (smart) p = { kind: 'smart', title: 'Nothing here right now', body: 'Smart views fill themselves: notes show up here as soon as they match.', primary: newNote, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['N', 'new note'], ['G N', 'all notes']] };
+  else if (view === 'archive') p = { kind: 'archive', title: 'Nothing archived', body: 'Archive notes you want to keep but not see every day: open a note, press ···, then Archive. They stay searchable here.', primary: { to: '/notes', label: 'Choose a note to archive', icon: 'archive' }, shortcuts: [['G A', 'open the archive'], ['G N', 'all notes']] };
+  else if (view === 'trash') p = { kind: 'trash', title: 'Trash is empty', body: 'Deleted notes wait here for 30 days, so you can restore them. After that they’re gone for good.', primary: { to: '/notes', label: 'Back to notes' }, shortcuts: [['G T', 'open the trash'], ['G N', 'all notes']] };
+  else p = { kind: 'first', title: 'No notes yet', body: 'Write your first note, or jot one line in quick capture above and press Enter.', primary: newNote, secondary: { onClick: focusCapture, label: 'Quick capture', icon: 'bolt' }, shortcuts: [['N', 'new note'], ['Q', 'quick capture'], ['?', 'all shortcuts']] };
+  if (compact) {
+    return (
+      <div className="px-2 py-10 text-center text-sm" data-testid="empty-state" data-kind={p.kind}>
+        <p className="font-medium text-stone-800 dark:text-stone-100">{p.title}</p>
+        <p className="mt-1 text-xs text-muted">{p.body}</p>
+      </div>
+    );
+  }
+  return <EmptyState {...p} query={query} />;
 }
