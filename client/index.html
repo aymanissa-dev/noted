@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <script>try{var a=localStorage.getItem("noted.accent");var m={amber:"245 158 11",rose:"244 63 94",emerald:"16 185 129",sky:"14 165 233",violet:"139 92 246",stone:"120 113 108"};if(m[a])document.documentElement.style.setProperty("--accent",m[a]);}catch(e){}</script>
+    <script src="/boot.js"></script>
     <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
@@ -27,14 +27,6 @@
     <meta name="twitter:image" content="https://noted-lac-phi.vercel.app/og.png" />
     <meta name="twitter:title" content="noted. — Write it down. Find it later." />
     <meta name="twitter:description" content="A calm, private notebook. No AI, no tracking. Fast to write in, faster to search." />
-    <script>
-      // Apply theme before paint to avoid a flash. 'system' follows the OS setting.
-      (function () {
-        var t = localStorage.getItem('noted.theme') || 'system';
-        var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.classList.toggle('dark', dark);
-      })();
-    </script>
   </head>
   <body class="bg-stone-50 dark:bg-stone-950 text-stone-800 dark:text-stone-100 antialiased">
     <div id="root"></div>

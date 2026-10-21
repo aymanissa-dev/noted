@@ -2,6 +2,16 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
+// Security headers (CSP etc.) live in vercel.json; `vite preview` serves the same ones so local QA
+// runs under the production policy. Locally the API is another origin, so it's added to connect-src.
+const securityHeaders = () => {
+  const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const rule = vercel.headers.find((h) => h.headers.some((x) => x.key === 'Content-Security-Policy'));
+  const api = process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : '';
+  return Object.fromEntries(rule.headers.map(({ key, value }) => [key, key === 'Content-Security-Policy' && api ? value.replace("connect-src 'self'", `connect-src 'self' ${api}`) : value]));
+};
 
 // Which build is this? Shown in Settings and on <html data-build>, so QA can tell a stale cached app
 // from the deployed one. Vercel git builds set VERCEL_GIT_COMMIT_SHA; CLI builds fall back to git/time.
@@ -10,6 +20,7 @@ const BUILD_ID = process.env.VITE_BUILD_ID || (process.env.VERCEL_GIT_COMMIT_SHA
 const BUILD_TIME = new Date().toISOString();
 
 export default defineConfig({
+  preview: { headers: securityHeaders() },
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID), __BUILD_TIME__: JSON.stringify(BUILD_TIME) },
   plugins: [
     react(),
