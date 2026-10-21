@@ -46,6 +46,39 @@ sign-ins paused for 15 minutes at a time. Client IPs come from Vercel's own head
 limits exist because clients can rotate through many addresses of one pool (our own QA box egresses
 from a different 140.248.50.x address on every connection, which slipped past the per-IP limit).
 
+**Concurrency (re-verify NEW-1).** Every limiter reserves its slot atomically *before* the expensive
+check: one `findOneAndUpdate` with `$inc` (a filtered upsert opens a new window) counts the attempt,
+and only attempts inside the limit go on to bcrypt. So a burst of parallel wrong passwords for one
+email gets exactly 4 × 401 and then 429s, however many arrive at once. A successful sign-in clears
+the email counter and hands its IP/network reservation back; attempts refused by one limiter hand
+back what they reserved on the others, so a blocked email doesn't eat the network's budget. The
+same reservation is used for sign-ups and for the signed-in password check.
+
+**Note PIN (NEW-3).** A PIN attempt is one atomic conditional write on the user: the filter only
+matches when the PIN isn't waiting or locked out, and the update (an aggregation pipeline) counts the
+attempt and sets the wait in the same write, before the PIN is compared. Parallel wrong PINs therefore
+can't all slip in before the wait is set. A correct PIN clears the count and the wait. Trade-off: the
+wait is set pessimistically, so a correct PIN racing a burst of wrong ones may itself be told to wait.
+
+**Folder cap (NEW-2).** `users.folderCount` is reserved with a conditional `$inc` (`folderCount <=
+MAX_FOLDERS - 1`) before each folder is created (folder create, imports), and released if the create
+fails or a folder is deleted (only when the delete actually removed it). Accounts from before the
+counter get it backfilled from `countDocuments` the first time, only while the field is missing.
+If a process dies between reserving and creating, the counter can sit one high (it never lets the
+cap be exceeded).
+
+**Idempotent creates.** A new note carries its local id (`clientId`); a create that is sent twice
+(reloaded mid-request, offline queue retry) returns, and updates, the note it already made (unique
+partial index `{ user, clientId }`) instead of making a duplicate.
+
 Tests: in-process server tests set `RATE_LIMITS=off`; the local QA stack accepts an
 `X-Rate-Limit-Bypass` header matching `RATE_LIMIT_BYPASS_TOKEN`. Neither is honoured when running on
 Vercel (`VERCEL` is set), so production can't be configured into a bypass by accident.
+
+## Unlocked notes: the 15-minute window
+
+Entering a note's PIN gives an unlock token for that note, valid for 15 minutes, held only by the
+open editor (in memory; not stored). While it is valid, that editor can edit, move to the trash and
+delete the note for good without asking again (QA final e: intended). Once it has expired, each of
+those asks for the PIN again (the server answers 423 without a valid token). Anywhere else (the
+trash list, bulk actions) a locked note always asks for the PIN.
