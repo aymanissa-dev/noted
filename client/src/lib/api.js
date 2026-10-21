@@ -174,6 +174,7 @@ export function clearLocalData() {
   localStorage.removeItem(META_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(OWNER_KEY);
+  localStorage.removeItem('noted.tourPending'); // the welcome tour belongs to the account that just signed up
   queue.clear();
   loadedBodies.clear();
 }

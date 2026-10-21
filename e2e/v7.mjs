@@ -285,6 +285,7 @@ try {
   await q.evaluate(() => { localStorage.removeItem('noted.token'); });
   await login(q, A.email); for (const path of ['/notes', '/trash', '/archive']) { await q.goto(BASE + path, { waitUntil: 'networkidle0' }); await sleep(300); }
   ok(await q.evaluate(() => /Asecret/.test(JSON.stringify(localStorage))), '2 A signed in again and cached');
+  ok(await q.evaluate(() => !localStorage.getItem('noted.tourPending')), "2 B's pending welcome tour doesn't follow into A's session");
   const q2 = await ctx.newPage(); await q2.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
   await q2.evaluate((t, usr) => { localStorage.setItem('noted.token', t); localStorage.setItem('noted.user', JSON.stringify(usr)); }, bTok, bUser);
   await sleep(2500);
