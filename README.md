@@ -22,7 +22,7 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Note history**: versions are saved as you edit (at most one per 5 minutes, or on large changes; 50 per note); preview and restore
 - **Quick capture**: type a line on the dashboard and press Enter (first line = title, `#tags` become tags); works offline
 - **Sign out everywhere**: revoke every session from Settings; changing your password also signs out other devices
-- **PIN-locked notes**: lock individual notes behind a 4–6 digit PIN; the server never returns their contents without it
+- **PIN-locked notes**: lock individual notes behind a 6-digit PIN (PINs set before Oct 2026 may be 4–5 digits and keep working); the server never returns their contents without it
 - **Works offline (PWA)**: installable; read saved notes offline, and new notes and edits made offline sync when you reconnect
 - **Markdown editor** (CodeMirror 6, lazy-loaded): plain-text notes render as-is; `/` slash commands (H1–H3, checklist, divider, date, code block, quote), clickable checklists, highlights in four colors (`==text==`, `=={green}text==`), foldable heading sections, outline, find & replace (⌘/Ctrl+F), `:emoji` completion, undo history that survives reloads (IndexedDB; never for locked notes, cleared on logout), focus mode with typewriter scrolling, print / save as PDF
 - **Folders**: create, rename, delete (notes are moved out, never deleted), move notes; folders round-trip through export/import
@@ -125,7 +125,7 @@ Errors are returned as `{ "error": "message" }`.
 | GET    | `/auth/me`       | –                             | `200 { user }`           |
 | PATCH  | `/auth/password` | `{ currentPassword, newPassword }` | `200 { ok, token }` (`403` if current password is wrong). Revokes other sessions; use the returned token |
 | POST   | `/auth/logout-all` | – | `200 { ok, token }`. Revokes every token; the returned token keeps this session |
-| PUT    | `/auth/lock-pin` | `{ password, pin }` (4–6 digits) | `200 { user }`. Set or change the lock PIN |
+| PUT    | `/auth/lock-pin` | `{ password, pin }` (6 digits) | `200 { user }`. Set or change the lock PIN |
 | DELETE | `/auth/lock-pin` | `{ password }` | `200 { user, unlockedNotes }`. Removes the PIN and unlocks all notes |
 | DELETE | `/auth/me`       | `{ password }`                | `200 { ok, deletedNotes }`. Deletes the account and all its notes |
 

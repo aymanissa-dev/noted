@@ -20,7 +20,7 @@ export async function trashPin(dialog, notes) {
   const pin = await dialog.prompt({
     title: 'Locked notes in the trash', body: 'Enter your PIN to delete the locked notes too. Leave it empty to keep them in the trash.',
     label: 'PIN', type: 'password', inputMode: 'numeric', maxLength: 6, allowEmpty: true, confirmLabel: 'Empty trash',
-    validate: (v) => (v && !/^\d{4,6}$/.test(v) ? 'A PIN is 4 to 6 digits.' : undefined),
+    validate: (v) => (v && !/^\d{4,6}$/.test(v) ? 'Enter your PIN (digits only).' : undefined),
   });
   return pin === null ? null : pin;
 }
