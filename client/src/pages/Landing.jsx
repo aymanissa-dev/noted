@@ -53,7 +53,7 @@ function Nav() {
         <div className="flex items-center gap-2">
           <ThemePill />
           <Link to="/login" className="btn-ghost">Log in</Link>
-          <Link to="/register" className="btn-primary">Get started</Link>
+          <Link to="/register" className="btn-primary hidden sm:inline-flex">Start writing</Link>
         </div>
       </div>
     </header>
@@ -251,8 +251,9 @@ export default function Landing() {
             </h1>
             <p className="hero-in mx-auto mt-6 max-w-xl text-lg leading-8 text-stone-600 [animation-delay:120ms] dark:text-stone-400 sm:text-xl">A calm, private notebook for everything you don’t want to forget. Fast to write in, faster to search, and it works offline.</p>
             <div className="hero-in mt-9 flex flex-col items-stretch justify-center gap-3 [animation-delay:180ms] sm:flex-row sm:items-center">
-              <Link to="/register" className="btn-primary h-12 px-7 text-base">Start writing, it’s free<Icon name="arrowRight" size="sm" /></Link>
-              <Link to="/login" className="btn-secondary h-12 px-7 text-base">I have an account</Link>
+              <Link to="/register" className="btn-primary h-12 px-7 text-base">Start writing — it’s free<Icon name="arrowRight" size="sm" /></Link>
+              <Link to="/login" className="btn-secondary hidden h-12 px-7 text-base sm:inline-flex">I have an account</Link>
+              <Link to="/login" className="mx-auto inline-flex min-h-11 items-center text-sm font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 hover:text-stone-950 dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-white sm:hidden">I have an account</Link>
             </div>
             <ul className="hero-in mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-stone-600 [animation-delay:240ms] dark:text-stone-400">
               {[['offline', 'Works offline'], ['download', 'Installable app'], ['shield', 'No tracking']].map(([i, l]) => <li key={l} className="inline-flex items-center gap-1.5"><Icon name={i} size="sm" />{l}</li>)}
@@ -318,7 +319,7 @@ export default function Landing() {
                 <p className="eyebrow">Privacy</p>
                 <h2 id="privacy-title" className="mt-4 text-4xl font-semibold leading-[1.08] tracking-[-0.035em] sm:text-5xl">Private by default<span className="text-accent">.</span> Not by setting.</h2>
                 <p className="mt-5 max-w-lg text-lg leading-8 text-stone-600 dark:text-stone-400">Your notes are for you. noted. has no AI features, no analytics and no ads, so there’s nothing to opt out of.</p>
-                <Link to="/register" className="btn-primary mt-8 h-12 px-7 text-base">Start writing<Icon name="arrowRight" size="sm" /></Link>
+                <Link to="/register" className="btn-primary mt-8 h-12 px-7 text-base">Start writing — it’s free<Icon name="arrowRight" size="sm" /></Link>
               </div>
               <ul className="grid gap-px overflow-hidden rounded-3xl border border-stone-200/80 bg-stone-200/80 dark:border-stone-800 dark:bg-stone-800">
                 {[
@@ -367,7 +368,7 @@ export default function Landing() {
               <h2 id="cta-title" className="mt-4 max-w-2xl text-4xl font-semibold leading-[1.05] tracking-[-0.04em] sm:text-6xl">The next thing you want to remember goes here<span className="text-accent">.</span></h2>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-              <Link to="/register" className="btn h-12 bg-white px-7 text-base font-medium text-stone-900 hover:bg-stone-200">Create your notebook<Icon name="arrowRight" size="sm" /></Link>
+              <Link to="/register" className="btn h-12 bg-white px-7 text-base font-medium text-stone-900 hover:bg-stone-200">Start writing — it’s free<Icon name="arrowRight" size="sm" /></Link>
               <Link to="/login" className="btn h-12 border border-white/20 px-7 text-base text-white hover:bg-white/10">Log in</Link>
             </div>
           </div>
@@ -384,7 +385,7 @@ export default function Landing() {
             </div>
             {[
               ['Product', [['#features', 'Features'], ['#shortcuts', 'Shortcuts'], ['#privacy', 'Privacy'], ['#faq', 'FAQ']]],
-              ['Account', [['/register', 'Create account'], ['/login', 'Log in']]],
+              ['Account', [['/register', 'Start writing'], ['/login', 'Log in']]],
               ['Project', [[GITHUB, 'GitHub'], [`${GITHUB}/issues`, 'Report an issue']]],
             ].map(([h, links]) => (
               <div key={h}>
