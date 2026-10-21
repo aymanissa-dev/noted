@@ -24,7 +24,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import { cardClass } from '../lib/colors.js';
-import { useClearOfflineMessage } from '../lib/network.js';
+import { useClearOfflineMessage, useRefetch, useIsOnline } from '../lib/network.js';
 import { useTypewriter, toggleTypewriter, isTypewriterShortcut } from '../lib/typewriter.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -62,6 +62,7 @@ export default function NoteEditor() {
   const [focusMode, setFocusMode] = useState(false);
   const [outlineSheet, setOutlineSheet] = useState(false);
   const typewriter = useTypewriter();
+  const online = useIsOnline();
   previewOnlyRef.current = previewOnly;
 
   const lastSaved = useRef(snapshot(note));
@@ -73,11 +74,17 @@ export default function NoteEditor() {
   const idRef = useRef(noteId);
   idRef.current = noteId;
 
+  // Couldn't load (network/server) and there's no copy on this device: show that instead of a
+  // blank editor (typing into it could overwrite the real note), and keep retrying.
+  const [loadFailed, setLoadFailed] = useState('');
+  const [loadTick, setLoadTick] = useState(0);
+  useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) });
+
   const revalidated = useRef(false);
   useEffect(() => {
     const refresh = initial && !revalidated.current && routeId === initial._id;
     revalidated.current = true;
-    if (!routeId || (routeId === idRef.current && !loading && !refresh)) return;
+    if (!routeId || (routeId === idRef.current && !loading && !refresh && !loadFailed)) return;
     api.getNote(routeId)
       .then(({ note: n }) => {
         const loaded = toLoaded(n);
@@ -86,15 +93,20 @@ export default function NoteEditor() {
           if (snapshot(noteRef.current) !== lastSaved.current) return;
           if (snapshot(loaded) === lastSaved.current && n.updatedAt === initial.updatedAt && !n.locked) return;
         }
+        setLoadFailed('');
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
         if (n.locked) setNeedsPin(true);
         setPreviewOnly(Boolean(n.excerpt)); // offline and only a list excerpt is cached
       })
-      .catch((e) => { if (e.status === 404 || e.status === 400 || e.status === 403) setNotFound(true); else setError(e.message); })
+      .catch((e) => {
+        if (e.status === 404 || e.status === 400 || e.status === 403) setNotFound(true);
+        else if (!initial) setLoadFailed(e.message || 'Couldn’t load this note.');
+        else setError(e.message);
+      })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeId]);
+  }, [routeId, loadTick]);
 
   // Save the current note if it changed. Serialized so creates never duplicate.
   const save = useCallback(async () => {
@@ -318,6 +330,20 @@ export default function NoteEditor() {
   const persist = !note.locked && noteId && !isTempId(noteId) && user?.id ? { userId: user.id, noteId } : null;
 
   if (loading) return <EditorSkeleton />;
+
+  if (loadFailed) {
+    return (
+      <div data-testid="note-load-failed" className="mx-auto mt-16 max-w-md text-center">
+        <Icon name="offline" className="mx-auto text-faint" />
+        <h2 className="mt-3 text-lg font-semibold tracking-tight">Couldn’t load this note</h2>
+        <p className="mt-1.5 text-sm text-muted">{online ? 'noted. didn’t answer. Trying again…' : 'You’re offline and this note isn’t saved on this device yet. It opens when you reconnect.'}</p>
+        <div className="mt-6 flex justify-center gap-2">
+          <button type="button" className="btn-primary" onClick={() => setLoadTick((t) => t + 1)}><Icon name="refresh" />Try again</button>
+          <Link to="/notes" className="btn-ghost"><Icon name="back" />Back to notes</Link>
+        </div>
+      </div>
+    );
+  }
 
   // A deleted, mistyped or someone else's note: say so plainly instead of showing a blank editor.
   if (notFound) {
