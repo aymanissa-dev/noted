@@ -8,7 +8,8 @@ import PasswordDialog from '../components/PasswordDialog.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from '../components/Icon.jsx';
 import { passwordProblem, PASSWORD_HINT } from '../lib/passwordHints.js';
-import { useIsOnline, useRefetch, useClearOfflineMessage, isOfflineError } from '../lib/network.js';
+import { useIsOnline, useRefetch, useClearOfflineMessage, isOfflineError, isNetworkFailure, isNetworkText } from '../lib/network.js';
+import RetryStatus from '../components/RetryStatus.jsx';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 // Resolves to the PIN, '' (export locked notes as placeholders), or null (cancelled).
@@ -21,6 +22,16 @@ const askPin = async (user, dialog) => {
   });
   return pin === null ? null : pin;
 };
+
+// Result of an action. Connection problems read calmly (keep your input and press the button again);
+// real errors are red; successes green. Never the browser's raw "Failed to fetch".
+function Msg({ msg, className = '' }) {
+  if (!msg) return null;
+  if (msg.error && isNetworkText(msg.text)) {
+    return <p role="status" data-testid="settings-network-msg" className={`inline-flex items-center gap-2 text-sm text-muted ${className}`}><Icon name="offline" size="xs" />{msg.text}</p>;
+  }
+  return <p role="status" className={`text-sm ${msg.error ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'} ${className}`}>{msg.text}</p>;
+}
 
 export function Card({ title, description, children, id }) {
   return (
@@ -41,7 +52,10 @@ function AccentSection() {
     const prev = current;
     setCurrent(key); applyAccent(key); setMsg('');
     try { const { user: u } = await api.updatePreferences({ accent: key }); updateUser(u); }
-    catch (e) { setMsg(`Saved on this device only (${e.message}).`); if (!navigator.onLine) return; setCurrent(prev); applyAccent(prev); }
+    catch (e) {
+      if (isNetworkFailure(e)) { setMsg('Saved on this device. Couldn’t reach noted to sync it to your account yet.'); return; }
+      setMsg(e.message); setCurrent(prev); applyAccent(prev);
+    }
   };
   return (
     <Card title="Accent color" description="Used for the logo dot, highlights, and focus rings. Synced to your account.">
@@ -71,7 +85,7 @@ function ActivitySection() {
     let alive = true;
     const load = () => api.loginActivity()
       .then(({ events }) => { if (alive) { setEvents(events); setError(''); setCheckedAt(Date.now()); } })
-      .catch((e) => alive && setError(isOfflineError(e) ? 'offline' : e.message));
+      .catch((e) => alive && setError(isNetworkFailure(e) ? (isOfflineError(e) ? 'offline' : 'network') : e.message));
     loadRef.current = load;
     load();
     const onVisible = () => { if (document.visibilityState === 'visible') load(); };
@@ -89,9 +103,7 @@ function ActivitySection() {
   const when = (d) => new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <Card title="Login activity" description="Your last 20 sign-ins. IP addresses are masked. If something looks unfamiliar, change your password and sign out everywhere.">
-      {(error === 'offline' || (!online && !events)) ? (
-        <p role="status" className="inline-flex items-center gap-2 text-sm text-muted"><Icon name="offline" size="xs" />You’re offline. Your sign-in history loads when you reconnect.</p>
-      ) : error ? <p className="text-sm text-red-700 dark:text-red-400">{error}</p> : null}
+      <RetryStatus testId="activity-error" error={error || (!online && !events ? 'offline' : '')} onRetry={() => loadRef.current()} className={events ? 'mb-3' : ''} />
       {!events && !error && online && <p className="text-sm text-muted">Loading…</p>}
       {events && (
         <ul data-testid="activity" className="-mx-2 divide-y divide-stone-100 dark:divide-stone-800">
@@ -175,7 +187,7 @@ function DataSection() {
         <button className="btn-secondary" disabled={busy} onClick={() => fileRef.current?.click()}><Icon name="upload" />Import…</button>
         <input ref={fileRef} data-testid="import-file" type="file" accept="application/json,.json,.noted-backup" className="hidden" onChange={onImport} />
       </div>
-      {msg && <p role="status" className={`mt-3 text-sm ${msg.error ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{msg.text}</p>}
+      <Msg msg={msg} className="mt-3" />
       {modal && 'encrypt' in modal && <PasswordDialog confirm title="Encrypted backup" submitLabel="Encrypt & download"
         description="Your notes are encrypted on this device (AES-256) with a password you choose. Without it the backup can’t be opened."
         onSubmit={makeBackup} onCancel={() => setModal(null)} />}
@@ -215,7 +227,7 @@ function PasswordSection() {
         <input className="input" type="password" placeholder="New password" autoComplete="new-password" required value={form.next} onChange={set('next')} aria-describedby="pw-hint" />
         <p id="pw-hint" className="field-hint">{PASSWORD_HINT} We also check it against known data breaches (only a partial hash leaves our server).</p>
         <input className="input" type="password" placeholder="Confirm new password" autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} />
-        {msg && <p className={`text-sm ${msg.error ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{msg.text}</p>}
+        <Msg msg={msg} />
         <button className="btn-primary" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button>
       </form>
     </Card>
@@ -276,7 +288,7 @@ function LockPinSection() {
           </div>
         </form>
       )}
-      {msg && <p className={`mt-3 text-sm ${msg.error ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{msg.text}</p>}
+      <Msg msg={msg} className="mt-3" />
     </Card>
   );
 }
@@ -295,7 +307,7 @@ function SessionsSection() {
   return (
     <Card title="Sessions" description="Lost a device or used a shared computer? Sign out everywhere except this browser.">
       <button className="btn-secondary" disabled={busy} onClick={run}>{busy ? 'Signing out…' : 'Sign out of all other devices'}</button>
-      {msg && <p className={`mt-3 text-sm ${msg.error ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{msg.text}</p>}
+      <Msg msg={msg} className="mt-3" />
     </Card>
   );
 }
@@ -322,7 +334,7 @@ function DeleteAccountSection() {
         <form onSubmit={submit} className="space-y-3">
           <input className="input" type="password" placeholder="Enter your password to confirm" autoComplete="current-password" required autoFocus disabled={busy}
             value={password} onChange={(e) => setPassword(e.target.value)} />
-          {error && <p className="text-sm text-red-700 dark:text-red-400">{error}</p>}
+          {error && <Msg msg={{ error: true, text: error }} />}
           <div className="flex gap-2">
             <button type="button" className="btn-ghost" disabled={busy} onClick={() => { setOpen(false); setPassword(''); setError(''); }}>Cancel</button>
             <button className="btn-danger-solid" disabled={busy || !password}>{busy ? 'Deleting…' : 'Delete account and notes'}</button>

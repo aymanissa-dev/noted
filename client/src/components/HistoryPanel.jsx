@@ -4,6 +4,7 @@ import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { api } from '../lib/api.js';
 import { timeAgo } from '../lib/format.js';
 import { useOnReconnect, useRefetch, OFFLINE_MESSAGE } from '../lib/network.js';
+import RetryStatus from './RetryStatus.jsx';
 import Icon from './Icon.jsx';
 
 // `current` is the note as it is now (listed first, preview only); versions are earlier states.
@@ -45,7 +46,7 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken,
           <h2 id="history-title" className="font-semibold">Version history</h2>
           <button className="btn-ghost btn-icon" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
-        {error && <p className="px-5 pt-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
+        {error && <div className="px-5 pt-3"><RetryStatus testId="history-error" error={error} onRetry={() => { setError(''); setRetry((r) => r + 1); }} /></div>}
         {(
 
           <div className="flex min-h-0 flex-1 flex-col sm:flex-row">

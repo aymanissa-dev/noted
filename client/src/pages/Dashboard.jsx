@@ -13,7 +13,8 @@ import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
-import { useOnReconnect, useRefetch, isOfflineError } from '../lib/network.js';
+import { useOnReconnect, useRefetch, isOfflineError, isNetworkText } from '../lib/network.js';
+import RetryStatus from '../components/RetryStatus.jsx';
 
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
@@ -243,7 +244,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
       {(offline || loadError === 'offline') && <p role="status" data-testid="list-offline" className="mt-4 inline-flex items-center gap-2 text-xs text-muted"><Icon name="offline" size="xs" />{loadError === 'offline' ? 'You’re offline. This list loads when you reconnect.' : 'Offline: showing the notes saved on this device.'}</p>}
-      {loadError && loadError !== 'offline' && (
+      {loadError && loadError !== 'offline' && isNetworkText(loadError) && <RetryStatus testId="list-error" error={loadError} onRetry={() => setSyncTick((t) => t + 1)} className="mt-4" />}
+      {loadError && loadError !== 'offline' && !isNetworkText(loadError) && (
         <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           <span className="inline-flex items-center gap-2"><Icon name="alert" />Couldn’t load your notes{notes.length ? '. Showing the last copy on this device' : ''}. {loadError}</span>
           <button type="button" className="btn-secondary btn-sm" onClick={() => setSyncTick((t) => t + 1)}>Try again</button>
@@ -268,7 +270,9 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         </div>
       )}
       {merging && <MergeDialog notes={selected} onMerge={merge} onCancel={() => setMerging(false)} />}
-      {error && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p>}
+      {error && (isNetworkText(error)
+        ? <p role="status" className="mt-4 inline-flex items-center gap-2 text-sm text-muted"><Icon name="offline" size="xs" />{error}</p>
+        : <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p>)}
 
       <div ref={listRef}>
       {loading && notes.length === 0 ? (

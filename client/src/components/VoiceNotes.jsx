@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { audioApi } from '../lib/api.js';
-import { useIsOnline, useClearOfflineMessage, useRefetch } from '../lib/network.js';
+import { useIsOnline, useClearOfflineMessage, useRefetch, isNetworkText } from '../lib/network.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
 
@@ -95,7 +95,9 @@ export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
             </button>)}
         {!online && <span className="text-xs text-faint">Voice notes need a connection.</span>}
       </div>
-      {error && <p className="mt-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
+      {error && (isNetworkText(error)
+        ? <p role="status" className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted"><Icon name="offline" size="xs" />{error}</p>
+        : <p className="mt-2 text-xs text-red-700 dark:text-red-400">{error}</p>)}
     </section>
   );
 }

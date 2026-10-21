@@ -1,5 +1,6 @@
 import { clearAllUndo } from '../editor/undoStore.js';
 import { createQueue, isTempId } from './offlineQueue.js';
+import { OFFLINE_MESSAGE, NETWORK_MESSAGE } from './network.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 export const TOKEN_KEY = 'noted.token';
@@ -17,16 +18,33 @@ class ApiError extends Error {
 }
 // fetch rejects with a TypeError when the network is unavailable.
 export const isNetworkError = (err) => err instanceof TypeError || err?.offline === true;
+const offlineError = () => Object.assign(new TypeError(OFFLINE_MESSAGE), { offline: true });
+// fetch() that never surfaces the browser's raw "Failed to fetch": network failures become a
+// TypeError (so isNetworkError still sees them) with a message people can act on.
+async function netFetch(url, opts) {
+  try { return await fetch(url, opts); }
+  catch (e) {
+    if (e?.name === 'AbortError') throw e;
+    throw Object.assign(new TypeError(navigator.onLine ? NETWORK_MESSAGE : OFFLINE_MESSAGE), { network: true, offline: !navigator.onLine, cause: e });
+  }
+}
 
 // While the session token is being rotated (sign out everywhere, password change), requests that
 // raced it can get a 401 with the old token: wait for the new one and retry instead of logging out.
 let rotating = null;
-const rotate = (run) => { const p = run(); rotating = p.finally(() => { if (rotating === p) rotating = null; }); return p; };
+const rotate = (run) => {
+  const p = run();
+  // Waiters only need to know when it settles; the caller handles the rejection.
+  const r = p.finally(() => { if (rotating === r) rotating = null; });
+  r.catch(() => {});
+  rotating = r;
+  return p;
+};
 
 async function request(method, path, body, { headers: extra, signal, retried } = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
-  const res = await fetch(BASE + path, {
+  if (!navigator.onLine) throw offlineError();
+  const res = await netFetch(BASE + path, {
     method,
     signal,
     cache: 'no-store',
@@ -165,7 +183,8 @@ const changed = (r) => { window.dispatchEvent(new Event('noted:notes-changed'));
 // Downloads a file from an authenticated endpoint.
 async function download(path, fallbackName, extraHeaders = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
-  const res = await fetch(BASE + path, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extraHeaders } });
+  if (!navigator.onLine) throw offlineError();
+  const res = await netFetch(BASE + path, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extraHeaders } });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `Download failed (${res.status})`);
   const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || fallbackName;
   const url = URL.createObjectURL(await res.blob());
@@ -193,9 +212,9 @@ export function saveOnUnload(id, body, unlockToken) {
 
 // ---- Voice notes (never queued offline; fetched with auth, played from a blob URL) ----
 async function rawFetch(method, path, { body, headers = {} } = {}) {
-  if (!navigator.onLine) throw Object.assign(new TypeError('You are offline'), { offline: true });
+  if (!navigator.onLine) throw offlineError();
   const token = localStorage.getItem(TOKEN_KEY);
-  const res = await fetch(BASE + path, { method, body, cache: 'no-store', headers: { ...(token && { Authorization: `Bearer ${token}` }), ...headers } });
+  const res = await netFetch(BASE + path, { method, body, cache: 'no-store', headers: { ...(token && { Authorization: `Bearer ${token}` }), ...headers } });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     if (res.status === 401 && token) onUnauthorized();

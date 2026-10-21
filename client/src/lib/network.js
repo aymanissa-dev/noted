@@ -10,8 +10,13 @@ const subscribe = (fn) => {
 const snapshot = () => navigator.onLine;
 export const useIsOnline = () => useSyncExternalStore(subscribe, snapshot, () => true);
 
-// The message api.js uses when a request is skipped because the browser is offline.
+// The messages api.js uses for requests that never got an answer: skipped because the browser is
+// offline, or fetch itself failed (DNS, dropped Wi-Fi, blocked) — never the browser's raw
+// "Failed to fetch".
 export const OFFLINE_MESSAGE = 'You are offline';
+export const NETWORK_MESSAGE = 'Couldn’t reach noted. Check your connection and try again.';
+export const isNetworkText = (t) => typeof t === 'string' && (t.includes(OFFLINE_MESSAGE) || t.includes(NETWORK_MESSAGE));
+export const isNetworkFailure = (e) => e instanceof TypeError || e?.offline === true || e?.network === true;
 export const isOfflineError = (e) => e?.offline === true || (e instanceof TypeError && !navigator.onLine);
 
 // Run `fn` when the connection comes back. The 'online' event can fire a moment before requests
@@ -32,7 +37,7 @@ export function useOnReconnect(fn) {
 }
 
 // Drop a message that only said we were offline (string or { text }) once we're back online.
-const mentionsOffline = (v) => typeof (v?.text ?? v) === 'string' && (v?.text ?? v).includes(OFFLINE_MESSAGE);
+const mentionsOffline = (v) => typeof (v?.text ?? v) === 'string' && [OFFLINE_MESSAGE, NETWORK_MESSAGE].some((m) => (v?.text ?? v).includes(m));
 export function useClearOfflineMessage(setter) {
   useOnReconnect(() => setter((v) => (mentionsOffline(v) ? (typeof v === 'string' ? '' : null) : v)));
 }
