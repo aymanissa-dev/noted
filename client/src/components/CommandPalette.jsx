@@ -10,6 +10,9 @@ import Icon from './Icon.jsx';
 
 const norm = (s) => (s || '').toLowerCase();
 
+// One emoji (incl. ZWJ sequences / flags), not arbitrary text such as an imported "<b>x</b>".
+const isEmoji = (v) => !!v && v.length <= 16 && /^\p{Extended_Pictographic}|^\p{Regional_Indicator}/u.test(v) && (typeof Intl.Segmenter !== "function" || [...new Intl.Segmenter().segment(v)].length === 1);
+
 // How well a label matches the query: 3 exact, 2 prefix, 1 word prefix, 0.5 substring, 0 none.
 export const matchScore = (label, s) => {
   const l = norm(label);
@@ -108,7 +111,7 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
                 {header && <p className="section-label px-3 pb-1 pt-3 first:pt-1">{header}</p>}
                 <div id={`pi-${it.id}`} role="option" aria-selected={i === active} onMouseMove={() => setActive(i)} onClick={() => run(it)}
                   className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-sm ${i === active ? 'bg-stone-100 text-stone-900 dark:bg-stone-800 dark:text-stone-100' : 'text-stone-700 dark:text-stone-300'}`}>
-                  {it.emoji ? <span aria-hidden="true" className="w-4 text-center">{it.emoji}</span> : <Icon name={it.icon} className="text-stone-500 dark:text-stone-400" />}
+                  <span aria-hidden="true" className="flex w-5 shrink-0 items-center justify-center overflow-hidden">{isEmoji(it.emoji) ? <span className="leading-none">{it.emoji}</span> : <Icon name={it.icon} className="text-stone-500 dark:text-stone-400" />}</span>
                   <span className="min-w-0 flex-1 truncate">{it.label}</span>
                   {it.hint && <span className="truncate text-xs text-faint">{it.hint}</span>}
                   {it.keys && <Kbd combo={it.keys} size="sm" />}
