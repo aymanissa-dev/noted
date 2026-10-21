@@ -6,8 +6,10 @@ import Kbd from '../components/Kbd.jsx';
 import { useTheme } from '../lib/theme.js';
 import { IS_MAC } from '../lib/keys.js';
 
-// One label for every sign-up button on the page (hero, privacy and closing band).
+// One label for every sign-up link on the page (hero, privacy, closing band, footer). The sticky
+// header keeps a compact variant on purpose: it shares the bar with nav, theme and Log in.
 const CTA = 'Start writing — it’s free';
+const CTA_COMPACT = 'Start writing';
 
 const GITHUB = 'https://github.com/aymanissa-dev/noted';
 
@@ -56,7 +58,7 @@ function Nav() {
         <div className="flex items-center gap-2">
           <ThemePill />
           <Link to="/login" className="btn-ghost">Log in</Link>
-          <Link to="/register" className="btn-primary hidden sm:inline-flex">Start writing</Link>
+          <Link to="/register" className="btn-primary hidden sm:inline-flex" data-cta="compact">{CTA_COMPACT}</Link>
         </div>
       </div>
     </header>
@@ -388,7 +390,7 @@ export default function Landing() {
             </div>
             {[
               ['Product', [['#features', 'Features'], ['#shortcuts', 'Shortcuts'], ['#privacy', 'Privacy'], ['#faq', 'FAQ']]],
-              ['Account', [['/register', 'Start writing'], ['/login', 'Log in']]],
+              ['Account', [['/register', CTA], ['/login', 'Log in']]],
               ['Project', [[GITHUB, 'GitHub'], [`${GITHUB}/issues`, 'Report an issue']]],
             ].map(([h, links]) => (
               <div key={h}>
