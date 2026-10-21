@@ -1,6 +1,6 @@
 // Service worker updates, promptly and safely.
-// The worker precaches the app shell, so after a deploy an open tab (or a normal reload) could keep
-// running the previous build. The worker itself activates new builds immediately (skipWaiting +
+// Page loads are network-first in the worker (see vite.config.js), so a load while online always gets
+// the current build. An already open tab still runs the build it started with. The worker itself activates new builds immediately (skipWaiting +
 // clientsClaim, versioned precache with old caches cleaned up); this file makes the page follow:
 //  - checks for a new worker on start, when the tab becomes visible or the window gets focus, and
 //    every 20 minutes (see data-sw-checked / data-sw-update on <html>);
@@ -35,8 +35,9 @@ export function startServiceWorker() {
       let last = 0;
       const check = (why) => {
         if (!navigator.onLine || document.visibilityState !== 'visible') return;
-        if (why !== 'requested' && Date.now() - last < 30000) return; // focus/visibility can fire in bursts
-        last = Date.now();
+        const burst = why === 'tab visible' || why === 'window focus'; // these can fire in bursts
+        if (burst && Date.now() - last < 30000) return;
+        if (burst) last = Date.now();
         root.dataset.swChecked = new Date().toISOString();
         console.info(`[noted] checking for a new version (${why}; running ${root.dataset.build})`);
         reg.update().catch(() => {});
@@ -45,6 +46,7 @@ export function startServiceWorker() {
       window.addEventListener('focus', () => check('window focus'));
       window.addEventListener('noted:check-update', () => check('requested'));
       setInterval(() => check('every 20 min'), 20 * 60 * 1000);
+      check('page load'); // don't rely on the browser's own post-navigation check
     }).catch(() => {});
   });
 }

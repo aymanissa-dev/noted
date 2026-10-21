@@ -34,5 +34,25 @@ try {
   await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Done')?.click());
   await p.waitForFunction(() => document.documentElement.dataset.build === 'e2e-next2', { timeout: 15000 }).catch(() => {});
   ok(await p.evaluate(() => document.documentElement.dataset.build) === 'e2e-next2', 'leaving the note reloads into the new build');
+  // (QA final b) a page LOAD after a deploy starts on the new build right away (network-first
+  // navigations), even while the previous worker is still in control; offline, the shell still loads.
+  build('e2e-next3');
+  for (const path of ['/', '/notes', `/notes/${n._id}`]) {
+    const q = await b.newPage();
+    await q.goto(BASE + path, { waitUntil: 'domcontentloaded' });
+    await q.waitForFunction(() => document.documentElement.dataset.build, { timeout: 10000 }).catch(() => {});
+    const first = await q.evaluate(() => ({ build: document.documentElement.dataset.build, controlled: !!navigator.serviceWorker.controller }));
+    ok(first.build === 'e2e-next3' && first.controlled, `first load of ${path} after a deploy runs the new build, no second reload (${JSON.stringify(first)})`);
+    await q.close();
+  }
+  const off = await b.newPage(); const oc = await off.target().createCDPSession();
+  await off.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
+  await oc.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  for (const path of ['/notes', '/', '/trash', `/notes/${n._id}`]) {
+    await off.goto(BASE + path, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await off.waitForFunction(() => document.documentElement.dataset.build, { timeout: 8000 }).catch(() => {});
+    ok(await off.evaluate(() => document.documentElement.dataset.build).catch(() => null) === 'e2e-next3', `offline: the app shell still loads at ${path}`);
+  }
+  await oc.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }); await off.close();
   ok(p.errors.length === 0, `no page errors (${p.errors.join(' | ')})`);
 } finally { await cleanup(); await b.close(); build(''); }

@@ -50,10 +50,31 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App shell is precached; SPA routes fall back to index.html offline.
+        // Page loads (navigations) are NETWORK-FIRST: online, every load gets the current index.html
+        // from the server, so a tab never starts on an older build just because an older worker is
+        // still in control (QA saw a profile two builds behind start on the stale shell). Every route
+        // is the same SPA shell, so all navigations share one cache entry (/index.html), refreshed on
+        // each online load; offline (or no answer within 4s) that copy is used, and if there's none
+        // yet, the precached index.html.
         // API responses are NOT cached by the service worker (they are per-user); the app keeps
         // its own offline copy in localStorage, cleared on logout.
-        navigateFallback: '/index.html',
+        navigateFallback: null,
+        // index.html stays precached (the offline fallback), but '/' must not be served from the
+        // precache (cache-first) by Workbox's directory-index matching: send it to the route below.
+        directoryIndex: '__no_directory_index__',
+        runtimeCaching: [{
+          urlPattern: ({ request, url }) => request.mode === 'navigate' && !url.pathname.startsWith('/api/'),
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'noted-shell',
+            networkTimeoutSeconds: 4,
+            plugins: [{
+              cacheKeyWillBeUsed: async () => '/index.html',
+              cacheWillUpdate: async ({ response }) => (response && response.status === 200 && (response.headers.get('content-type') || '').includes('text/html') ? response : null),
+              handlerDidError: async () => caches.match('/index.html', { ignoreSearch: true }),
+            }],
+          },
+        }],
         cleanupOutdatedCaches: true, // drop the previous build's precache once the new worker is active
         skipWaiting: true,
         clientsClaim: true,
