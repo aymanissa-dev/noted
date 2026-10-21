@@ -361,6 +361,7 @@ export default function Settings() {
       <PasswordSection />
       <SessionsSection />
       <DeleteAccountSection />
+      <p className="text-center text-xs text-faint" data-testid="build-id">noted. build {__BUILD_ID__} · {new Date(__BUILD_TIME__).toLocaleDateString(undefined, { dateStyle: 'medium' })}</p>
     </div>
   );
 }

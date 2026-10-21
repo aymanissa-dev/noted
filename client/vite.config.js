@@ -1,12 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+// Which build is this? Shown in Settings and on <html data-build>, so QA can tell a stale cached app
+// from the deployed one. Vercel git builds set VERCEL_GIT_COMMIT_SHA; CLI builds fall back to git/time.
+const sha = () => { try { return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; } };
+const BUILD_ID = process.env.VITE_BUILD_ID || (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || sha() || 'dev';
+const BUILD_TIME = new Date().toISOString();
 
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID), __BUILD_TIME__: JSON.stringify(BUILD_TIME) },
   plugins: [
     react(),
     VitePWA({
+      // New builds activate immediately (skipWaiting + clientsClaim). Registration and the page-side
+      // reload (right away, or once you leave an open note) live in src/lib/swUpdate.js.
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['favicon.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'noted.',
@@ -32,6 +43,9 @@ export default defineConfig({
         // API responses are NOT cached by the service worker (they are per-user); the app keeps
         // its own offline copy in localStorage, cleared on logout.
         navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true, // drop the previous build's precache once the new worker is active
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallbackDenylist: [/^\/api\//],
         // No runtime route for /api: those requests bypass the service worker entirely, so they are never
         // cached and, offline, fail in the page as a normal network error (which the app queues/handles)

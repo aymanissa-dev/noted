@@ -9,6 +9,7 @@ import Tour, { TOUR_PENDING } from './Tour.jsx';
 import Kbd from './Kbd.jsx';
 import { useShortcuts } from '../lib/useShortcuts.js';
 import { useOnline } from '../lib/useOnline.js';
+import { useToast } from '../context/ToastContext.jsx';
 import { useTheme } from '../lib/theme.js';
 import Sidebar, { BottomNav } from './Sidebar.jsx';
 import Icon from './Icon.jsx';
@@ -67,6 +68,14 @@ export default function Layout() {
     };
     setTimeout(wait, 50);
   };
+  // A new build is ready while a note is open: offer it now (it also applies once you leave the note).
+  const toast = useToast();
+  useEffect(() => {
+    const ready = (e) => toast.show('A new version of noted. is ready.', { action: { label: 'Reload', onClick: () => e.detail?.apply?.() } });
+    window.addEventListener('noted:update-ready', ready);
+    return () => window.removeEventListener('noted:update-ready', ready);
+  }, [toast]);
+
   useEffect(() => {
     const onOpen = (e) => open(e.detail);
     window.addEventListener('noted:open', onOpen);
