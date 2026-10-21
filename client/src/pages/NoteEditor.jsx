@@ -86,12 +86,18 @@ export default function NoteEditor() {
   // Couldn't load, but a full copy saved on this device is showing (read-only).
   const [localCopy, setLocalCopy] = useState(false);
   const [loadTick, setLoadTick] = useState(0);
-  useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) || localCopy });
+  const retryLoad = useRefetch(() => setLoadTick((t) => t + 1), { failing: Boolean(loadFailed) || localCopy });
+  // Only the newest load attempt may update the view: a slow failure from before a reconnect must
+  // not knock a note that has since loaded back into the read-only state.
+  const loadSeq = useRef(0);
 
   useEffect(() => {
     if (!routeId || (routeId === idRef.current && verifiedRef.current)) return;
+    const seq = ++loadSeq.current;
+    const stale = () => seq !== loadSeq.current || (verifiedRef.current && routeId === idRef.current);
     api.getNote(routeId)
       .then(({ note: n }) => {
+        if (seq !== loadSeq.current) return;
         const loaded = toLoaded(n);
         verifiedRef.current = true; setVerified(true);
         setLoadFailed(''); setLoadPreview(null); setLocalCopy(false);
@@ -101,6 +107,7 @@ export default function NoteEditor() {
         setPreviewOnly(Boolean(n.excerpt));
       })
       .catch((e) => {
+        if (stale()) return;
         if (e.status === 404 || e.status === 400 || e.status === 403) { setNotFound(true); return; }
         const local = e.local || initial;
         if (local) {
@@ -110,7 +117,7 @@ export default function NoteEditor() {
           setLocalCopy(true); setLoadFailed('');
         } else { setLoadFailed(e.message || 'Couldn’t load this note.'); setLoadPreview(e.preview || null); }
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (seq === loadSeq.current) setLoading(false); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId, loadTick]);
   const readOnly = previewOnly || !verified;
@@ -344,14 +351,16 @@ export default function NoteEditor() {
       <div data-testid="note-load-failed" className="mx-auto mt-16 max-w-md text-center">
         <Icon name="offline" className="mx-auto text-faint" />
         <h2 className="mt-3 text-lg font-semibold tracking-tight">Couldn’t load this note</h2>
-        <p className="mt-1.5 text-sm text-muted">{online ? 'noted. didn’t answer. Trying again…' : 'You’re offline and this note isn’t saved on this device yet. It opens when you reconnect.'}</p>
+        <p className="mt-1.5 text-sm text-muted">{loadPreview
+          ? (online ? 'noted. didn’t answer. Showing a preview saved on this device. Trying again…' : 'You’re offline. Showing a preview saved on this device; the full note opens when you reconnect.')
+          : (online ? 'noted. didn’t answer. Trying again…' : 'You’re offline and this note isn’t saved on this device yet. It opens when you reconnect.')}</p>
         <div className="mt-6 flex justify-center gap-2">
-          <button type="button" className="btn-primary" onClick={() => setLoadTick((t) => t + 1)}><Icon name="refresh" />Try again</button>
+          <button type="button" className="btn-primary" onClick={retryLoad}><Icon name="refresh" />Try again</button>
           <Link to="/notes" className="btn-ghost"><Icon name="back" />Back to notes</Link>
         </div>
         {loadPreview && (
           <div data-testid="note-load-preview" className="mt-8 rounded-xl border border-dashed border-stone-200 p-4 text-left dark:border-stone-800">
-            <p className="text-xs text-faint">Only a preview of this note is saved on this device (read-only).</p>
+            <p className="text-xs text-faint">Preview saved on this device (may be shortened, read-only)</p>
             <p className="mt-2 font-semibold text-stone-800 dark:text-stone-100">{loadPreview.emoji ? `${loadPreview.emoji} ` : ''}{loadPreview.title || 'Untitled'}</p>
             {loadPreview.content && <p className="mt-1 line-clamp-6 whitespace-pre-line text-sm text-muted">{loadPreview.content}{loadPreview.excerpt ? '…' : ''}</p>}
           </div>
@@ -435,8 +444,8 @@ export default function NoteEditor() {
       {localCopy && (
         <div role="status" data-testid="note-local-copy" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm dark:border-stone-800 dark:bg-stone-900">
           <span className="inline-flex items-center gap-2 text-muted"><Icon name="offline" size="xs" />
-            {online ? 'Couldn’t load this note from noted. Showing the copy saved on this device, read-only. Trying again…' : 'You’re offline. Showing the copy saved on this device, read-only until you reconnect.'}</span>
-          <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setLoadTick((t) => t + 1)}>Try again</button>
+            {online ? 'Couldn’t load this note. Showing the copy saved on this device, read-only. Trying again…' : 'Couldn’t load this note: you’re offline. Showing the copy saved on this device, read-only until you reconnect.'}</span>
+          <button type="button" className="btn-secondary btn-sm shrink-0" onClick={retryLoad}>Try again</button>
         </div>
       )}
       {previewOnly && (

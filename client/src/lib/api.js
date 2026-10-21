@@ -21,9 +21,12 @@ export const queue = createQueue(localStorage);
 const OWNER_KEY = 'noted.owner';
 const currentUserId = () => { try { const u = JSON.parse(localStorage.getItem(USER_KEY)); return u?.id || u?._id || null; } catch { return null; } };
 const ownedByCurrentUser = () => { const id = currentUserId(); return Boolean(id) && localStorage.getItem(OWNER_KEY) === id; };
+let signedOutPurged = false;
 export function ensureOwner(userId = currentUserId()) {
   try {
-    if (!userId) return;
+    // Signed out: nothing of any account's editor history may stay on this device.
+    if (!userId) { if (!signedOutPurged && !localStorage.getItem(TOKEN_KEY)) { signedOutPurged = true; clearAllUndo(); } return; }
+    signedOutPurged = false;
     const owner = localStorage.getItem(OWNER_KEY);
     if (owner === userId) return;
     clearAllUndo();

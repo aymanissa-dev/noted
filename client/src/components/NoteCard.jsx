@@ -6,7 +6,7 @@ import Icon from './Icon.jsx';
 import { cardClass } from '../lib/colors.js';
 import { previewText } from '../lib/markdown.js';
 
-export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
+export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, needsConnection = false, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
   const motion = leaving ? 'animate-leave pointer-events-none' : entering ? 'animate-slide-in' : '';
   if (note.deletedAt) {
     return (
@@ -15,8 +15,12 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         <p className="mt-1 flex-1 whitespace-pre-line text-sm text-muted line-clamp-3">{previewText(note.content, note.title)}</p>
         <div className="mt-3 flex items-center gap-1">
           <span className="text-xs text-faint">Deleted {timeAgo(note.deletedAt)}</span>
-          <button className="btn-secondary btn-sm ml-auto" onClick={() => onRestore(note)}>Restore</button>
-          <button className="btn-danger btn-sm" onClick={() => onDeleteForever(note)}>Delete forever</button>
+          {/* Restoring and deleting for good happen on the server: offline (or while noted. can't be
+              reached) they're disabled rather than failing after a click. */}
+          <span className="ml-auto flex gap-1" title={needsConnection ? 'Needs a connection' : undefined}>
+            <button className="btn-secondary btn-sm" disabled={needsConnection} aria-describedby={needsConnection ? 'needs-connection' : undefined} onClick={() => onRestore(note)}>Restore</button>
+            <button className="btn-danger btn-sm" disabled={needsConnection} aria-describedby={needsConnection ? 'needs-connection' : undefined} onClick={() => onDeleteForever(note)}>Delete forever</button>
+          </span>
         </div>
       </div>
     );

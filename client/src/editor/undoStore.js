@@ -23,11 +23,18 @@ async function run(mode, fn) {
   });
 }
 const key = (userId, noteId) => `${userId}:${noteId}`;
+// Only the signed-in account may read or write: after logout (or an account switch) an editor that
+// is still unmounting must not recreate the database with the previous account's history.
+const signedIn = (userId) => {
+  try { const u = JSON.parse(localStorage.getItem('noted.user')); return Boolean(userId) && (u?.id || u?._id) === userId && Boolean(localStorage.getItem('noted.token')); } catch { return false; }
+};
 
 export async function loadUndo(userId, noteId) {
+  if (!signedIn(userId)) return null;
   try { return (await run('readonly', (s) => s.get(key(userId, noteId)))) || null; } catch { return null; }
 }
 export async function saveUndo(userId, noteId, data) {
+  if (!signedIn(userId)) return;
   try {
     const json = JSON.stringify(data);
     if (json.length > MAX_BYTES) return dropUndo(userId, noteId);

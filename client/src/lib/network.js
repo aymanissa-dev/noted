@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 // One shared, reactive view of connectivity for the whole app. Components re-render on the
 // browser's online/offline events, so nothing keeps saying "You are offline" after you reconnect.
@@ -45,15 +45,20 @@ export function useClearOfflineMessage(setter) {
 // Keep a data view fresh after connection trouble. Calls `load`:
 //  - when the browser comes back online (plus two short retries, see useOnReconnect);
 //  - when the window regains focus or the tab becomes visible (always, or only while failing);
-//  - while `failing`, on a backoff (3s, 6s, 12s… up to 30s) as long as the tab is visible and
-//    the browser thinks it's online. A request can fail with "Failed to fetch" while
-//    navigator.onLine stays true (flaky Wi-Fi, captive portals, DevTools throttling), and then no
-//    'online' event ever comes, so waiting for one isn't enough.
+//  - while `failing`, on a backoff (1s after reconnecting or Try again, else 3s; doubling up to 30s)
+//    as long as the tab is visible and the browser thinks it's online. A request can fail with
+//    "Failed to fetch" while navigator.onLine stays true (flaky Wi-Fi, captive portals, DevTools
+//    throttling), and then no 'online' event ever comes, so waiting for one isn't enough. The
+//    backoff only grows after a real attempt, so a long time offline doesn't leave a 30s gap
+//    after the connection returns.
+// Returns `retry()`: load now and keep retrying quickly while it still fails (one Try again click is
+// enough even if the network needs a few more seconds).
 export function useRefetch(load, { failing = false, onFocus = 'failing' } = {}) {
   const ref = useRef(load);
   ref.current = load;
   const failingRef = useRef(failing);
   failingRef.current = failing;
+  const kick = useRef(() => {});
   useOnReconnect(() => ref.current());
   useEffect(() => {
     const back = () => { if (document.visibilityState === 'visible' && (onFocus === 'always' || failingRef.current)) ref.current(); };
@@ -62,15 +67,20 @@ export function useRefetch(load, { failing = false, onFocus = 'failing' } = {}) 
     return () => { window.removeEventListener('focus', back); document.removeEventListener('visibilitychange', back); };
   }, [onFocus]);
   useEffect(() => {
-    if (!failing) return;
+    if (!failing) { kick.current = () => {}; return undefined; }
     let delay = 3000; let t;
     const tick = () => {
+      clearTimeout(t);
       t = setTimeout(() => {
-        if (document.visibilityState === 'visible' && navigator.onLine) ref.current();
-        delay = Math.min(delay * 2, 30000); tick();
+        if (document.visibilityState === 'visible' && navigator.onLine) { ref.current(); delay = Math.min(delay * 2, 30000); }
+        tick();
       }, delay);
     };
+    kick.current = () => { delay = 1000; tick(); };
+    const onOnline = () => kick.current();
+    window.addEventListener('online', onOnline);
     tick();
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); window.removeEventListener('online', onOnline); };
   }, [failing]);
+  return useCallback(() => { ref.current(); kick.current(); }, []);
 }

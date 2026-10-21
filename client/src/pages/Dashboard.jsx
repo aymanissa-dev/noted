@@ -49,6 +49,9 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   // Back online: drop the offline notices now and refetch (retried briefly; see useOnReconnect).
   useOnReconnect(() => { setOffline(false); setLoadError((e) => (e === 'offline' ? '' : e)); });
   useRefetch(() => setSyncTick((t) => t + 1), { failing: Boolean(loadError) || offline });
+  const online = useIsOnline();
+  // Showing what's saved on this device (offline, or noted. can't be reached).
+  const noConnection = !online || offline || loadError === 'offline';
   const listRef = useRef(null);
   const [leaving, setLeaving] = useState(() => new Set());
   const leavingRef = useRef(leaving);
@@ -248,7 +251,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
             onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : <><Icon name="select" />Select</>}</button>
         )}
         {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'btn-icon' : ''}`} data-tour="new" aria-label="New note" data-tip="New note · N" data-tip-align="end"><Icon name="plus" />{!compact && 'New note'}</Link>}
-        {view === 'trash' && notes.length > 0 && <button className="btn-danger" onClick={emptyTrash}><Icon name="trash" />Empty trash</button>}
+        {view === 'trash' && notes.length > 0 && <span title={noConnection ? 'Needs a connection' : undefined}><button className="btn-danger" disabled={noConnection} onClick={emptyTrash}><Icon name="trash" />Empty trash</button></span>}
       </div>
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
@@ -295,7 +298,10 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       {loading && notes.length === 0 ? (
         <ListSkeleton />
       ) : notes.length === 0 ? (
-        loadError && loadError !== 'offline' ? null : (
+        loadError && loadError !== 'offline' ? null : noConnection ? (
+          // Offline with nothing cached for this list: don't claim the list is empty.
+          <EmptyState kind="offline" testId="empty-offline" title="Nothing saved on this device" body={`This list hasn’t been saved on this device yet. It loads when you reconnect.`} primary={{ onClick: () => setSyncTick((t) => t + 1), label: 'Try again', icon: 'refresh' }} />
+        ) : (
         <Empty compact={compact} view={view} query={query} tag={tag} folder={folder} smart={smart}
           clear={() => { setSearch(''); setTag(''); }} focusCapture={() => document.getElementById('quick-capture')?.focus()} />
         )
@@ -304,8 +310,9 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
           {pinned.length > 0 && <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
             <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
-              notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} />
+              notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} needsConnection={noConnection} />
           )}
+          {noConnection && view === 'trash' && <p id="needs-connection" className="sr-only">Needs a connection</p>}
         </>
       )}
       </div>
@@ -313,12 +320,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   );
 }
 
-function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, compact, activeId, selecting, selected = [], onSelect, leaving, entering }) {
+function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, needsConnection, compact, activeId, selecting, selected = [], onSelect, leaving, entering }) {
   return (
     <section className="mt-6">
       <h2 className="mb-3 section-label">{title}</h2>
       <div className={`grid ${compact ? 'gap-2' : 'grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-4'}`}>
-        {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} />)}
+        {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} needsConnection={needsConnection} />)}
       </div>
     </section>
   );
