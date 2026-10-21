@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useOnReconnect } from '../lib/network.js';
 import { Bar } from '../components/Skeleton.jsx';
 
 const fmt = (n) => new Intl.NumberFormat().format(n);
@@ -19,7 +20,9 @@ function Tile({ label, value, hint }) {
 export default function Stats() {
   const [s, setS] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.stats().then(setS).catch((e) => setError(e.message)); }, []);
+  const load = () => api.stats().then((x) => { setS(x); setError(''); }).catch((e) => setError(e.message));
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useOnReconnect(load);
   return (
     <div className="mx-auto max-w-3xl">
       <Link to="/settings" className="btn-ghost -ml-3">← Settings</Link>

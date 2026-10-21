@@ -8,6 +8,7 @@ import PasswordDialog from '../components/PasswordDialog.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from '../components/Icon.jsx';
 import { passwordProblem, PASSWORD_HINT } from '../lib/passwordHints.js';
+import { useIsOnline, useOnReconnect, useClearOfflineMessage, isOfflineError } from '../lib/network.js';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 // Resolves to the PIN, '' (export locked notes as placeholders), or null (cancelled).
@@ -35,6 +36,7 @@ function AccentSection() {
   const { user, updateUser } = useAuth();
   const [current, setCurrent] = useState(user?.preferences?.accent || storedAccent());
   const [msg, setMsg] = useState('');
+  useClearOfflineMessage(setMsg);
   const choose = async (key) => {
     const prev = current;
     setCurrent(key); applyAccent(key); setMsg('');
@@ -59,13 +61,18 @@ function ActivitySection() {
   const [events, setEvents] = useState(null);
   const [error, setError] = useState('');
   const [checkedAt, setCheckedAt] = useState(null);
+  const online = useIsOnline();
+  const loadRef = useRef(() => {});
+  // Back online: fetch again right away (and drop the offline note) instead of waiting for a reload.
+  useOnReconnect(() => loadRef.current());
   // Keep it current: on open, when you come back to the tab, every 30s while visible, and after
   // session changes (sign out everywhere, password change).
   useEffect(() => {
     let alive = true;
     const load = () => api.loginActivity()
       .then(({ events }) => { if (alive) { setEvents(events); setError(''); setCheckedAt(Date.now()); } })
-      .catch((e) => alive && setError(e.message));
+      .catch((e) => alive && setError(isOfflineError(e) ? 'offline' : e.message));
+    loadRef.current = load;
     load();
     const onVisible = () => { if (document.visibilityState === 'visible') load(); };
     const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000);
@@ -82,8 +89,10 @@ function ActivitySection() {
   const when = (d) => new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <Card title="Login activity" description="Your last 20 sign-ins. IP addresses are masked. If something looks unfamiliar, change your password and sign out everywhere.">
-      {error && <p className="text-sm text-red-700 dark:text-red-400">{error}</p>}
-      {!events && !error && <p className="text-sm text-muted">Loading…</p>}
+      {(error === 'offline' || (!online && !events)) ? (
+        <p role="status" className="inline-flex items-center gap-2 text-sm text-muted"><Icon name="offline" size="xs" />You’re offline. Your sign-in history loads when you reconnect.</p>
+      ) : error ? <p className="text-sm text-red-700 dark:text-red-400">{error}</p> : null}
+      {!events && !error && online && <p className="text-sm text-muted">Loading…</p>}
       {events && (
         <ul data-testid="activity" className="-mx-2 divide-y divide-stone-100 dark:divide-stone-800">
           {events.map((e) => (
@@ -109,6 +118,7 @@ function DataSection() {
   const { user } = useAuth();
   const fileRef = useRef(null);
   const [msg, setMsg] = useState(null);
+  useClearOfflineMessage(setMsg);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState(null); // { encrypt: pin } | { backup } (decrypt)
   const dialog = useDialog();
@@ -180,6 +190,7 @@ function PasswordSection() {
   const { user } = useAuth();
   const [form, setForm] = useState({ current: '', next: '', confirm: '' });
   const [msg, setMsg] = useState(null);
+  useClearOfflineMessage(setMsg);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -216,6 +227,7 @@ function LockPinSection() {
   const [mode, setMode] = useState(null); // 'set' | 'remove'
   const [form, setForm] = useState({ password: '', pin: '', confirm: '' });
   const [msg, setMsg] = useState(null);
+  useClearOfflineMessage(setMsg);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: k === 'password' ? e.target.value : e.target.value.replace(/\D/g, '').slice(0, 6) });
   const close = () => { setMode(null); setForm({ password: '', pin: '', confirm: '' }); };
@@ -272,6 +284,7 @@ function LockPinSection() {
 function SessionsSection() {
   const dialog = useDialog();
   const [msg, setMsg] = useState(null);
+  useClearOfflineMessage(setMsg);
   const [busy, setBusy] = useState(false);
   const run = async () => {
     if (!(await dialog.confirm({ title: 'Sign out other devices?', body: 'Every other browser and device will need to log in again. You stay signed in here.', confirmLabel: 'Sign out others' }))) return;
@@ -293,6 +306,7 @@ function DeleteAccountSection() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  useClearOfflineMessage(setError);
 
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);

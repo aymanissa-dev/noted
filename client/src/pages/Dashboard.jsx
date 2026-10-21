@@ -13,6 +13,7 @@ import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
+import { useOnReconnect, isOfflineError } from '../lib/network.js';
 
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
@@ -43,6 +44,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   const [loadError, setLoadError] = useState('');
   const [offline, setOffline] = useState(false);
   const [syncTick, setSyncTick] = useState(0);
+  // Back online: drop the offline notices now and refetch (retried briefly; see useOnReconnect).
+  useOnReconnect(() => { setOffline(false); setLoadError((e) => (e === 'offline' ? '' : e)); setSyncTick((t) => t + 1); });
   const listRef = useRef(null);
   const [leaving, setLeaving] = useState(() => new Set());
   const leavingRef = useRef(leaving);
@@ -98,9 +101,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   useEffect(() => {
     const bump = () => setSyncTick((t) => t + 1);
     window.addEventListener('noted:queue-changed', bump);
-    window.addEventListener('online', bump);
     window.addEventListener('noted:notes-changed', bump);
-    return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('online', bump); window.removeEventListener('noted:notes-changed', bump); };
+    return () => { window.removeEventListener('noted:queue-changed', bump); window.removeEventListener('noted:notes-changed', bump); };
   }, []);
 
   // debounce search input; clearing it applies immediately
@@ -130,7 +132,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
         });
         setLoadError(''); setOffline(Boolean(result.offline)); setLoading(false);
       })
-      .catch((e) => { if (e?.name === 'AbortError') return; setLoadError(e.message); setLoading(false); });
+      .catch((e) => { if (e?.name === 'AbortError') return; setLoadError(isOfflineError(e) ? 'offline' : e.message); setLoading(false); });
   }, [query, tag, folder, smart, view, syncTick, fetchList]);
 
   // Reset a tag filter whose tag no longer exists.
@@ -239,8 +241,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       </div>
 
       {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
-      {offline && <p role="status" className="mt-4 inline-flex items-center gap-2 text-xs text-muted"><Icon name="offline" size="xs" />Offline: showing the notes saved on this device.</p>}
-      {loadError && (
+      {(offline || loadError === 'offline') && <p role="status" data-testid="list-offline" className="mt-4 inline-flex items-center gap-2 text-xs text-muted"><Icon name="offline" size="xs" />{loadError === 'offline' ? 'You’re offline. This list loads when you reconnect.' : 'Offline: showing the notes saved on this device.'}</p>}
+      {loadError && loadError !== 'offline' && (
         <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           <span className="inline-flex items-center gap-2"><Icon name="alert" />Couldn’t load your notes{notes.length ? '. Showing the last copy on this device' : ''}. {loadError}</span>
           <button type="button" className="btn-secondary btn-sm" onClick={() => setSyncTick((t) => t + 1)}>Try again</button>
@@ -271,7 +273,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       {loading && notes.length === 0 ? (
         <ListSkeleton />
       ) : notes.length === 0 ? (
-        loadError ? null : (
+        loadError && loadError !== 'offline' ? null : (
         <Empty compact={compact} view={view} query={query} tag={tag} folder={folder} smart={smart}
           clear={() => { setSearch(''); setTag(''); }} focusCapture={() => document.getElementById('quick-capture')?.focus()} />
         )

@@ -24,6 +24,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import { cardClass } from '../lib/colors.js';
+import { useClearOfflineMessage } from '../lib/network.js';
 import { useTypewriter, toggleTypewriter, isTypewriterShortcut } from '../lib/typewriter.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -48,6 +49,7 @@ export default function NoteEditor() {
   const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
   const [error, setError] = useState('');
   const [notFound, setNotFound] = useState(false);
+  useClearOfflineMessage(setError);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Locked notes: content is only available after PIN entry; the unlock token authorizes saves for 15 min.

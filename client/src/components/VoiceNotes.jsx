@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { audioApi } from '../lib/api.js';
-import { useOnline } from '../lib/useOnline.js';
+import { useIsOnline, useClearOfflineMessage } from '../lib/network.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
 
@@ -11,6 +11,7 @@ const pickType = () => ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audi
 function Clip({ clip, unlockToken, onDelete }) {
   const [url, setUrl] = useState(null);
   const [error, setError] = useState('');
+  useClearOfflineMessage(setError);
   useEffect(() => {
     let u; let alive = true;
     audioApi.blobUrl(clip._id, unlockToken).then((x) => { u = x; if (alive) setUrl(x); else URL.revokeObjectURL(x); }).catch((e) => setError(e.message));
@@ -28,13 +29,14 @@ function Clip({ clip, unlockToken, onDelete }) {
 
 // Record and play voice notes for a saved note (owner-only, private). Hidden for locked notes until unlocked.
 export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
-  const { online } = useOnline();
+  const online = useIsOnline();
   const dialog = useDialog();
   const [clips, setClips] = useState([]);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useClearOfflineMessage(setError);
   const rec = useRef(null);
   const supported = typeof window !== 'undefined' && 'MediaRecorder' in window && navigator.mediaDevices?.getUserMedia;
 
