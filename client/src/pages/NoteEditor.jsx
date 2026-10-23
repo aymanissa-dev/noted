@@ -79,7 +79,9 @@ export default function NoteEditor() {
   // visit (`verified`). Until then a copy saved on this device is shown read-only — briefly while it
   // checks, or for as long as noted. can't be reached (blocked, offline) — and nothing is saved or
   // queued for it: a local copy may be stale or partial, and writing it back could wipe the note.
-  const [verified, setVerified] = useState(() => !routeId || isTempId(routeId));
+  // A local (not yet synced) note that's here is editable right away; any other /notes/local-… id is
+  // looked up below, so an unknown one ends on "not found" instead of loading forever.
+  const [verified, setVerified] = useState(() => !routeId || (isTempId(routeId) && Boolean(initial)));
   const verifiedRef = useRef(verified);
   // Couldn't load and there's no full copy here: say so (with a read-only list preview if there is one).
   const [loadFailed, setLoadFailed] = useState('');
