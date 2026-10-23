@@ -5,7 +5,7 @@ import { SMART } from '../lib/smart.js';
 import { displayTitle, useUnlockedVersion } from '../lib/unlocked.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
-import { useRefetch } from '../lib/network.js';
+import { OFFLINE_MESSAGE, useRefetch } from '../lib/network.js';
 import { useToast } from '../context/ToastContext.jsx';
 
 const SMART_ICON = { recent: 'clock', pinned: 'pin', today: 'today', week: 'week', untagged: 'untagged', locked: 'lock' };
@@ -27,11 +27,12 @@ export default function Sidebar({ onOpen }) {
   const navigate = useNavigate();
   const params = new URLSearchParams(search);
   // Paint from the last known copies, then refresh.
-  const [folders, setFolders] = useState(() => readMeta('folders') || []);
+  // null until the first load when nothing is cached (right after sign-in): a skeleton, not "no folders".
+  const [folders, setFolders] = useState(() => readMeta('folders') ?? null);
   const [tags, setTags] = useState(() => readMeta('tags') || []);
   const [recent, setRecent] = useState(() => (readMeta('recent') || []).slice(0, 5));
-
   useUnlockedVersion();
+
   const [failing, setFailing] = useState(false);
   const load = useCallback(() => {
     Promise.all([
@@ -58,15 +59,28 @@ export default function Sidebar({ onOpen }) {
 
   const dialog = useDialog();
   const toast = useToast();
+  // New folders appear at once (dimmed until saved); the dialog only waits for the server when it's
+  // needed to explain a problem (offline). Duplicate names are caught here first, like the server would.
+  const byName = (a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
   const newFolder = async () => {
-    let created;
+    const known = folders || [];
     const name = await dialog.prompt({
       title: 'New folder', label: 'Folder name', placeholder: 'e.g. Work', confirmLabel: 'Create folder',
-      submit: async (v) => { ({ folder: created } = await api.createFolder(v)); },
+      validate: (v) => (known.some((f) => f.name.localeCompare(v, 'en', { sensitivity: 'base' }) === 0) ? 'You already have a folder with that name.' : null),
+      submit: async () => { if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE); }, // offline: say so in the dialog
     });
-    if (!name || !created) return;
-    window.dispatchEvent(new Event('noted:folders-changed'));
-    navigate(`/notes?folder=${created._id}`);
+    if (!name) return;
+    const temp = { _id: `pending-${Date.now()}`, name, count: 0, pending: true };
+    setFolders((list) => [...(list || []), temp].sort(byName));
+    try {
+      const { folder: created } = await api.createFolder(name);
+      setFolders((list) => (list || []).map((f) => (f._id === temp._id ? created : f)));
+      window.dispatchEvent(new Event('noted:folders-changed'));
+      navigate(`/notes?folder=${created._id}`);
+    } catch (e) {
+      setFolders((list) => (list || []).filter((f) => f._id !== temp._id));
+      toast.show(`Couldn’t create “${name}”: ${e.message}`);
+    }
   };
   const renameFolder = async (f) => {
     const name = await dialog.prompt({
@@ -112,8 +126,15 @@ export default function Sidebar({ onOpen }) {
         )}
 
         <Group title="Folders" action={<button type="button" onClick={newFolder} className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition hover:bg-stone-200/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200" aria-label="New folder" data-tip="New folder" data-tip-align="end"><Icon name="plus" size="xs" /></button>}>
-          {folders.length === 0 && <button type="button" onClick={newFolder} className={`${row(false)} text-faint`}><Icon name="folderPlus" />New folder</button>}
-          {folders.map((f) => (
+          {folders === null && !failing && (
+            <div data-testid="folders-loading" aria-busy="true" aria-label="Loading folders" className="space-y-1 px-2.5 py-1">
+              {[60, 45, 70].map((w) => <div key={w} className="h-6 animate-pulse rounded-md bg-stone-200/70 dark:bg-white/[0.06]" style={{ width: `${w}%` }} />)}
+            </div>
+          )}
+          {folders?.length === 0 && <button type="button" onClick={newFolder} className={`${row(false)} text-faint`}><Icon name="folderPlus" />New folder</button>}
+          {(folders || []).map((f) => f.pending ? (
+            <div key={f._id} data-testid="folder-pending" className={`${row(false)} opacity-60`} aria-busy="true"><Icon name="folder" /><span className="truncate">{f.name}</span><span className="ml-auto text-xs text-faint">Saving…</span></div>
+          ) : (
             <div key={f._id} className="group relative">
               <Link to={`/notes?folder=${f._id}`} className={row(onList && params.get('folder') === f._id)}>
                 <Icon name="folder" /><span className="truncate pr-10">{f.name}</span>
