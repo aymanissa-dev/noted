@@ -3,6 +3,9 @@ import { createApp, serverTimingOn } from '../server/src/app.js';
 import { connectDB } from '../server/src/lib/db.js';
 
 const app = createApp();
+// Cold start: open the database connection while the instance finishes starting, instead of after the
+// first request arrives (the request still awaits it; a failure is retried there).
+if (process.env.MONGODB_URI) connectDB().catch(() => {});
 
 let invocations = 0;
 

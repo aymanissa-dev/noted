@@ -189,6 +189,13 @@ Tokens carry a `tokenVersion`; the auth middleware rejects tokens whose version 
 "Sign out of all devices" and password changes bump it. Each token also has a session id (`sid`); "Log out"
 revokes just that one (`revokedsessions`, TTL = the token's expiry).
 
+## Region
+
+The API function runs in `syd1` because the MongoDB Atlas cluster is in AWS `ap-southeast-2` (Sydney):
+every request makes several database round trips, so the function belongs next to the database. For
+users in East Africa the fastest setup is moving both: an Atlas cluster in Europe (e.g. AWS
+`eu-central-1`, function `fra1`) or South Africa (`af-south-1`, function `cpt1`).
+
 ## Offline
 
 The client is a PWA (via `vite-plugin-pwa`). The service worker precaches the app shell only; API responses are

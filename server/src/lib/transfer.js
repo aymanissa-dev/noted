@@ -1,4 +1,3 @@
-import JSZip from 'jszip';
 import { createHash } from 'node:crypto';
 import { NOTE_COLORS } from '../models/Note.js';
 
@@ -51,6 +50,8 @@ export function toMarkdown(n) {
 }
 
 export async function toMarkdownZip(notes) {
+  // Loaded on first use: only the Markdown export needs it, so cold starts don't pay for it.
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const used = new Set();
   for (const n of notes) {
