@@ -1,4 +1,5 @@
 import { clearAllUndo } from '../editor/undoStore.js';
+import { forgetUnlocked, rememberUnlocked } from './unlocked.js';
 import { createQueue, isTempId, newTempId } from './offlineQueue.js';
 import { OFFLINE_MESSAGE, NETWORK_MESSAGE } from './network.js';
 
@@ -215,6 +216,7 @@ if (typeof window !== 'undefined') {
 
 export function clearLocalData() {
   clearAllUndo();
+  forgetUnlocked();
   localStorage.removeItem(ID_MAP_KEY);
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(META_KEY);
@@ -503,16 +505,17 @@ export const api = {
   },
 
   // ---- Lock PIN & locked notes (never queued offline, never cached with contents) ----
-  setLockPin: (password, pin) => request('PUT', '/auth/lock-pin', { password, pin }).then(changed),
+  setLockPin: (password, pin) => request('PUT', '/auth/lock-pin', { password, pin }).then((r) => { forgetUnlocked(); return changed(r); }), // a new PIN ends every unlock
   // Removing the PIN unlocks every locked note: drop their redacted cache entries and refresh lists.
   removeLockPin: async (password) => {
     const r = await request('DELETE', '/auth/lock-pin', { password });
+    forgetUnlocked();
     try { const c = readCache(); for (const [id, n] of Object.entries(c)) if (n.locked) delete c[id]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* ignore */ }
     return changed(r);
   },
-  unlockNote: (id, pin) => request('POST', `/notes/${id}/unlock`, { pin }),
+  unlockNote: async (id, pin) => { const r = await request('POST', `/notes/${id}/unlock`, { pin }); rememberUnlocked(r.note, r.unlockToken); return r; },
   unblockPin: (password) => request('POST', '/auth/lock-pin/unblock', { password }),
-  lockNote: async (id) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return changed(r); },
+  lockNote: async (id) => { forgetUnlocked(id); const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return changed(r); },
   removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return changed(r); },
   updateLockedNote: async (id, body, unlockToken, { session } = {}) => {
     const r = await request('PUT', `/notes/${id}`, body, { headers: { 'X-Unlock-Token': unlockToken, ...(session && { 'X-Edit-Session': session }) } });

@@ -92,3 +92,14 @@ open editor (in memory; not stored). While it is valid, that editor can edit, mo
 delete the note for good without asking again (QA final e: intended). Once it has expired, each of
 those asks for the PIN again (the server answers 423 without a valid token). Anywhere else (the
 trash list, bulk actions) a locked note always asks for the PIN.
+
+In the note lists, a note unlocked in this tab shows its title (never its body) with the lock icon
+until the unlock ends; that title is kept in memory only and is dropped on reload, logout, relock or
+a PIN change.
+
+## PIN hashing cost
+
+Lock PINs are hashed with bcrypt cost 10 (~70 ms), the same as passwords. A lower cost would only
+save tens of milliseconds per "Set PIN" (server time for the whole request is ~200 ms, mostly the
+password check plus this hash); what protects a 6-digit PIN online is the attempt limit and backoff
+above, and offline the cost only slows a leaked-hash search, so it stays at 10.

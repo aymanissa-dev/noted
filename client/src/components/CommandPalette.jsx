@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { displayTitle } from '../lib/unlocked.js';
 import { useTheme } from '../lib/theme.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { focusSearch } from '../lib/useShortcuts.js';
@@ -77,7 +78,7 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
     .filter((x) => !s || x.score > 0)
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map((x) => x.c);
-  const noteItems = notes.map((n) => ({ id: `note-${n._id}`, group: 'Notes', label: n.locked ? 'Locked note' : (n.title || 'Untitled'), emoji: n.emoji, icon: n.locked ? 'lock' : 'notes', hint: n.tags?.slice(0, 2).map((t) => `#${t}`).join(' '), run: go(`/notes/${n._id}`) }));
+  const noteItems = notes.map((n) => ({ id: `note-${n._id}`, group: 'Notes', label: displayTitle(n), emoji: n.emoji, icon: n.locked ? 'lock' : 'notes', hint: n.tags?.slice(0, 2).map((t) => `#${t}`).join(' '), run: go(`/notes/${n._id}`) }));
   // A command whose name starts with the query ("sett", "trash", "how to") outranks notes that
   // only mention the word in their body.
   const bestCmd = cmdMatches.length ? matchScore(cmdMatches[0].label, s) : 0;

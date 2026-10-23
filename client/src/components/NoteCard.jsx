@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { displayTitle, unlockedPeek, useUnlockedVersion } from '../lib/unlocked.js';
 import { timeAgo } from '../lib/format.js';
 import PinIcon from './PinIcon.jsx';
 import Icon from './Icon.jsx';
@@ -7,11 +8,12 @@ import { cardClass } from '../lib/colors.js';
 import { previewText } from '../lib/markdown.js';
 
 export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, needsConnection = false, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
+  useUnlockedVersion(); // a locked note unlocked elsewhere shows its title right away
   const motion = leaving ? 'animate-leave pointer-events-none' : entering ? 'animate-slide-in' : '';
   if (note.deletedAt) {
     return (
       <div data-flip-id={note._id} className={`${motion} flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4`}>
-        <h3 className="flex items-center gap-1.5 font-semibold text-stone-700 dark:text-stone-200 line-clamp-1 break-words">{note.locked ? <><Icon name="lock" />Locked note</> : note.title || 'Untitled'}</h3>
+        <h3 className="flex items-center gap-1.5 font-semibold text-stone-700 dark:text-stone-200 line-clamp-1 break-words">{note.locked ? <><Icon name="lock" />{displayTitle(note)}</> : note.title || 'Untitled'}</h3>
         <p className="mt-1 flex-1 whitespace-pre-line text-sm text-muted line-clamp-3">{previewText(note.content, note.title)}</p>
         <div className="mt-3 flex items-center gap-1">
           <span className="text-xs text-faint">Deleted {timeAgo(note.deletedAt)}</span>
@@ -26,7 +28,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
     );
   }
   const optimistic = String(note._id).startsWith('optimistic-');
-  const title = note.locked ? 'Locked note' : note.title || 'Untitled';
+  const title = displayTitle(note);
   // The card is a real link (stretched over the card via ::after), so it works with touch, keyboard, and
   // middle-click. The pin button is a sibling stacked above the link, not nested inside it.
   return (
@@ -56,7 +58,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
           <PinIcon filled={note.pinned} />
         </button>
       )}
-      <p className={`mt-1 flex-1 whitespace-pre-line break-words text-sm text-stone-600 dark:text-stone-300 ${compact ? "line-clamp-2" : "line-clamp-4"}`}>{note.locked ? <span className="inline-flex items-center gap-1.5 italic text-muted"><Icon name="lock" size="xs" />Locked. Open it and enter your PIN.</span> : previewText(note.content, note.title)}</p>
+      <p className={`mt-1 flex-1 whitespace-pre-line break-words text-sm text-stone-600 dark:text-stone-300 ${compact ? "line-clamp-2" : "line-clamp-4"}`}>{note.locked ? <span className="inline-flex items-center gap-1.5 italic text-muted"><Icon name="lock" size="xs" />{unlockedPeek(note._id) ? 'Unlocked for now. Open it to read.' : 'Locked. Open it and enter your PIN.'}</span> : previewText(note.content, note.title)}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {note.tags.map((t) => (
           <span key={t} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300">#{t}</span>

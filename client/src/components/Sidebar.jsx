@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { api, readMeta } from '../lib/api.js';
 import { SMART } from '../lib/smart.js';
+import { displayTitle, useUnlockedVersion } from '../lib/unlocked.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
 import { useRefetch } from '../lib/network.js';
@@ -30,6 +31,7 @@ export default function Sidebar({ onOpen }) {
   const [tags, setTags] = useState(() => readMeta('tags') || []);
   const [recent, setRecent] = useState(() => (readMeta('recent') || []).slice(0, 5));
 
+  useUnlockedVersion();
   const [failing, setFailing] = useState(false);
   const load = useCallback(() => {
     Promise.all([
@@ -103,7 +105,7 @@ export default function Sidebar({ onOpen }) {
             {recent.map((n) => (
               <Link key={n._id} to={`/notes/${n._id}`} className={row(pathname === `/notes/${n._id}`)}>
                 {n.locked ? <Icon name="lock" /> : n.emoji ? <span aria-hidden="true" className="w-4 text-center text-xs">{n.emoji}</span> : <Icon name="notes" className="text-stone-400 dark:text-stone-400" />}
-                <span className="truncate">{n.locked ? 'Locked note' : n.title || 'Untitled'}</span>
+                <span className="truncate">{displayTitle(n)}</span>
               </Link>
             ))}
           </Group>
