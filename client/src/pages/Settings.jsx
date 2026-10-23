@@ -275,8 +275,8 @@ function LockPinSection() {
         </div>
       )}
       {mode && (
-        <form onSubmit={submit} className="space-y-3">
-          <input className="input" type="password" placeholder="Account password" autoComplete="current-password" required autoFocus value={form.password} onChange={set('password')} />
+        <form onSubmit={submit} className="space-y-3" aria-busy={busy}>
+          <input className="input" type="password" placeholder="Account password" autoComplete="current-password" required autoFocus readOnly={busy} value={form.password} onChange={set('password')} />
           {mode === 'set' && <>
             <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="New PIN (6 digits)" autoComplete="off" required value={form.pin} onChange={set('pin')} />
             <input className="input font-mono tracking-widest" type="password" inputMode="numeric" placeholder="Confirm PIN" autoComplete="off" required value={form.confirm} onChange={set('confirm')} />
@@ -285,7 +285,7 @@ function LockPinSection() {
           <div className="flex gap-2">
             <button type="button" className="btn-ghost" onClick={close}>Cancel</button>
             <button className={mode === 'remove' ? 'btn-danger-solid' : 'btn-primary'} disabled={busy}>
-              {busy ? 'Saving…' : mode === 'remove' ? 'Remove PIN' : 'Save PIN'}
+              {busy ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />{mode === 'remove' ? 'Removing…' : 'Checking password…'}</span> : mode === 'remove' ? 'Remove PIN' : 'Save PIN'}
             </button>
           </div>
         </form>
