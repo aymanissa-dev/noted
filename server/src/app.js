@@ -25,7 +25,13 @@ export const serverTimingOn = () => process.env.VERCEL_ENV !== 'production' && p
 export function createApp() {
   const app = express();
   app.set('trust proxy', true); // Vercel's edge sets X-Forwarded-For (used only for the masked IP in login activity)
-  app.use(helmet());
+  // The API only returns JSON and audio: it never needs to load anything or be framed. Same strength as
+  // the pages (vercel.json): HSTS 2 years with preload, deny framing, no sniffing.
+  app.use(helmet({
+    contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    frameguard: { action: 'deny' },
+    strictTransportSecurity: { maxAge: 63072000, includeSubDomains: true, preload: true },
+  }));
   app.use(cors({ origin: (origin, cb) => cb(null, allowedOrigin(origin)) }));
   app.use(express.json({ limit: '10mb' }));
   // API responses are per-user and change constantly: never let browsers, proxies, or the SW cache them.

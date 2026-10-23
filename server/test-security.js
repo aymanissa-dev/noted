@@ -312,6 +312,14 @@ try {
     await RateLimit.deleteMany({});
   }
 
+  // ---- API security headers: as strict as the pages ----
+  for (const p of ['/health', '/auth/me', '/nope']) {
+    const h = (await fetch(base + p)).headers;
+    check(h.get('strict-transport-security') === 'max-age=63072000; includeSubDomains; preload', `headers ${p}: HSTS 2y preload`);
+    check(h.get('content-security-policy') === "default-src 'none';frame-ancestors 'none'", `headers ${p}: CSP none (${h.get('content-security-policy')})`);
+    check(h.get('x-frame-options') === 'DENY' && h.get('x-content-type-options') === 'nosniff', `headers ${p}: XFO DENY + nosniff`);
+  }
+
   // ---- L1: CORS ----
   const cors = async (origin) => (await fetch(base + '/health', { headers: { Origin: origin } })).headers.get('access-control-allow-origin');
   check(await cors('https://evil.example') === null, 'L1: unknown origin gets no CORS header');

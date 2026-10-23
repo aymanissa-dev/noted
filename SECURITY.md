@@ -31,6 +31,10 @@ What protects the token instead:
   signed in. Tokens without a `sid` (from before) are revoked by their SHA-256 hash. The client sends the
   logout before clearing local data; if it's offline or the request fails it keeps the token in
   `noted.pendingLogout` (only until revoked, rejected or expired) and sends it when back online.
+- **API headers** match the pages: `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`,
+  `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (the API only returns JSON and audio),
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`. Set by helmet in Express and again in
+  `vercel.json` for `/api/*` (covers responses sent before Express, like the 503 when the DB is down).
 
 Reconsider if noted. ever renders third-party scripts or user-supplied HTML.
 
