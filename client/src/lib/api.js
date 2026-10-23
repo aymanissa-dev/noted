@@ -177,6 +177,42 @@ function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
       : (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
 }
 
+// ---- Server-side logout ----
+// "Log out" ends this session on the server too, so a copied token stops working. The request is
+// best effort and never delays leaving: offline (or if it fails to reach the server) the token is kept
+// in a small "to revoke" list and sent the next time this device is online. Kept until revoked,
+// rejected (already invalid) or expired.
+const PENDING_LOGOUT_KEY = 'noted.pendingLogout';
+const tokenExp = (t) => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000 || 0; } catch { return 0; } };
+const readPendingLogouts = () => { try { return (JSON.parse(localStorage.getItem(PENDING_LOGOUT_KEY)) || []).filter((t) => typeof t === 'string' && tokenExp(t) > Date.now()); } catch { return []; } };
+const writePendingLogouts = (list) => { try { if (list.length) localStorage.setItem(PENDING_LOGOUT_KEY, JSON.stringify(list.slice(-10))); else localStorage.removeItem(PENDING_LOGOUT_KEY); } catch { /* storage unavailable */ } };
+async function sendLogout(token) {
+  try {
+    const res = await fetch(`${BASE}/auth/logout`, { method: 'POST', cache: 'no-store', keepalive: true, headers: { Authorization: `Bearer ${token}` } });
+    return res.ok || res.status === 401; // ended now, or no longer valid anyway
+  } catch { return false; }
+}
+let flushing = null;
+export function flushPendingLogouts() {
+  if (flushing || (typeof navigator !== 'undefined' && !navigator.onLine)) return flushing;
+  const list = readPendingLogouts();
+  writePendingLogouts(list);
+  if (!list.length) return null;
+  flushing = Promise.all(list.map(async (t) => ((await sendLogout(t)) ? null : t)))
+    .then((left) => { const done = new Set(list.filter((t) => !left.includes(t))); writePendingLogouts(readPendingLogouts().filter((t) => !done.has(t))); })
+    .finally(() => { flushing = null; });
+  return flushing;
+}
+export function endSession(token) {
+  if (!token) return Promise.resolve();
+  writePendingLogouts([...readPendingLogouts().filter((t) => t !== token), token]);
+  return flushPendingLogouts() || Promise.resolve();
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => flushPendingLogouts());
+  setTimeout(() => flushPendingLogouts(), 0);
+}
+
 export function clearLocalData() {
   clearAllUndo();
   localStorage.removeItem(ID_MAP_KEY);

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api, clearLocalData, ensureOwner, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
+import { api, clearLocalData, endSession, ensureOwner, isNetworkError, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../lib/api.js';
 
 import { applyAccent } from '../lib/accent.js';
 
@@ -23,8 +23,11 @@ export function AuthProvider({ children }) {
   // `flash` is shown once on the login page (e.g. after deleting the account).
   // Intentional logouts land on a clean /login (no "return to" page). Only an expired session remembers where you were.
   const [returnable, setReturnable] = useState(false);
-  const logout = useCallback(({ flash, expired = false } = {}) => {
+  const logout = useCallback(({ flash, expired = false, revoke = !expired } = {}) => {
     if (flash) sessionStorage.setItem(FLASH_KEY, flash);
+    // End the session on the server too (best effort; retried when back online). An expired or
+    // deleted session has nothing left to end.
+    if (revoke) endSession(localStorage.getItem(TOKEN_KEY));
     setReturnable(expired === true);
     if (expired) sessionStorage.removeItem('noted.loggedOut'); else sessionStorage.setItem('noted.loggedOut', '1');
     localStorage.removeItem(TOKEN_KEY);

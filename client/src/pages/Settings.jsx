@@ -324,7 +324,7 @@ function DeleteAccountSection() {
 
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);
-    try { await api.deleteAccount(password); logout({ flash: 'Your account and all of your notes were deleted.' }); }
+    try { await api.deleteAccount(password); logout({ flash: 'Your account and all of your notes were deleted.', revoke: false }); }
     catch (err) { setError(err.message); setBusy(false); }
   };
 

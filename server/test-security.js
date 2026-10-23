@@ -275,6 +275,43 @@ try {
     await RateLimit.deleteMany({});
   }
 
+  // ---- B1: "Log out" ends this session on the server; other sessions keep working ----
+  {
+    await RateLimit.deleteMany({});
+    const a = (await reg('logout@noted.test')).data.token;
+    const b = (await call('POST', '/auth/login', { email: 'logout@noted.test', password: PW })).data.token;
+    check(JSON.parse(Buffer.from(a.split('.')[1], 'base64url')).sid, 'B1: every token carries a session id');
+    check((await call('POST', '/auth/logout')).status === 401, 'B1: logout needs a token');
+    let r = await call('GET', '/auth/activity', undefined, { token: b });
+    check(r.data.events.filter((e) => e.active).length === 2, 'B1: two active sessions before logout');
+    r = await call('POST', '/auth/logout', undefined, { token: a });
+    check(r.status === 204, `B1: POST /auth/logout → 204 (${r.status})`);
+    for (const [m, p] of [['GET', '/auth/me'], ['GET', '/notes'], ['GET', '/folders'], ['POST', '/notes'], ['GET', '/auth/activity'], ['POST', '/auth/logout'], ['POST', '/auth/logout-all']]) {
+      r = await call(m, p, m === 'POST' ? {} : undefined, { token: a });
+      check(r.status === 401, `B1: logged-out token → 401 on ${m} ${p} (${r.status})`);
+    }
+    check((await call('GET', '/auth/me', undefined, { token: b })).status === 200, 'B1: the other session still works');
+    r = await call('GET', '/auth/activity', undefined, { token: b });
+    check(r.data.events.filter((e) => e.active).length === 1 && r.data.events.find((e) => e.active).current, 'B1: activity shows the logged-out session as ended');
+    const { default: RevokedSession } = await import('./src/models/RevokedSession.js');
+    const row = await RevokedSession.findOne().lean();
+    const exp = JSON.parse(Buffer.from(a.split('.')[1], 'base64url')).exp * 1000;
+    check(row && Math.abs(row.expireAt - exp) < 1000, 'B1: the revocation expires with the token (TTL)');
+    const idx = await RevokedSession.collection.indexes();
+    check(idx.some((i) => i.key.expireAt === 1 && i.expireAfterSeconds === 0), 'B1: TTL index on expireAt');
+    // a token without a session id (issued before sids) can still be logged out on its own
+    const jwt = (await import('jsonwebtoken')).default;
+    const me = (await call('GET', '/auth/me', undefined, { token: b })).data.user;
+    const legacy = jwt.sign({ sub: me.id, tv: 0, typ: 'access' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    check((await call('GET', '/auth/me', undefined, { token: legacy })).status === 200, 'B1: sid-less token works before logout');
+    check((await call('POST', '/auth/logout', undefined, { token: legacy })).status === 204, 'B1: sid-less token logs out');
+    check((await call('GET', '/auth/me', undefined, { token: legacy })).status === 401, 'B1: sid-less token → 401 after logout');
+    check((await call('GET', '/auth/me', undefined, { token: b })).status === 200, 'B1: … without touching other sessions');
+    // deleting the account removes its revocations too
+    check((await call('DELETE', '/auth/me', { password: PW }, { token: b })).status === 200 && !(await RevokedSession.countDocuments()), 'B1: account deletion clears its revocations');
+    await RateLimit.deleteMany({});
+  }
+
   // ---- L1: CORS ----
   const cors = async (origin) => (await fetch(base + '/health', { headers: { Origin: origin } })).headers.get('access-control-allow-origin');
   check(await cors('https://evil.example') === null, 'L1: unknown origin gets no CORS header');

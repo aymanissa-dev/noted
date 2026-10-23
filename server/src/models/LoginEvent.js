@@ -10,6 +10,7 @@ const loginEventSchema = new mongoose.Schema({
   ip: String,        // masked
   location: String,  // approximate (city/country from the edge network), if available
   tv: Number,        // token version at sign-in: the session is revoked once it no longer matches
+  endedAt: Date,     // set when this session logged out
 });
 loginEventSchema.index({ user: 1, at: -1 });
 

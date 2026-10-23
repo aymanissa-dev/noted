@@ -20,7 +20,13 @@ export async function newUser(tag = 'ui') {
 }
 export async function cleanup() {
   for (const u of created) {
-    const r = await api('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' }, u.token);
+    let r = await api('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' }, u.token);
+    // That session may have logged out (its token is revoked): sign in again to delete the account.
+    if (r.status === 401) {
+      const l = await api('POST', '/auth/login', { email: u.email, password: 'quiet-otter-lamp-91' });
+      if (l.data?.token) r = await api('DELETE', '/auth/me', { password: 'quiet-otter-lamp-91' }, l.data.token);
+      else r = { status: `${r.status}/login ${l.status}` }; // already deleted (e.g. by the test itself)
+    }
     console.log('cleanup', u.email, r.status);
   }
 }

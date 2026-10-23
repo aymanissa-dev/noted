@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import User, { ACCENTS } from '../models/User.js';
 import Note from '../models/Note.js';
@@ -6,6 +7,7 @@ import NoteVersion from '../models/NoteVersion.js';
 import Folder from '../models/Folder.js';
 import LoginEvent, { ACTIVITY_LIMIT } from '../models/LoginEvent.js';
 import AudioClip from '../models/AudioClip.js';
+import RevokedSession from '../models/RevokedSession.js';
 import { maskIp, parseUserAgent } from '../lib/useragent.js';
 import { asyncHandler, HttpError, REGISTER_FAILED } from '../middleware/error.js';
 import { LIMITS, bypassed, clientIp, network, reserve, release, clear, tooMany, failureDelay, sleep } from '../lib/rateLimit.js';
@@ -112,9 +114,9 @@ router.post('/login', asyncHandler(async (req, res) => {
 // Recent sign-ins (newest first). `active`: that session is still valid; `current`: this one.
 router.get('/activity', requireAuth, asyncHandler(async (req, res) => {
   const events = await LoginEvent.find({ user: req.userId }).sort({ at: -1 }).limit(ACTIVITY_LIMIT).lean();
-  res.json({ events: events.map(({ _id, at, kind, browser, os, device, ip, location, tv }) => ({
+  res.json({ events: events.map(({ _id, at, kind, browser, os, device, ip, location, tv, endedAt }) => ({
     _id, at, kind, browser, os, device, ip, location,
-    active: (tv ?? 0) === req.tokenVersion,
+    active: (tv ?? 0) === req.tokenVersion && !endedAt,
     current: req.sessionId === String(_id),
   })) });
 }));
@@ -172,6 +174,15 @@ router.patch('/password', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // Sign out of all devices: revokes every existing token, then issues a fresh one for this session.
+// Log out this session only: its token (and any copy of it) stops working right away, everywhere.
+router.post('/logout', requireAuth, asyncHandler(async (req, res) => {
+  const expireAt = req.tokenExp || new Date(Date.now() + 30 * 24 * 3600 * 1000);
+  await RevokedSession.updateOne({ _id: req.sessionKey }, { $setOnInsert: { user: req.userId, expireAt } }, { upsert: true });
+  // The activity list shows this sign-in as ended.
+  if (req.sessionId && mongoose.isValidObjectId(req.sessionId)) await LoginEvent.updateOne({ _id: req.sessionId, user: req.userId }, { $set: { endedAt: new Date() } }).catch(() => {});
+  res.status(204).end();
+}));
+
 router.post('/logout-all', requireAuth, asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(req.userId, { $inc: { tokenVersion: 1 } }, { new: true });
   if (!user) throw new HttpError(401, 'User not found');
@@ -184,6 +195,7 @@ router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   await NoteVersion.deleteMany({ user: user._id });
   await Folder.deleteMany({ user: user._id });
   await LoginEvent.deleteMany({ user: user._id });
+  await RevokedSession.deleteMany({ user: user._id });
   await AudioClip.deleteMany({ user: user._id });
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();

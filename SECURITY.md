@@ -25,6 +25,12 @@ What protects the token instead:
 - React escapes all rendered text. The one `dangerouslySetInnerHTML` (print view) renders
   `toHtml()` from `lib/markdown.js`, which HTML-escapes the note before adding its own tags.
 - Tokens expire after 7 days, and changing the password or "Sign out other sessions" revokes old ones server-side.
+- **Log out ends the session on the server (B1).** Every token carries a session id (`sid`). `POST /api/auth/logout`
+  stores it in `revokedsessions` (TTL index: the row expires with the token), and `requireAuth` rejects a
+  revoked session with 401 on every route, so a copied token stops working at once; other devices stay
+  signed in. Tokens without a `sid` (from before) are revoked by their SHA-256 hash. The client sends the
+  logout before clearing local data; if it's offline or the request fails it keeps the token in
+  `noted.pendingLogout` (only until revoked, rejected or expired) and sends it when back online.
 
 Reconsider if noted. ever renders third-party scripts or user-supplied HTML.
 

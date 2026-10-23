@@ -124,12 +124,13 @@ Errors are returned as `{ "error": "message" }`.
 | POST   | `/auth/login`    | `{ email, password }`         | `200 { token, user }`    |
 | GET    | `/auth/me`       | –                             | `200 { user }`           |
 | PATCH  | `/auth/password` | `{ currentPassword, newPassword }` | `200 { ok, token }` (`403` if current password is wrong). Revokes other sessions; use the returned token |
+| POST   | `/auth/logout` | – | `204`. Ends this session: its token gets 401 everywhere from now on (other sessions keep working) |
 | POST   | `/auth/logout-all` | – | `200 { ok, token }`. Revokes every token; the returned token keeps this session |
 | PUT    | `/auth/lock-pin` | `{ password, pin }` (6 digits) | `200 { user }`. Set or change the lock PIN |
 | DELETE | `/auth/lock-pin` | `{ password }` | `200 { user, unlockedNotes }`. Removes the PIN and unlocks all notes |
 | DELETE | `/auth/me`       | `{ password }`                | `200 { ok, deletedNotes }`. Deletes the account and all its notes |
 
-Passwords must be at least 8 characters. Logout is handled client-side by discarding the token.
+Passwords must be at least 8 characters. Logging out revokes the session on the server (`POST /auth/logout`, retried when back online if sent offline) and then clears all local data.
 
 ### Notes
 
@@ -185,7 +186,8 @@ their history needs an unlock token, and the client never stores their contents 
 ## Sessions
 
 Tokens carry a `tokenVersion`; the auth middleware rejects tokens whose version doesn't match the user's.
-"Sign out of all devices" and password changes bump it.
+"Sign out of all devices" and password changes bump it. Each token also has a session id (`sid`); "Log out"
+revokes just that one (`revokedsessions`, TTL = the token's expiry).
 
 ## Offline
 
