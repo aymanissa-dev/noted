@@ -173,7 +173,7 @@ const MORE = [
   ['lock', 'PIN-locked notes', 'Keep private notes behind a PIN.'],
   ['offline', 'Works offline', 'Install it. Write on the bus. It syncs later.'],
   ['palette', 'Colors & emoji', 'Make a note easy to spot at a glance.'],
-  ['mic', 'Voice notes', 'Record a clip right inside a note.'],
+  ['image', 'Images & voice', 'Paste or snap a photo, or record a clip, right in a note.'],
   ['merge', 'Merge & split', 'Combine scattered notes, or break one up.'],
   ['moon', 'Light & dark', 'Or follow your system. Easy on the eyes.'],
   ['download', 'Export anytime', 'JSON or Markdown. Your notes, your files.'],

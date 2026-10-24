@@ -32,7 +32,7 @@ What protects the token instead:
   logout before clearing local data; if it's offline or the request fails it keeps the token in
   `noted.pendingLogout` (only until revoked, rejected or expired) and sends it when back online.
 - **API headers** match the pages: `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`,
-  `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (the API only returns JSON and audio),
+  `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (the API only returns JSON, audio and images),
   `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`. Set by helmet in Express and again in
   `vercel.json` for `/api/*` (covers responses sent before Express, like the 503 when the DB is down).
 
@@ -103,3 +103,18 @@ Lock PINs are hashed with bcrypt cost 10 (~70 ms), the same as passwords. A lowe
 save tens of milliseconds per "Set PIN" (server time for the whole request is ~200 ms, mostly the
 password check plus this hash); what protects a 6-digit PIN online is the attempt limit and backoff
 above, and offline the cost only slows a leaked-hash search, so it stays at 10.
+
+## Images
+
+- **Types**: PNG, JPEG, WebP and GIF only. SVG (scriptable) and everything else is refused in the browser and,
+  independently, by the server, which checks the magic bytes and that the header parses (415), not just the
+  declared `Content-Type`. The stored type comes from the bytes, and responses send `nosniff`,
+  `Content-Disposition: inline` and the API CSP `default-src 'none'`, so even a direct visit to an image URL can't
+  run anything.
+- **Privacy**: images are only served to their owner (others get 404, like notes) and, for a locked note, only
+  with a valid unlock token (423 otherwise, `Cache-Control: no-store`). The browser re-encodes every image
+  before upload, which drops EXIF/GPS metadata (GIFs are uploaded as-is; they carry no EXIF).
+- **Limits**: 3 MB per image (413), 200 images / 100 MB per account (409), reserved atomically before storing.
+- **Local copies**: viewed images are cached in Cache Storage for offline reading and cleared on logout or
+  account switch; locked notes' images are never written there. API image requests use `cache: 'no-store'`, so
+  the browser's HTTP cache (which the app can't clear) never holds them.

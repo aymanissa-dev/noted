@@ -180,7 +180,7 @@ function DataSection() {
   };
 
   return (
-    <Card title="Your data" description="Download a copy of your notes, or import a noted. JSON export or encrypted backup. Trashed notes are not exported; locked notes are included only if you enter your PIN.">
+    <Card title="Your data" description="Download a copy of your notes, or import a noted. JSON export or encrypted backup. Trashed notes are not exported; locked notes are included only if you enter your PIN. Images are included in the Markdown ZIP; JSON exports and backups keep the links to them but not the image files.">
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:w-full [&>button]:px-3 sm:[&>button]:w-auto sm:[&>button]:px-4">
         <button className="btn-secondary" disabled={busy} onClick={() => withPin((pin) => run(() => api.exportJson(pin)))}><Icon name="download" />Export JSON</button>
         <button className="btn-secondary" disabled={busy} onClick={() => withPin((pin) => run(() => api.exportMarkdown(pin)))}><Icon name="download" />Markdown (.zip)</button>

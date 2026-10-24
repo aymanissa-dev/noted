@@ -33,6 +33,7 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Login activity**: last 20 sign-ins with browser/OS, masked IP and approximate location; shows which sessions are still active
 - **Encrypted backups**: `.noted-backup` files encrypted in the browser (AES-256-GCM, PBKDF2-SHA-256 with 310k iterations); restore with the same duplicate skipping
 - **Voice notes**: record up to 5 minutes (≤ 4 MB) per clip; stored privately in MongoDB, streamed only to the owner, hidden for locked notes until unlocked, deleted with the note or account
+- **Images**: paste, drag and drop, the toolbar **Image** button, `/image`, or (mobile) “…” → Add image for the camera/photo library. The browser resizes to ≤ 2000 px, re-encodes (WebP ~0.82, PNG/JPEG fallback; GIFs kept as-is) which strips EXIF/GPS, and uploads at most 3 MB. Stored privately in MongoDB (`images`), served only to the owner (locked notes: only while unlocked, else 423), 200 images / 100 MB per account. Notes reference them as `![alt](noted-image:<id>)`; the editor shows them inline with upload progress, retry, alt text and a lightbox. See [Images](#images)
 - **Motion**: subtle 150–250ms animations, all disabled under `prefers-reduced-motion`
 
 ## Keyboard shortcuts & help
@@ -104,6 +105,7 @@ Tests: `cd server && npm test` (API smoke test against an in-memory MongoDB, no 
 | `JWT_SECRET`     | Secret used to sign tokens (keep it long and random) | `change-me`                  |
 | `JWT_EXPIRES_IN` | Token lifetime                               | `7d`                                 |
 | `CLIENT_URL`     | Allowed CORS origin(s), comma-separated      | `http://localhost:5173`              |
+| `IMAGE_ORPHAN_GRACE_MS` | How long an image no note references is kept before cleanup (default 24 h) | `86400000` |
 
 ### client/.env
 
@@ -160,6 +162,8 @@ Passwords must be at least 8 characters. Logging out revokes the session on the 
 | PATCH / DELETE | `/folders/:id`   | Rename `{ name }` / delete (its notes move out of it) |
 | GET / POST   | `/notes/:id/audio` | List voice notes / upload raw audio (`Content-Type: audio/*`, `X-Audio-Duration`) |
 | GET / DELETE | `/audio/:clipId`   | Stream (owner only, `Range` supported) / delete |
+| POST         | `/notes/:id/images` | Upload one image as the raw body (`Content-Type: image/png|jpeg|webp|gif`, ≤ 3 MB; type checked by magic bytes; 415/413/409 quota) → `{ image }` |
+| GET          | `/images/:imageId` | Image bytes (owner only; 423 for a locked note without `X-Unlock-Token`) |
 | GET          | `/stats`           | Storage stats |
 | GET          | `/auth/activity`   | Recent sign-ins `{ events: [{ at, browser, os, device, ip (masked), location, active, current }] }` |
 | PATCH        | `/auth/preferences` | `{ accent }` |
@@ -182,6 +186,27 @@ Tags are trimmed, lowercased, and de-duplicated (max 20 per note).
 Locked notes are redacted on the server (empty `title`, `content`, `tags`, plus `redacted: true`) in every list,
 get, and export response unless the request carries a valid unlock token. They never match search or tag filters,
 their history needs an unlock token, and the client never stores their contents offline or queues offline edits for them.
+
+## Images
+
+- **Storage**: MongoDB collection `images` (owner, note, mime, size, width, height, bytes), like voice notes; no
+  extra blob store or credentials. Per-account quota 200 images / 100 MB, counted atomically on the user
+  (`imageCount`, `imageBytes`: a conditional `$inc` reserves the slot before the upload is stored, so parallel
+  uploads can't overshoot).
+- **Serving**: `<img>` can't send the bearer token, so the client fetches `/api/images/:id` with auth and shows a
+  `blob:` URL (the page CSP already allows `img-src blob:`). Responses: `Content-Type` from the stored type,
+  `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Cache-Control: private, max-age=31536000,
+  immutable` (`no-store` for locked notes). Images never change, so the client keeps viewed images in Cache
+  Storage (`noted-images-v1`, up to 300) for offline viewing, except locked notes' images (memory only, dropped on
+  lock). All of it is wiped on logout or account switch.
+- **Lifecycle**: trashing a note keeps its images; deleting it for good (or emptying the trash, or deleting the
+  account) deletes them, unless another note of yours still references one (it moves to that note). An image no
+  note or version references any more is deleted after `IMAGE_ORPHAN_GRACE_MS` (24 h), so Undo and version history
+  keep working meanwhile; history versions show an image while it exists.
+- **Export**: the Markdown ZIP puts images in `images/` with relative links (`![alt](images/<id>.webp)`); the server
+  sends the notes plus a manifest and the browser adds the image files (a ZIP with them could exceed Vercel's
+  4.5 MB response limit). JSON exports and encrypted backups keep the `noted-image:` links but **not the image
+  bytes**, so restored notes on another account show “This image was deleted.”
 
 ## Sessions
 

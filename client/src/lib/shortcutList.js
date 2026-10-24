@@ -21,6 +21,7 @@ export const SHORTCUT_GROUPS = [
   { id: 'editor', title: 'Editor', items: [
     { keys: ['/'], label: 'Commands: headings, lists, date…', where: 'at line start' },
     { keys: [':'], label: 'Emoji (e.g. :smile)' },
+    { keys: ['Mod+V'], label: 'Paste an image (or drop one, or type /image)' },
     { keys: ['Mod+Z'], label: 'Undo (kept after reload)' },
     { keys: ['Mod+Shift+Z'], pc: ['Mod+Y'], label: 'Redo' },
     { keys: ['Alt+Up', 'Alt+Down'], label: 'Move line up / down' },
