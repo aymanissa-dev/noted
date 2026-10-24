@@ -88,6 +88,8 @@ export default defineConfig({
         // cached and, offline, fail in the page as a normal network error (which the app queues/handles)
         // instead of a NetworkOnly "no-response" rejection logged by the worker.
         globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest,woff2}'],
+        // The ZIP library is only used by the (online-only) Markdown export: not worth precaching.
+        globIgnores: ['**/jszip*.js'],
       },
     }),
   ],

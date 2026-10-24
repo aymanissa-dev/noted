@@ -10,7 +10,9 @@ assert.ok(ids('head').length === 3);
 assert.deepEqual(ids('code block'), ['code']);
 assert.deepEqual(ids('bulleted list'), ['bullet']);
 assert.equal(ids('nothing here').length, 0);
-assert.equal(ids('').length, 9);
+assert.equal(ids('').length, 10);
+assert.deepEqual(ids('image'), ['image']);
+assert.deepEqual(ids('img'), ['image']);
 console.log('✅ slash tests passed');
 
 // QA v4 #2: positions are right with emoji before the slash (same line or the line above).

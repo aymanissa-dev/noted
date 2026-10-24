@@ -11,6 +11,8 @@ export const SLASH_COMMANDS = [
   { id: 'date', label: 'Date', detail: 'today', text: () => today() },
   { id: 'code', label: 'Code block', detail: '```', block: '```\n\n```', cursorBack: 4 },
   { id: 'quote', label: 'Quote', detail: '>', line: '> ' },
+  // Removes the typed "/image" and asks the editor to open the image picker (editor/images.js).
+  { id: 'image', label: 'Image', detail: 'upload', event: 'noted-pick-image', keywords: ['img', 'picture', 'photo'] },
 ];
 
 // Applies a command, replacing the typed "/query" (from..to).
@@ -19,6 +21,11 @@ export function applySlash(view, cmd, from, to) {
   const line = state.doc.lineAt(from);
   const atLineStart = !state.doc.sliceString(line.from, from).trim();
   let insert; let start = from; let end = to; let cursor;
+  if (cmd.event) {
+    view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from }, userEvent: 'input.slash' });
+    view.contentDOM.dispatchEvent(new CustomEvent(cmd.event, { detail: { pos: from } }));
+    return;
+  }
   if (cmd.text) { insert = cmd.text(); cursor = start + insert.length; }
   else if (cmd.line) {
     // Turn the whole line into a heading/list item (keeping its text).
@@ -44,7 +51,7 @@ export function matchSlash(query) {
   if (!q) return SLASH_COMMANDS;
   return SLASH_COMMANDS.filter((c) => {
     const l = c.label.toLowerCase();
-    return l.includes(q) || l.replace(/ /g, '').includes(tight) || c.id.startsWith(tight);
+    return l.includes(q) || l.replace(/ /g, '').includes(tight) || c.id.startsWith(tight) || (c.keywords || []).some((k) => k.startsWith(tight));
   });
 }
 

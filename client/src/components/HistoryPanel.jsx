@@ -6,6 +6,7 @@ import { timeAgo } from '../lib/format.js';
 import { useOnReconnect, useRefetch, OFFLINE_MESSAGE } from '../lib/network.js';
 import RetryStatus from './RetryStatus.jsx';
 import Icon from './Icon.jsx';
+import { TextWithImages } from './Images.jsx';
 
 // `current` is the note as it is now (listed first, preview only); versions are earlier states.
 export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken, current }) {
@@ -80,13 +81,13 @@ export default function HistoryPanel({ noteId, onRestored, onClose, unlockToken,
                   <>
                     <h3 className="text-xl font-semibold">{current.emoji && <span className="mr-1.5">{current.emoji}</span>}{current.title || 'Untitled'}</h3>
                     {current.tags.length > 0 && <p className="mt-1 text-xs text-stone-500">{current.tags.map((t) => `#${t}`).join(' ')}</p>}
-                    <p className="mt-4 whitespace-pre-wrap leading-relaxed text-stone-700 dark:text-stone-200">{current.content}</p>
+                    <TextWithImages className="mt-4 whitespace-pre-wrap leading-relaxed text-stone-700 dark:text-stone-200" text={current.content} noteId={noteId} locked={Boolean(current.locked)} unlockToken={unlockToken} />
                   </>
                 ) : preview ? (
                   <>
                     <h3 className="text-xl font-semibold">{preview.emoji && <span className="mr-1.5">{preview.emoji}</span>}{preview.title || 'Untitled'}</h3>
                     {preview.tags.length > 0 && <p className="mt-1 text-xs text-stone-500">{preview.tags.map((t) => `#${t}`).join(' ')}</p>}
-                    <p className="mt-4 whitespace-pre-wrap leading-relaxed text-stone-700 dark:text-stone-200">{preview.content}</p>
+                    <TextWithImages className="mt-4 whitespace-pre-wrap leading-relaxed text-stone-700 dark:text-stone-200" text={preview.content} noteId={noteId} locked={Boolean(current.locked)} unlockToken={unlockToken} />
                   </>
                 ) : selected && <div><Bar className="h-5 w-1/2" /><Bar className="mt-4 h-3 w-full" /><Bar className="mt-2 h-3 w-4/5" /></div>}
               </div>

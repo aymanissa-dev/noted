@@ -15,6 +15,10 @@ export function useFocusTrap(ref, onClose) {
     if (!node.contains(document.activeElement)) (node.querySelector('[autofocus]') || items()[0] || node).focus();
 
     const onKey = (e) => {
+      // Only the topmost modal handles keys (e.g. an image opened from the history panel).
+      const modals = document.querySelectorAll('[data-modal]');
+      const top = modals[modals.length - 1];
+      if (top && !top.contains(node) && document.contains(top)) return;
       if (e.key === 'Escape' && closeRef.current) {
         e.preventDefault(); e.stopPropagation(); closeRef.current();
       } else if (e.key === 'Tab') {

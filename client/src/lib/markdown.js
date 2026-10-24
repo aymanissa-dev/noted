@@ -24,7 +24,7 @@ export function plainText(md = '') {
 
 // Card preview: plain text only. No leftover syntax (lone list markers, dividers, a stray slash
 // command), no blank lines, and no first line that just repeats the title.
-const SLASH_LINE = /^\/(?:h[1-3]|heading ?[1-3]|checklist|bullet(?:ed list)?|divider|date|code(?: block)?|quote)$/i;
+const SLASH_LINE = /^\/(?:h[1-3]|heading ?[1-3]|checklist|bullet(?:ed list)?|divider|date|code(?: block)?|quote|image)$/i;
 export function previewText(md = '', title = '') {
   const t = String(title).trim().toLowerCase();
   const lines = plainText(md).split('\n').map((l) => l.trim())
@@ -47,14 +47,35 @@ export function headings(md = '') {
 }
 
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function inline(s) {
+// Images uploaded to a note: ![alt](noted-image:<24-hex id>). Only this form is ever rendered as
+// an image (no remote URLs: the page CSP only allows same-origin, blob: and data: images anyway).
+export const NOTED_IMAGE_RE = /!\[([^\]\n]*)\]\(noted-image:([a-f0-9]{24})\)/g;
+export const imageMarkdown = (id, alt = '') => `![${cleanAlt(alt)}](noted-image:${id})`;
+export const cleanAlt = (alt = '') => String(alt).replace(/[\[\]\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+// Splits text into text and image parts: [{ text } | { image: id, alt }].
+export function splitImages(text = '') {
+  const parts = []; let last = 0;
+  for (const m of String(text).matchAll(NOTED_IMAGE_RE)) {
+    if (m.index > last) parts.push({ text: text.slice(last, m.index) });
+    parts.push({ image: m[2], alt: m[1] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
+}
+
+function inline(raw) {
+  // Images first, swapped for placeholders so the other rules can't reach inside the tag.
+  const imgs = [];
+  const s = raw.replace(NOTED_IMAGE_RE, (_, alt, id) => { imgs.push(`<img class="print-img" data-noted-image="${id}" alt="${esc(alt)}">`); return `\u0000${imgs.length - 1}\u0000`; });
   return esc(s)
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/==(?:\{(yellow|green|blue|pink)\})?([^=\n]+?)==/g, (_, c, t) => `<mark class="hl-${c || 'yellow'}">${t}</mark>`)
     .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '<strong>$2</strong>')
     .replace(/(\*|_)(?=\S)(.+?)(?<=\S)\1/g, '<em>$2</em>')
     .replace(/~~(.+?)~~/g, '<del>$1</del>')
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>');
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => imgs[Number(i)]);
 }
 
 // Markdown → safe HTML (escaped first), for printing. Covers what the editor produces.

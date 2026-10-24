@@ -1,6 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, optimisticInsert, saveOnUnload, queue, realIdFor } from '../lib/api.js';
+import { api, imageApi, optimisticInsert, saveOnUnload, queue, realIdFor } from '../lib/api.js';
+import { ImageLightbox, loadNoteImage } from '../components/Images.jsx';
+import { forgetLockedImages, forgetNoteImages, primeImage } from '../lib/imageStore.js';
+import { cleanAlt } from '../lib/markdown.js';
 import EmptyState from '../components/EmptyState.jsx';
 import { isTempId } from '../lib/offlineQueue.js';
 import { unlockFor } from '../lib/unlock.js';
@@ -113,7 +116,8 @@ export default function NoteEditor() {
         setLoadFailed(''); setLoadPreview(null); setLocalCopy(false);
         lastSaved.current = snapshot(loaded);
         setNote(loaded); setNoteId(n._id); setUpdatedAt(n.updatedAt);
-        if (n.locked) setNeedsPin(true);
+        // Locked (perhaps on another device since this copy was cached): no copies of its images stay here.
+        if (n.locked) { setNeedsPin(true); forgetNoteImages(n._id); }
         setPreviewOnly(Boolean(n.excerpt));
       })
       .catch((e) => {
@@ -134,12 +138,14 @@ export default function NoteEditor() {
   const readOnly = previewOnly || !verified;
 
   // Save the current note if it changed. Serialized so creates never duplicate.
-  const save = useCallback(async () => {
+  // forImage: create the note even while it's empty (an image is being added to it).
+  const save = useCallback(async ({ forImage = false } = {}) => {
     if (inflight.current) await inflight.current.catch(() => {});
     const current = noteRef.current;
     const snap = snapshot(current);
-    if (snap === lastSaved.current) { setStatus((s) => (s === 'dirty' ? 'saved' : s)); return; }
-    if (!idRef.current && isEmpty(current)) return;
+    const createEmpty = forImage === true && !idRef.current;
+    if (snap === lastSaved.current && !createEmpty) { setStatus((s) => (s === 'dirty' ? 'saved' : s)); return; }
+    if (!idRef.current && isEmpty(current) && !createEmpty) return;
     if (current.locked && !unlockToken.current) return; // wait for PIN
     if (idRef.current && !isTempId(idRef.current) && !verifiedRef.current) return; // body never loaded: never overwrite it
     if (previewOnlyRef.current) return; // never save a truncated excerpt over the real note
@@ -150,7 +156,7 @@ export default function NoteEditor() {
         ? await api.updateLockedNote(idRef.current, fields, unlockToken.current, { session })
         : idRef.current
         ? await api.updateNote(idRef.current, fields, { session })
-        : await api.createNote({ ...current, folderId: current.folderId || undefined });
+        : await api.createNote({ ...current, folderId: current.folderId || undefined, ...(createEmpty && isEmpty(current) && { forImage: true }) });
       lastSaved.current = snap;
       setUpdatedAt(saved.updatedAt);
       if (!idRef.current) {
@@ -358,9 +364,37 @@ export default function NoteEditor() {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [focusMode]);
 
+  // ---- Images (editor/images.js asks this host for network, dialogs and the lightbox) ----
+  const [lightbox, setLightbox] = useState(null);
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  const imageHost = useMemo(() => ({
+    load: (id) => loadNoteImage(id, { noteId: idRef.current, locked: noteRef.current.locked, unlockToken: unlockToken.current }),
+    canUpload: () => {
+      if (!navigator.onLine || !onlineRef.current) return 'Needs a connection: images can be added when you’re back online.';
+      if (noteRef.current.deletedAt) return 'Restore the note to add images.';
+      return null;
+    },
+    upload: async (prepared, { onProgress, signal }) => {
+      await save({ forImage: true });
+      const id = idRef.current;
+      if (!id || isTempId(id)) throw Object.assign(new Error('Needs a connection: the note has to be saved before images can be added.'), { retryable: true });
+      return imageApi.upload(id, prepared.blob, { unlockToken: unlockToken.current, onProgress, signal });
+    },
+    prime: (id, blob) => primeImage(id, blob, { noteId: idRef.current, locked: noteRef.current.locked }),
+    notify: (message) => toast.show(message),
+    editAlt: (alt) => dialog.prompt({ title: 'Alt text', label: 'Describe the image for people who can’t see it', initial: alt, placeholder: 'e.g. Whiteboard sketch of the launch plan', confirmLabel: 'Save', validate: (v) => (cleanAlt(v).length > 200 ? 'Keep it under 200 characters' : null) }),
+    view: (box) => setLightbox(box),
+  }), [save, toast, dialog]);
+  // Leaving a locked note: its images don't stay in memory.
+  useEffect(() => () => { if (noteRef.current.locked) forgetLockedImages(); }, []);
+
   const printHtml = useMemo(() => toHtml(note.content), [note.content]);
+  // Printing: fill in the images (fetched with auth) before the print dialog opens.
+  const printRef = useRef(null);
+  const fillPrintImages = () => Promise.all([...(printRef.current?.querySelectorAll('img[data-noted-image]') || [])].map((img) => imageHost.load(img.dataset.notedImage).then((u) => { img.src = u; return img.decode?.().catch(() => {}); }).catch(() => { img.replaceWith(Object.assign(document.createElement('span'), { textContent: img.alt ? `[Image: ${img.alt}]` : '[Image]' })); })));
   const saved = Boolean(noteId) && !isTempId(noteId);
-  const print = () => { save(); setTimeout(() => window.print(), 50); };
+  const print = () => { save(); Promise.race([fillPrintImages(), new Promise((r) => setTimeout(r, 4000))]).then(() => setTimeout(() => window.print(), 50)); };
   const persist = !note.locked && noteId && !isTempId(noteId) && user?.id ? { userId: user.id, noteId } : null;
 
   if (loading) return <EditorSkeleton />;
@@ -427,6 +461,7 @@ export default function NoteEditor() {
               <>
                 <div className="sm:hidden">
                   <button role="menuitem" type="button" className="menu-item" onClick={() => setOutlineSheet(true)}><Icon name="outline" />Outline</button>
+                  {!readOnly && !note.deletedAt && <button role="menuitem" type="button" className="menu-item" onClick={() => setTimeout(() => editorApi?.pickImage(), 50)}><Icon name="image" />Add image</button>}
                   <button role="menuitem" type="button" className="menu-item" onClick={() => setTimeout(() => editorApi?.openFind(), 50)}><Icon name="find" />Find and replace</button>
                   <button role="menuitem" type="button" className="menu-item" onClick={() => setFocusMode(true)}><Icon name="focus" />Focus mode</button>
                   <button role="menuitemcheckbox" aria-checked={typewriter} type="button" className="menu-item" onClick={toggleTypewriter}><Icon name="typewriter" />Typewriter mode{typewriter && <Icon name="check" size="xs" className="ml-auto text-accent" />}</button>
@@ -487,12 +522,12 @@ export default function NoteEditor() {
         <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3" inert={readOnly ? '' : undefined}>
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
           {/* Phones: these live in the ··· menu, so there's a single toolbar row. */}
-          <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} focusMode={focusMode} onFocusMode={setFocusMode} typewriter={typewriter} onTypewriter={toggleTypewriter} /></div>
+          <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} canAddImage={!readOnly && !note.deletedAt} focusMode={focusMode} onFocusMode={setFocusMode} typewriter={typewriter} onTypewriter={toggleTypewriter} /></div>
         </div>
         )}
         <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
           <MarkdownEditor value={note.content} readOnly={readOnly} placeholder="Start writing… Type / for headings, checklists and more"
-            persist={persist} focusMode={focusMode} typewriter={typewriter} onReady={setEditorApi}
+            persist={persist} focusMode={focusMode} typewriter={typewriter} onReady={setEditorApi} images={imageHost}
             onChange={(content) => setNote((n) => ({ ...n, content }))} />
         </Suspense>
         {!focusMode && !readOnly && !note.deletedAt && (!note.locked || unlockToken.current) && (
@@ -504,7 +539,7 @@ export default function NoteEditor() {
       <div className="print-area" aria-hidden="true">
         <h1>{note.emoji ? `${note.emoji} ` : ''}{note.title || 'Untitled'}</h1>
         {note.tags.length > 0 && <p className="print-tags">{note.tags.map((t) => `#${t}`).join('  ')}</p>}
-        <div dangerouslySetInnerHTML={{ __html: printHtml }} />
+        <div ref={printRef} dangerouslySetInnerHTML={{ __html: printHtml }} />
       </div>
       <div className="mt-2 flex justify-between text-xs text-faint">
         <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>
@@ -524,6 +559,7 @@ export default function NoteEditor() {
             ))}</div>}
         </Dialog>
       )}
+      {lightbox && <ImageLightbox {...lightbox} onClose={() => setLightbox(null)} />}
       {historyOpen && <HistoryPanel noteId={noteId} current={{ ...note, updatedAt }} unlockToken={unlockToken.current} onRestored={applyRestored} onClose={() => setHistoryOpen(false)} />}
       {needsPin && unlockToken.current === null && (snapshot(note) !== lastSaved.current || note.content || note.title) && (
         <PinPrompt title="Unlock expired" description="Enter your PIN to keep saving this note." onSubmit={unlock} />

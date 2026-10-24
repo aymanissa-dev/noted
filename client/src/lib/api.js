@@ -1,9 +1,12 @@
 import { clearAllUndo } from '../editor/undoStore.js';
-import { forgetUnlocked, rememberUnlocked } from './unlocked.js';
+import { forgetUnlocked as forgetUnlockedTitles, rememberUnlocked } from './unlocked.js';
+import { clearImageStore, forgetLockedImages, forgetNoteImages } from './imageStore.js';
 import { createQueue, isTempId, newTempId } from './offlineQueue.js';
 import { OFFLINE_MESSAGE, NETWORK_MESSAGE } from './network.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+// Ending unlocks also drops images of locked notes kept in memory.
+const forgetUnlocked = (id) => { forgetUnlockedTitles(id); forgetLockedImages(); };
 export const TOKEN_KEY = 'noted.token';
 export const USER_KEY = 'noted.user';
 // v2: list copies are marked (`_list`) so they're never mistaken for a full, editable note.
@@ -34,11 +37,12 @@ let signedOutPurged = false;
 export function ensureOwner(userId = currentUserId()) {
   try {
     // Signed out: nothing of any account's editor history may stay on this device.
-    if (!userId) { if (!signedOutPurged && !localStorage.getItem(TOKEN_KEY)) { signedOutPurged = true; clearAllUndo(); } return; }
+    if (!userId) { if (!signedOutPurged && !localStorage.getItem(TOKEN_KEY)) { signedOutPurged = true; clearAllUndo(); clearImageStore(); } return; }
     signedOutPurged = false;
     const owner = localStorage.getItem(OWNER_KEY);
     if (owner === userId) return;
     clearAllUndo();
+    clearImageStore();
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(META_KEY);
     localStorage.removeItem(ID_MAP_KEY);
@@ -216,6 +220,7 @@ if (typeof window !== 'undefined') {
 
 export function clearLocalData() {
   clearAllUndo();
+  clearImageStore();
   forgetUnlocked();
   localStorage.removeItem(ID_MAP_KEY);
   localStorage.removeItem(CACHE_KEY);
@@ -278,14 +283,46 @@ const queued = () => window.dispatchEvent(new Event('noted:queue-changed'));
 const changed = (r) => { window.dispatchEvent(new Event('noted:notes-changed')); return r; };
 
 // Downloads a file from an authenticated endpoint.
-async function download(path, fallbackName, body) {
+// Markdown export: the server's ZIP links images/<id>.<ext> and lists them in images/manifest.json
+// (image bytes would push the response past Vercel's 4.5 MB limit). Fetch each image here, add it,
+// and drop the manifest. Locked notes' images need that note unlocked, with the PIN given for the export.
+async function addExportImages(zipBlob, pin) {
+  const { default: JSZip } = await import('jszip');
+  const zip = await JSZip.loadAsync(zipBlob);
+  const manifest = zip.file('images/manifest.json');
+  if (!manifest) return zipBlob;
+  const { images = [] } = JSON.parse(await manifest.async('string'));
+  zip.remove('images/manifest.json');
+  const unlocks = new Map();
+  const unlockFor = async (noteId) => {
+    if (!unlocks.has(noteId)) unlocks.set(noteId, request('POST', `/notes/${noteId}/unlock`, { pin }).then((r) => r.unlockToken));
+    return unlocks.get(noteId);
+  };
+  const missing = [];
+  for (let i = 0; i < images.length; i += 4) {
+    await Promise.all(images.slice(i, i + 4).map(async (img) => {
+      if (!/^images\/[a-f0-9]{24}\.(png|jpg|webp|gif)$/.test(img.path)) return;
+      try {
+        const token = img.locked && pin ? await unlockFor(img.note) : undefined;
+        const { blob } = await imageApi.fetch(img.id, token);
+        zip.file(img.path, blob);
+      } catch { missing.push(img.path); }
+    }));
+  }
+  if (missing.length) zip.file('images/MISSING.txt', `These images couldn’t be downloaded:\n${missing.join('\n')}\n`);
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+}
+
+async function download(path, fallbackName, body, transform) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!navigator.onLine) throw offlineError();
   // POST with a JSON body when there's something to send (e.g. the export PIN: never in a URL/header).
   const res = await netFetch(BASE + path, { method: body ? 'POST' : 'GET', cache: 'no-store', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body && { 'Content-Type': 'application/json' }) }, body: body ? JSON.stringify(body) : undefined });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `Download failed (${res.status})`);
   const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || fallbackName;
-  const url = URL.createObjectURL(await res.blob());
+  let blob = await res.blob();
+  if (transform) blob = await transform(blob);
+  const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), { href: url, download: name });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -328,6 +365,35 @@ export const audioApi = {
   })).json(),
   blobUrl: async (clipId, unlockToken) => URL.createObjectURL(await (await rawFetch('GET', `/audio/${clipId}`, { headers: unlockToken ? { 'X-Unlock-Token': unlockToken } : {} })).blob()),
   remove: (clipId, unlockToken) => rawFetch('DELETE', `/audio/${clipId}`, { headers: unlockToken ? { 'X-Unlock-Token': unlockToken } : {} }),
+};
+
+// ---- Images (never queued offline; fetched with auth into blob: URLs, see imageStore.js) ----
+export const imageApi = {
+  // XHR rather than fetch for upload progress. Resolves to the image metadata.
+  upload: (noteId, blob, { unlockToken, onProgress, signal } = {}) => new Promise((resolve, reject) => {
+    if (!navigator.onLine) { reject(offlineError()); return; }
+    const token = localStorage.getItem(TOKEN_KEY);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/notes/${noteId}/images`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    if (unlockToken) xhr.setRequestHeader('X-Unlock-Token', unlockToken);
+    xhr.setRequestHeader('Content-Type', blob.type);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data = null; try { data = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300 && data?.image) { resolve(data.image); return; }
+      if (xhr.status === 401 && token) onUnauthorized();
+      reject(new ApiError(data?.error || (xhr.status === 413 ? 'That image is too large (max 3 MB after compression).' : `Upload failed (${xhr.status})`), xhr.status, data));
+    };
+    xhr.onerror = () => reject(Object.assign(new TypeError(navigator.onLine ? NETWORK_MESSAGE : OFFLINE_MESSAGE), { network: true, offline: !navigator.onLine }));
+    xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled'), { name: 'AbortError' }));
+    signal?.addEventListener('abort', () => xhr.abort());
+    xhr.send(blob);
+  }),
+  fetch: async (id, unlockToken) => {
+    const res = await rawFetch('GET', `/images/${id}`, { headers: unlockToken ? { 'X-Unlock-Token': unlockToken } : {} });
+    return { blob: await res.blob(), locked: res.headers.get('x-note-locked') === '1' };
+  },
 };
 
 export const api = {
@@ -494,7 +560,7 @@ export const api = {
     return changed(r);
   },
   exportJson: (pin) => download('/notes/export', 'noted.json', { format: 'json', ...(pin && { pin }) }),
-  exportMarkdown: (pin) => download('/notes/export', 'noted.zip', { format: 'md', ...(pin && { pin }) }),
+  exportMarkdown: (pin) => download('/notes/export', 'noted.zip', { format: 'md', ...(pin && { pin }) }, (blob) => addExportImages(blob, pin)),
   exportData: (pin) => request('POST', '/notes/export', { format: 'json', ...(pin && { pin }) }),
   importNotes: (data) => request('POST', '/notes/import', data).then(changed),
   listVersions: (id, { unlockToken } = {}) => request('GET', `/notes/${id}/versions`, undefined, unlockHeaders(unlockToken)),
@@ -515,7 +581,7 @@ export const api = {
   },
   unlockNote: async (id, pin) => { const r = await request('POST', `/notes/${id}/unlock`, { pin }); rememberUnlocked(r.note, r.unlockToken); return r; },
   unblockPin: (password) => request('POST', '/auth/lock-pin/unblock', { password }),
-  lockNote: async (id) => { forgetUnlocked(id); const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return changed(r); },
+  lockNote: async (id) => { forgetUnlocked(id); forgetNoteImages(id); const r = await request('PATCH', `/notes/${id}/lock`, { locked: true }); cacheNotes([r.note]); return changed(r); },
   removeNoteLock: async (id, pin) => { const r = await request('PATCH', `/notes/${id}/lock`, { locked: false, pin }); cacheNotes([r.note]); return changed(r); },
   updateLockedNote: async (id, body, unlockToken, { session } = {}) => {
     const r = await request('PUT', `/notes/${id}`, body, { headers: { 'X-Unlock-Token': unlockToken, ...(session && { 'X-Edit-Session': session }) } });

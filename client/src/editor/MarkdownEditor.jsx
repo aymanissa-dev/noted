@@ -14,6 +14,7 @@ import { smartEnter } from './enter.js';
 import { checkboxes, highlightMarks, highlightTooltip, setHighlight } from './highlights.js';
 import { loadUndo, saveUndo, dropUndo } from './undoStore.js';
 import { searchEmoji } from '../lib/emoji.js';
+import { imagesExtension, pickImages, addImages } from './images.js';
 
 const External = Annotation.define();
 
@@ -92,8 +93,9 @@ const typewriter = [
 /**
  * Markdown editor (CodeMirror 6). Content stays a plain Markdown string, so plain-text notes
  * render as-is. `persist` = { userId, noteId } keeps the undo history in IndexedDB (omit for locked notes).
+ * `images`: the host for image uploads/rendering (see editor/images.js); omit to show images without uploads.
  */
-export default function MarkdownEditor({ value, onChange, readOnly = false, placeholder = '', persist, focusMode = false, typewriter: typewriterOn = false, onReady, autoFocus = false, label = 'Note content' }) {
+export default function MarkdownEditor({ value, onChange, readOnly = false, placeholder = '', persist, focusMode = false, typewriter: typewriterOn = false, onReady, autoFocus = false, label = 'Note content', images }) {
   const host = useRef(null);
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
@@ -102,6 +104,8 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
   const persistRef = useRef(persist);
   persistRef.current = persist;
   const touched = useRef(false);
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
 
   const extensions = () => [
     history(),
@@ -113,6 +117,7 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
     search({ top: true }),
     autocompletion({ override: [slashSource, emojiSource], icons: false, activateOnTyping: true }),
     highlightMarks, highlightTooltip, checkboxes,
+    imagesExtension(() => imagesRef.current || null),
     EditorView.lineWrapping,
     placeholderExt(placeholder),
     theme,
@@ -160,6 +165,8 @@ export default function MarkdownEditor({ value, onChange, readOnly = false, plac
         view.focus();
       },
       highlight: (c) => setHighlight(view, c),
+      pickImage: () => pickImages(view),
+      addImages: (files) => addImages(view, files),
       insertText: (text) => { const r = view.state.selection.main; view.dispatch({ changes: { from: r.from, to: r.to, insert: text }, selection: { anchor: r.from + text.length }, userEvent: 'input' }); view.focus(); },
     };
     onReady?.(api);

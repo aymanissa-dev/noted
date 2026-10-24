@@ -11,8 +11,8 @@ const Btn = ({ label, tip, onClick, children, pressed, ...rest }) => (
 );
 const I = ({ name }) => <Icon name={name} size="xs" />;
 
-// Outline (jump to headings), find & replace, focus mode, typewriter mode.
-export default function EditorTools({ content, editor, focusMode, onFocusMode, typewriter = false, onTypewriter }) {
+// Outline (jump to headings), find & replace, add image, focus mode, typewriter mode.
+export default function EditorTools({ content, editor, focusMode, onFocusMode, typewriter = false, onTypewriter, canAddImage = false }) {
   const [outlineOpen, setOutlineOpen] = useState(false);
   const ref = useRef(null);
   const list = outlineOpen ? headings(content) : [];
@@ -41,6 +41,7 @@ export default function EditorTools({ content, editor, focusMode, onFocusMode, t
         )}
       </div>
       <Btn label={`Find and replace (${keyLabel('Mod+F')})`} tip={`Find and replace · ${keyLabel('Mod+F')}`} onClick={() => editor?.openFind()}><I name="find" /><span>Find</span></Btn>
+      {canAddImage && <Btn label="Add image" tip="Add an image · or paste, drop, or type /image" onClick={() => editor?.pickImage()} data-testid="add-image"><I name="image" /><span>Image</span></Btn>}
       <Btn label={focusMode ? 'Exit focus mode (Esc)' : 'Focus mode'} tip="Focus mode: just you and the text" pressed={focusMode} onClick={() => onFocusMode(!focusMode)}><I name="focus" /><span>Focus</span></Btn>
       {onTypewriter && <Btn label="Typewriter mode" tip={`Typewriter: keep the line you’re typing centered · ${keyLabel('Alt+Shift+T')}`} pressed={typewriter} onClick={onTypewriter} data-testid="typewriter-toggle"><I name="typewriter" /><span>Typewriter</span></Btn>}
     </div>
