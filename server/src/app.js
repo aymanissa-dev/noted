@@ -6,6 +6,7 @@ import noteRoutes from './routes/notes.js';
 import folderRoutes from './routes/folders.js';
 import statsRoutes from './routes/stats.js';
 import audioRoutes from './routes/audio.js';
+import imageRoutes from './routes/images.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 // CORS: the app calls its API same-origin, so cross-origin access is only for known front ends:
@@ -52,6 +53,7 @@ export function createApp() {
   app.get('/api/health', (req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRoutes);
   app.use('/api', audioRoutes); // /api/notes/:id/audio, /api/audio/:clipId
+  app.use('/api', imageRoutes); // /api/notes/:id/images, /api/images/:imageId
   app.use('/api/notes', noteRoutes);
   app.use('/api/folders', folderRoutes);
   app.use('/api/stats', statsRoutes);

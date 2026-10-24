@@ -10,6 +10,8 @@ import Folder, { MAX_FOLDERS } from '../models/Folder.js';
 import { createFolderWithinCap } from '../lib/folderQuota.js';
 import { hasUnlock, signUnlockToken, verifyLockPin } from '../lib/lockPin.js';
 import { plainText } from '../lib/plain.js';
+import Image, { IMAGE_EXT } from '../models/Image.js';
+import { markOrphans, referencedImageIds, sweepOrphans } from '../lib/images.js';
 import { fingerprint, EXPORT_VERSION, parseImport, toExportNote, toMarkdownZip } from '../lib/transfer.js';
 
 const router = Router();
@@ -90,6 +92,7 @@ function requireUnlocked(note) {
 
 router.get('/', asyncHandler(async (req, res) => {
   await purgeTrash(req.userId);
+  await sweepOrphans(req.userId);
   const view = String(req.query.view || 'active');
   const filter = { user: req.userId };
   if (view === 'trash') filter.deletedAt = { $ne: null };
@@ -158,7 +161,11 @@ async function sendExport(req, res, { format, pin }) {
   for (const n of notes) if (n.locked && !includeLocked) Object.assign(n, { title: '', content: '', tags: [], $locals: { redacted: true } });
   const stamp = new Date().toISOString().slice(0, 10);
   if (format === 'md') {
-    const buf = await toMarkdownZip(notes);
+    const ids = [...new Set(notes.flatMap((n) => (n.$locals?.redacted ? [] : referencedImageIds(n.content))))];
+    const imgs = ids.length ? await Image.find({ user: req.userId, _id: { $in: ids } }).select('mime note').lean() : [];
+    const lockedNotes = new Set(notes.filter((n) => n.locked).map((n) => String(n._id)));
+    const images = new Map(imgs.map((i) => [String(i._id), { file: `${i._id}.${IMAGE_EXT[i.mime]}`, mime: i.mime, note: i.note, locked: lockedNotes.has(String(i.note)) }]));
+    const buf = await toMarkdownZip(notes, images);
     res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="noted-${stamp}.zip"` });
     return res.send(buf);
   }
@@ -322,6 +329,7 @@ const update = asyncHandler(async (req, res) => {
   Object.assign(note, pickNoteFields(req.body));
   await maybeSnapshot(note, prev, { session: String(req.get('x-edit-session') || '').slice(0, 64) });
   await note.save();
+  if (prev.content !== note.content) await markOrphans(note);
   res.json({ note });
 });
 router.put('/:id', update);
@@ -407,6 +415,7 @@ router.post('/:id/versions/:vid/restore', asyncHandler(async (req, res) => {
   await snapshotForRestore(note);
   Object.assign(note, pickVersionFields(version));
   await note.save();
+  await markOrphans(note);
   res.json({ note });
 }));
 

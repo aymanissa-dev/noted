@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node smoke-test.js && node test-v2.js && node test-password.js && node test-authz.js && node test-security.js",
+    "test": "node smoke-test.js && node test-v2.js && node test-password.js && node test-authz.js && node test-images.js && node test-security.js",
     "dev:memory": "node scripts/dev-memory.js"
   },
   "dependencies": {

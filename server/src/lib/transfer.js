@@ -29,7 +29,12 @@ const slugify = (s) =>
 
 const yamlString = (s) => JSON.stringify(String(s)); // JSON strings are valid YAML
 
-export function toMarkdown(n) {
+// noted-image:<id> links become relative links into the ZIP's images/ folder.
+const linkImages = (content, images) => (images?.size
+  ? content.replace(/noted-image:([a-f0-9]{24})\b/g, (m, id) => (images.has(id) ? `images/${images.get(id).file}` : m))
+  : content);
+
+export function toMarkdown(n, images) {
   if (n.locked && n.$locals?.redacted) {
     return `---\nlocked: true\ncreated: ${new Date(n.createdAt).toISOString()}\nupdated: ${new Date(n.updatedAt).toISOString()}\n---\n\n🔒 This note is locked. Export with your PIN to include its contents.\n`;
   }
@@ -46,10 +51,13 @@ export function toMarkdown(n) {
     '---',
     '',
   ].join('\n');
-  return `${front}# ${n.title || 'Untitled'}\n\n${n.content}\n`;
+  return `${front}# ${n.title || 'Untitled'}\n\n${linkImages(n.content, images)}\n`;
 }
 
-export async function toMarkdownZip(notes) {
+// `images`: Map id -> { file, mime, note } of the images the exported notes show. Image bytes aren't
+// in this response (Vercel caps responses at 4.5 MB): images/manifest.json lists them and the app
+// fetches each one and adds it to the ZIP in the browser, then drops the manifest.
+export async function toMarkdownZip(notes, images = new Map()) {
   // Loaded on first use: only the Markdown export needs it, so cold starts don't pay for it.
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
@@ -59,7 +67,11 @@ export async function toMarkdownZip(notes) {
     let name = base;
     for (let i = 2; used.has(name); i++) name = `${base}-${i}`;
     used.add(name);
-    zip.file(`${name}.md`, toMarkdown(n), { date: new Date(n.updatedAt) });
+    zip.file(`${name}.md`, toMarkdown(n, images), { date: new Date(n.updatedAt) });
+  }
+  if (images.size) {
+    const list = [...images].map(([id, i]) => ({ id, path: `images/${i.file}`, mime: i.mime, note: String(i.note), ...(i.locked && { locked: true }) }));
+    zip.file('images/manifest.json', JSON.stringify({ images: list }, null, 2));
   }
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
