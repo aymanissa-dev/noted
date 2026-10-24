@@ -252,7 +252,8 @@ router.post('/merge', asyncHandler(async (req, res) => {
 
 router.post('/', asyncHandler(async (req, res) => {
   const fields = pickNoteFields(req.body);
-  if (!fields.title?.trim() && !fields.content?.trim()) {
+  // forImage: a new, still empty note that an image is being added to (uploads need a saved note).
+  if (!fields.title?.trim() && !fields.content?.trim() && req.body?.forImage !== true) {
     throw new HttpError(400, 'A note needs a title or content');
   }
   if (req.body?.folderId) fields.folderId = await parseFolderId(req, req.body.folderId);

@@ -78,6 +78,12 @@ try {
   const lied = await upload(B.token, bNote._id, gif, 'image/png');
   is(lied, 201, 'declared type wrong but bytes are an image'); ok(lied.data.image.mime === 'image/gif', 'stored type comes from magic bytes, not the header');
 
+  // An empty new note can be created only when an image is being added to it (forImage).
+  is(await call('POST', '/notes', { token: B.token, body: { title: '', content: '' } }), 400, 'empty note still refused');
+  const forImg = await call('POST', '/notes', { token: B.token, body: { title: '', content: '', forImage: true } });
+  is(forImg, 201, 'empty note allowed with forImage');
+  is(await upload(B.token, forImg.data.note._id, png(2, 2)), 201, 'upload into the new empty note');
+
   // ---- Authorization ----
   is(await call('GET', `/images/${img._id}`), 401, 'fetch needs auth');
   is(await upload(undefined, bNote._id, p1), 401, 'upload needs auth');
