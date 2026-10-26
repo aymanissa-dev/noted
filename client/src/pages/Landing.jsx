@@ -14,7 +14,7 @@ const CTA_COMPACT = 'Start writing';
 const GITHUB = 'https://github.com/aymanissa-dev/noted';
 
 // Fades sections in as they scroll into view (instantly visible with reduced motion or no IntersectionObserver).
-function useReveal() {
+export function useReveal() {
   useEffect(() => {
     const els = [...document.querySelectorAll('.reveal')];
     if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { els.forEach((e) => e.classList.add('in')); return undefined; }
@@ -39,7 +39,8 @@ function ThemePill() {
   );
 }
 
-function Nav() {
+// Shared with the other public pages (e.g. /changelog): `base` prefixes the in-page section links.
+export function Nav({ base = '', signedIn = false }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8);
@@ -51,14 +52,20 @@ function Nav() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
         <div className="flex items-center gap-8">
           <Link to="/" aria-label="noted. home"><Logo className="text-[1.6rem]" bounce /></Link>
-          <nav aria-label="Sections" className="hidden items-center gap-6 text-sm text-stone-600 dark:text-stone-400 md:flex">
-            {[['#features', 'Features'], ['#shortcuts', 'Shortcuts'], ['#privacy', 'Privacy'], ['#faq', 'FAQ']].map(([h, l]) => <a key={h} href={h} className="transition hover:text-stone-900 dark:hover:text-white">{l}</a>)}
-          </nav>
+          {!signedIn && (
+            <nav aria-label="Sections" className="hidden items-center gap-6 text-sm text-stone-600 dark:text-stone-400 md:flex">
+              {[['#features', 'Features'], ['#shortcuts', 'Shortcuts'], ['#privacy', 'Privacy'], ['#faq', 'FAQ']].map(([h, l]) => <a key={h} href={base + h} className="transition hover:text-stone-900 dark:hover:text-white">{l}</a>)}
+            </nav>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <ThemePill />
-          <Link to="/login" className="btn-ghost">Log in</Link>
-          <Link to="/register" className="btn-primary hidden sm:inline-flex" data-cta="compact">{CTA_COMPACT}</Link>
+          {signedIn
+            ? <Link to="/notes" className="btn-primary">Open notes</Link>
+            : <>
+              <Link to="/login" className="btn-ghost">Log in</Link>
+              <Link to="/register" className="btn-primary hidden sm:inline-flex" data-cta="compact">{CTA_COMPACT}</Link>
+            </>}
         </div>
       </div>
     </header>
@@ -380,38 +387,44 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="relative overflow-hidden border-t border-stone-200/80 bg-stone-100/70 dark:border-stone-800 dark:bg-stone-900/40">
-        <div className="mx-auto max-w-6xl px-5 pt-16 sm:px-8">
-          <div className="grid grid-cols-3 gap-x-6 gap-y-10 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
-            <div className="col-span-3 sm:col-span-1">
-              <Logo className="text-2xl" />
-              <p className="mt-3 max-w-xs text-sm leading-6 text-stone-600 dark:text-stone-400">Write it down. Find it later. A simple, private notes app with no AI and no clutter.</p>
-              <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm mt-5"><Icon name="github" size="sm" />Source on GitHub</a>
-            </div>
-            {[
-              ['Product', [['#features', 'Features'], ['#shortcuts', 'Shortcuts'], ['#privacy', 'Privacy'], ['#faq', 'FAQ']]],
-              ['Account', [['/register', CTA], ['/login', 'Log in']]],
-              ['Project', [[GITHUB, 'GitHub'], [`${GITHUB}/issues`, 'Report an issue']]],
-            ].map(([h, links]) => (
-              <div key={h}>
-                <p className="eyebrow">{h}</p>
-                <ul className="mt-4 space-y-1 text-sm">
-                  {links.map(([href, l]) => (
-                    <li key={l}>{href.startsWith('/')
-                      ? <Link to={href} className="inline-flex min-h-8 items-center text-stone-700 hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">{l}</Link>
-                      : <a href={href} {...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})} className="inline-flex min-h-8 items-center text-stone-700 hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">{l}</a>}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div className="mt-14 flex flex-col justify-between gap-2 border-t border-stone-200/80 pt-6 text-xs text-stone-600 dark:border-stone-800 dark:text-stone-400 sm:flex-row">
-            <p>© {new Date().getFullYear()} noted.</p>
-            <p>No cookies for tracking. No AI. Just notes.</p>
-          </div>
-        </div>
-        <div aria-hidden="true" className="wordmark pointer-events-none select-none whitespace-nowrap text-center font-semibold leading-[0.8] tracking-[-0.06em]" />
-      </footer>
+      <SiteFooter />
     </div>
+  );
+}
+
+export function SiteFooter({ base = '', signedIn = false }) {
+  return (
+    <footer className="relative overflow-hidden border-t border-stone-200/80 bg-stone-100/70 dark:border-stone-800 dark:bg-stone-900/40">
+      <div className="mx-auto max-w-6xl px-5 pt-16 sm:px-8">
+        <div className="grid grid-cols-3 gap-x-6 gap-y-10 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
+          <div className="col-span-3 sm:col-span-1">
+            <Logo className="text-2xl" />
+            <p className="mt-3 max-w-xs text-sm leading-6 text-stone-600 dark:text-stone-400">Write it down. Find it later. A simple, private notes app with no AI and no clutter.</p>
+            <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm mt-5"><Icon name="github" size="sm" />Source on GitHub</a>
+          </div>
+          {[
+            ['Product', signedIn ? [['/changelog', 'Changelog'], ['/help', 'Help']] : [[`${base}#features`, 'Features'], [`${base}#shortcuts`, 'Shortcuts'], [`${base}#privacy`, 'Privacy'], [`${base}#faq`, 'FAQ'], ['/changelog', 'Changelog']]],
+            ['Account', signedIn ? [['/notes', 'Open notes'], ['/settings', 'Settings']] : [['/register', CTA], ['/login', 'Log in']]],
+            ['Project', [[GITHUB, 'GitHub'], [`${GITHUB}/issues`, 'Report an issue']]],
+          ].map(([h, links]) => (
+            <div key={h}>
+              <p className="eyebrow">{h}</p>
+              <ul className="mt-4 space-y-1 text-sm">
+                {links.map(([href, l]) => (
+                  <li key={l}>{href.startsWith('/') && !href.includes('#')
+                    ? <Link to={href} className="inline-flex min-h-8 items-center text-stone-700 hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">{l}</Link>
+                    : <a href={href} {...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})} className="inline-flex min-h-8 items-center text-stone-700 hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">{l}</a>}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mt-14 flex flex-col justify-between gap-2 border-t border-stone-200/80 pt-6 text-xs text-stone-600 dark:border-stone-800 dark:text-stone-400 sm:flex-row">
+          <p>© {new Date().getFullYear()} noted.</p>
+          <p>No cookies for tracking. No AI. Just notes.</p>
+        </div>
+      </div>
+      <div aria-hidden="true" className="wordmark pointer-events-none select-none whitespace-nowrap text-center font-semibold leading-[0.8] tracking-[-0.06em]" />
+    </footer>
   );
 }

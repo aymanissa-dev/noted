@@ -13,6 +13,7 @@ const NoteRoute = lazy(loadNote);
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const Stats = lazy(() => import('./pages/Stats.jsx'));
 const Help = lazy(() => import('./pages/Help.jsx'));
+const Changelog = lazy(() => import('./pages/Changelog.jsx'));
 export const preloadApp = () => { loadApp(); loadDashboard(); };
 import { ProtectedRoute, GuestRoute } from './components/RouteGuards.jsx';
 import Login from './pages/Login.jsx';
@@ -35,6 +36,7 @@ export default function App() {
     <Suspense fallback={null}>
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/changelog" element={<Changelog />} />
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

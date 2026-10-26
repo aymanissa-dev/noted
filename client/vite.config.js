@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import changelogFeeds from './build/changelogFeeds.js';
 
 // Security headers (CSP etc.) live in vercel.json; `vite preview` serves the same ones so local QA
 // runs under the production policy. Locally the API is another origin, so it's added to connect-src.
@@ -24,6 +25,7 @@ export default defineConfig({
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID), __BUILD_TIME__: JSON.stringify(BUILD_TIME) },
   plugins: [
     react(),
+    changelogFeeds(), // /changelog.xml + /changelog.json from src/data/changelog.js
     VitePWA({
       // New builds activate immediately (skipWaiting + clientsClaim). Registration and the page-side
       // reload (right away, or once you leave an open note) live in src/lib/swUpdate.js.
