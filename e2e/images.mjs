@@ -55,15 +55,16 @@ try {
   await p.waitForSelector('.cm-content'); await endOfDoc(p);
 
   // 1. Paste a transparent PNG
-  await paste(p, await makeFile(p));
+  await paste(p, await makeFile(p, { name: 'image.png' })); // what browsers call a clipboard image
   let note = await waitContent(n._id, u.token, (c) => ids(c).length === 1);
+  ok(note.content.includes('![Pasted image](noted-image:'), 'paste: alt text "Pasted image", never empty');
   const [pasted] = ids(note.content);
   ok(Boolean(pasted), 'paste: markdown ![…](noted-image:id) saved ' + JSON.stringify(note.content));
   await p.waitForFunction(() => document.querySelectorAll('.cm-image-frame img[src^="blob:"]').length >= 1, { timeout: 10000 }).catch(() => {});
   ok(await frames(p) === 1, 'paste: image renders inline in the editor');
   let img = await getImage(pasted, u.token);
   ok(img.status === 200 && /^image\/(webp|png)$/.test(img.headers.get('content-type')), 'paste: stored as ' + img.headers.get('content-type'));
-  ok(img.headers.get('x-content-type-options') === 'nosniff' && /immutable/.test(img.headers.get('cache-control')), 'serve: nosniff + private immutable cache');
+  ok(img.headers.get('x-content-type-options') === 'nosniff' && /private/.test(img.headers.get('cache-control')) && /no-store/.test(img.headers.get('cache-control')) && !/immutable/.test(img.headers.get('cache-control')), 'serve: nosniff + private, no-store');
 
   // 2. Drop a large JPEG (slow network → placeholder with progress, then swapped in). Resized to ≤2000px.
   await net(p, { latency: 600, uploadThroughput: 150 * 1024 });
@@ -138,6 +139,24 @@ try {
   await paste(p, await makeFile(p, { name: 'online.png' }));
   note = await waitContent(n._id, u.token, (c) => ids(c).length === 4, 20000);
   ok(ids(note.content).length === 4, 'back online: upload works');
+
+  // 7b. A flaky "online" signal doesn't flip the banner; an image added to a new note offline leaves no empty note
+  const notesBefore = (await api('GET', '/notes', null, u.token)).data.notes.length;
+  const o = await pageAs(b, u.token, u.user);
+  await o.goto(`${BASE}/notes/new`, { waitUntil: 'networkidle0' }); await o.waitForSelector('.cm-content');
+  await net(o, { offline: true }); await sleep(600);
+  await o.evaluate(() => window.dispatchEvent(new Event('online'))); // the browser says online, the network isn't
+  await sleep(1500);
+  const banner = await o.$eval('[data-testid=sync-banner]', (e) => e.textContent).catch(() => '');
+  ok(/offline/i.test(banner) && !/Back online/.test(banner), 'flaky online event: banner stays offline until noted. answers ' + JSON.stringify(banner));
+  await o.$eval('.cm-content', (e) => e.focus());
+  await paste(o, await makeFile(o, { name: 'image.png' })); await sleep(800);
+  ok(await o.evaluate(() => /Needs a connection/.test(document.body.innerText)), 'new note offline: image says "Needs a connection"');
+  await net(o, {}); await sleep(3000);
+  await o.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' }); await sleep(1500);
+  const afterN = (await api('GET', '/notes', null, u.token)).data.notes;
+  ok(afterN.length === notesBefore, `offline image add: no empty note left after syncing (${notesBefore} → ${afterN.length})`);
+  await o.close();
   ok(p.errors.length === 0, 'desktop: no page errors ' + p.errors.join('|'));
 
   // 8. Markdown export: images/ folder with relative links, no manifest left
@@ -169,6 +188,14 @@ try {
   await q.waitForSelector('input[inputmode=numeric]');
   await q.type('input[inputmode=numeric]', '123456'); await q.keyboard.press('Enter');
   await q.waitForSelector('.cm-content');
+  // While the images load, no broken-image icon or bare alt text shows (the frame pulses instead).
+  let broken = 0;
+  for (let i = 0; i < 40; i++) {
+    broken += await q.$$eval('.cm-image-frame img', (xs) => xs.filter((x) => getComputedStyle(x).visibility !== 'hidden' && !(x.complete && x.naturalWidth > 0)).length);
+    if (await frames(q) >= 4) break;
+    await sleep(50);
+  }
+  ok(broken === 0, 'unlock: no broken image icons while the images load (' + broken + ')');
   await q.waitForFunction(() => document.querySelectorAll('.cm-image-frame img[src^="blob:"]').length >= 4, { timeout: 10000 }).catch(() => {});
   ok(await frames(q) === 4, 'locked: images show after entering the PIN');
   await sleep(500);
@@ -177,6 +204,25 @@ try {
   await q.close();
   await api('PATCH', `/notes/${n._id}/lock`, { locked: false, pin: '123456' }, u.token);
   await p.close();
+
+  // 9b. Trash: a locked note shows its title after the PIN (title only, never the body)
+  const sec = (await api('POST', '/notes', { title: 'Secret trip', content: 'Passport number 123' }, u.token)).data.note;
+  await api('PATCH', `/notes/${sec._id}/lock`, { locked: true }, u.token);
+  const tok = (await api('POST', `/notes/${sec._id}/unlock`, { pin: '123456' }, u.token)).data.unlockToken;
+  const trashed = await fetch(`${API}/notes/${sec._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${u.token}`, 'X-Unlock-Token': tok } });
+  ok(trashed.ok, 'locked note trashed with the unlock ' + trashed.status);
+  const t = await pageAs(b, u.token, { ...u.user, hasLockPin: true });
+  await t.goto(`${BASE}/trash`, { waitUntil: 'networkidle0' }); await sleep(800);
+  const card = () => t.$$eval('[data-flip-id]', (cs) => cs.map((c) => c.innerText).find((x) => /Locked note|Secret trip/.test(x)) || '');
+  ok(/Locked note/.test(await card()) && /Show title/.test(await card()), 'trash: locked note hidden until the PIN, with "Show title"');
+  await t.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.textContent === 'Show title').click());
+  await t.waitForSelector('input[inputmode=numeric]'); await t.type('input[inputmode=numeric]', '123456'); await t.keyboard.press('Enter');
+  await t.waitForFunction(() => /Secret trip/.test(document.body.innerText), { timeout: 8000 }).catch(() => {});
+  const shown = await card();
+  ok(/Secret trip/.test(shown) && !/Passport/.test(shown) && !/Show title/.test(shown), 'trash: title shown after the PIN, body never ' + JSON.stringify(shown));
+  ok(t.errors.length === 0, 'trash: no page errors ' + t.errors.join('|'));
+  await t.close();
+  await api('PATCH', `/notes/${sec._id}/lock`, { locked: false, pin: '123456' }, u.token).catch(() => {});
 
   // 10. Another user can't see them
   const v = await newUser('img2');

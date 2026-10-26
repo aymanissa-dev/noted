@@ -186,6 +186,8 @@ Tags are trimmed, lowercased, and de-duplicated (max 20 per note).
 Locked notes are redacted on the server (empty `title`, `content`, `tags`, plus `redacted: true`) in every list,
 get, and export response unless the request carries a valid unlock token. They never match search or tag filters,
 their history needs an unlock token, and the client never stores their contents offline or queues offline edits for them.
+In the trash a locked note shows "Locked note" with **Show title**: the PIN reveals the title (in memory, until the
+unlock expires or the page reloads); the body stays locked.
 
 ## Images
 
@@ -195,10 +197,17 @@ their history needs an unlock token, and the client never stores their contents 
   uploads can't overshoot).
 - **Serving**: `<img>` can't send the bearer token, so the client fetches `/api/images/:id` with auth and shows a
   `blob:` URL (the page CSP already allows `img-src blob:`). Responses: `Content-Type` from the stored type,
-  `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Cache-Control: private, max-age=31536000,
-  immutable` (`no-store` for locked notes). Images never change, so the client keeps viewed images in Cache
+  `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Cache-Control: private, no-store` (any note
+  can be locked later, so nothing sits in the browser's HTTP cache). Status codes: `401` without a valid sign-in
+  (nothing about the image is revealed), `404` for another account's image, `423` for a locked note's image
+  without a valid `X-Unlock-Token`. Images never change, so the client keeps viewed images in Cache
   Storage (`noted-images-v1`, up to 300) for offline viewing, except locked notes' images (memory only, dropped on
   lock). All of it is wiped on logout or account switch.
+- **Alt text**: from the file name for picked/dropped images; generic names (`image.png`, `IMG_1234`, …) become
+  "Image", pasted ones "Pasted image". Never empty; editable in the lightbox.
+- **Offline**: adding an image needs a connection ("Needs a connection" + Retry). Adding one to a new, empty note
+  offline doesn't create or queue the note. The offline banner only clears once noted. answers (a `/api/health`
+  probe), not on the browser's `online` event alone.
 - **Lifecycle**: trashing a note keeps its images; deleting it for good (or emptying the trash, or deleting the
   account) deletes them, unless another note of yours still references one (it moves to that note). An image no
   note or version references any more is deleted after `IMAGE_ORPHAN_GRACE_MS` (24 h), so Undo and version history
