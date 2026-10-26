@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useIsOnline } from './network.js';
+import { RECONNECTED, useIsOnline } from './network.js';
 import { queue, syncQueue } from './api.js';
 
 // Tracks connectivity and pending offline writes; syncs automatically on reconnect.
@@ -9,7 +9,7 @@ export function useOnline() {
 
   useEffect(() => {
     const refresh = () => setPending(queue.size());
-    // The 'online' event can fire before requests actually go through, so retry shortly after too.
+    // Sync once the connection is confirmed (see network.js), and shortly after too.
     const retries = [];
     const goOnline = () => {
       syncQueue();
@@ -19,14 +19,14 @@ export function useOnline() {
     const timer = setInterval(() => { if (queue.size() && navigator.onLine) syncQueue(); }, 5000);
     const onVisible = () => { if (document.visibilityState === 'visible') syncQueue(); };
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', goOnline);
+    window.addEventListener(RECONNECTED, goOnline);
     window.addEventListener('noted:queue-changed', refresh);
     window.addEventListener('storage', refresh);
     syncQueue();
     return () => {
       clearInterval(timer); retries.forEach(clearTimeout);
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', goOnline);
+      window.removeEventListener(RECONNECTED, goOnline);
       window.removeEventListener('noted:queue-changed', refresh);
       window.removeEventListener('storage', refresh);
     };

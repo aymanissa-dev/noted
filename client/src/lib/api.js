@@ -2,7 +2,7 @@ import { clearAllUndo } from '../editor/undoStore.js';
 import { forgetUnlocked as forgetUnlockedTitles, rememberUnlocked } from './unlocked.js';
 import { clearImageStore, forgetLockedImages, forgetNoteImages } from './imageStore.js';
 import { createQueue, isTempId, newTempId } from './offlineQueue.js';
-import { OFFLINE_MESSAGE, NETWORK_MESSAGE } from './network.js';
+import { OFFLINE_MESSAGE, NETWORK_MESSAGE, RECONNECTED, markReachable } from './network.js';
 
 const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 // Ending unlocks also drops images of locked notes kept in memory.
@@ -74,7 +74,7 @@ const offlineError = () => Object.assign(new TypeError(OFFLINE_MESSAGE), { offli
 // fetch() that never surfaces the browser's raw "Failed to fetch": network failures become a
 // TypeError (so isNetworkError still sees them) with a message people can act on.
 async function netFetch(url, opts) {
-  try { return await fetch(url, opts); }
+  try { const res = await fetch(url, opts); markReachable(); return res; }
   catch (e) {
     if (e?.name === 'AbortError') throw e;
     throw Object.assign(new TypeError(navigator.onLine ? NETWORK_MESSAGE : OFFLINE_MESSAGE), { network: true, offline: !navigator.onLine, cause: e });
@@ -214,7 +214,7 @@ export function endSession(token) {
   return flushPendingLogouts() || Promise.resolve();
 }
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => flushPendingLogouts());
+  window.addEventListener(RECONNECTED, () => flushPendingLogouts());
   setTimeout(() => flushPendingLogouts(), 0);
 }
 
@@ -381,6 +381,7 @@ export const imageApi = {
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
     xhr.onload = () => {
       let data = null; try { data = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status) markReachable();
       if (xhr.status >= 200 && xhr.status < 300 && data?.image) { resolve(data.image); return; }
       if (xhr.status === 401 && token) onUnauthorized();
       reject(new ApiError(data?.error || (xhr.status === 413 ? 'That image is too large (max 3 MB after compression).' : `Upload failed (${xhr.status})`), xhr.status, data));
@@ -515,7 +516,9 @@ export const api = {
     }
   },
 
-  async createNote(body) {
+  // queueOffline: false for a note that only exists to hold an image being added (it's still empty):
+  // offline, that fails instead of queuing an empty note that would sync later on its own.
+  async createNote(body, { queueOffline = true } = {}) {
     const clientId = newTempId(); // idempotency key, and the note's local id if it has to wait
     try {
       const res = await request('POST', '/notes', { ...body, clientId });
@@ -523,7 +526,7 @@ export const api = {
       markLoaded(res.note);
       return changed(res);
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (!isNetworkError(err) || !queueOffline) throw err;
       const tempId = queue.enqueueCreate(body, clientId); queued();
       return { note: queue.localNotes().find((n) => n._id === tempId), queued: true };
     }

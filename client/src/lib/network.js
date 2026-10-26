@@ -1,14 +1,50 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
-// One shared, reactive view of connectivity for the whole app. Components re-render on the
-// browser's online/offline events, so nothing keeps saying "You are offline" after you reconnect.
-const subscribe = (fn) => {
-  window.addEventListener('online', fn);
-  window.addEventListener('offline', fn);
-  return () => { window.removeEventListener('online', fn); window.removeEventListener('offline', fn); };
-};
-const snapshot = () => navigator.onLine;
-export const useIsOnline = () => useSyncExternalStore(subscribe, snapshot, () => true);
+// One shared, reactive view of connectivity for the whole app, that doesn't trust a flaky signal.
+// Going offline is believed at once (the browser's 'offline' event, or navigator.onLine false).
+// Coming back is only believed once a request actually gets an answer: navigator.onLine can turn
+// true while nothing gets through (DevTools offline, flaky Wi-Fi, captive portals), and saying
+// "Back online. Syncing…" then is wrong. So on 'online' we probe /api/health (backing off while it
+// fails); any API response counts too (markReachable, called by api.js). Confirmation fires
+// RECONNECTED, which is what the rest of the app listens to instead of 'online'.
+export const RECONNECTED = 'noted:reconnected';
+const HEALTH = `${(import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '')}/health`;
+const hasWindow = typeof window !== 'undefined';
+let reachable = !hasWindow || navigator.onLine;
+const subscribers = new Set();
+const emit = () => subscribers.forEach((fn) => fn());
+let probeTimer = null; let probeDelay = 1000; let probing = false;
+
+export function markReachable() {
+  if (reachable || !navigator.onLine) return;
+  reachable = true; clearTimeout(probeTimer); probeDelay = 1000;
+  emit();
+  window.dispatchEvent(new Event(RECONNECTED));
+}
+function markOffline() {
+  clearTimeout(probeTimer); probeDelay = 1000;
+  if (!reachable) return;
+  reachable = false; emit();
+}
+async function probe() {
+  if (reachable || probing || !navigator.onLine) return;
+  probing = true;
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = setTimeout(() => ctrl?.abort(), 5000);
+  let ok = false;
+  try { ok = (await fetch(HEALTH, { cache: 'no-store', signal: ctrl?.signal })).ok; } catch { /* still unreachable */ }
+  clearTimeout(timeout); probing = false;
+  if (ok) { markReachable(); return; }
+  if (!reachable && navigator.onLine) { probeTimer = setTimeout(probe, probeDelay); probeDelay = Math.min(probeDelay * 2, 30000); }
+}
+if (hasWindow) {
+  window.addEventListener('offline', markOffline);
+  window.addEventListener('online', () => { clearTimeout(probeTimer); probeDelay = 1000; probe(); });
+}
+const subscribe = (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); };
+// Online for the app: the browser says so AND a request got through since the last time it didn't.
+export const isOnline = () => !hasWindow || (navigator.onLine && reachable);
+export const useIsOnline = () => useSyncExternalStore(subscribe, isOnline, () => true);
 
 // The messages api.js uses for requests that never got an answer: skipped because the browser is
 // offline, or fetch itself failed (DNS, dropped Wi-Fi, blocked) — never the browser's raw
@@ -19,8 +55,8 @@ export const isNetworkText = (t) => typeof t === 'string' && (t.includes(OFFLINE
 export const isNetworkFailure = (e) => e instanceof TypeError || e?.offline === true || e?.network === true;
 export const isOfflineError = (e) => e?.offline === true || (e instanceof TypeError && !navigator.onLine);
 
-// Run `fn` when the connection comes back. The 'online' event can fire a moment before requests
-// actually get through, so it runs again shortly after (each run should be idempotent).
+// Run `fn` when the connection is confirmed back (RECONNECTED). It runs again shortly after too, in
+// case the server needs a moment (each run should be idempotent).
 export function useOnReconnect(fn) {
   const ref = useRef(fn);
   ref.current = fn;
@@ -31,8 +67,8 @@ export function useOnReconnect(fn) {
       ref.current();
       timers = [800, 2500].map((ms) => setTimeout(() => { if (navigator.onLine) ref.current(); }, ms));
     };
-    window.addEventListener('online', on);
-    return () => { window.removeEventListener('online', on); timers.forEach(clearTimeout); };
+    window.addEventListener(RECONNECTED, on);
+    return () => { window.removeEventListener(RECONNECTED, on); timers.forEach(clearTimeout); };
   }, []);
 }
 
@@ -78,9 +114,9 @@ export function useRefetch(load, { failing = false, onFocus = 'failing' } = {}) 
     };
     kick.current = () => { delay = 1000; tick(); };
     const onOnline = () => kick.current();
-    window.addEventListener('online', onOnline);
+    window.addEventListener(RECONNECTED, onOnline);
     tick();
-    return () => { clearTimeout(t); window.removeEventListener('online', onOnline); };
+    return () => { clearTimeout(t); window.removeEventListener(RECONNECTED, onOnline); };
   }, [failing]);
   return useCallback(() => { ref.current(); kick.current(); }, []);
 }

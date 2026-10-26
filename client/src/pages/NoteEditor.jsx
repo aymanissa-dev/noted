@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, imageApi, optimisticInsert, saveOnUnload, queue, realIdFor } from '../lib/api.js';
 import { ImageLightbox, loadNoteImage } from '../components/Images.jsx';
 import { forgetLockedImages, forgetNoteImages, primeImage } from '../lib/imageStore.js';
-import { cleanAlt } from '../lib/markdown.js';
+import { cleanAlt, splitImages } from '../lib/markdown.js';
 import EmptyState from '../components/EmptyState.jsx';
 import { isTempId } from '../lib/offlineQueue.js';
 import { unlockFor } from '../lib/unlock.js';
@@ -28,7 +28,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import { cardClass } from '../lib/colors.js';
-import { useClearOfflineMessage, useRefetch, useIsOnline, isNetworkText } from '../lib/network.js';
+import { useClearOfflineMessage, useRefetch, useIsOnline, isNetworkText, isNetworkFailure, isOnline } from '../lib/network.js';
 import { useTypewriter, toggleTypewriter, isTypewriterShortcut } from '../lib/typewriter.js';
 import { timeAgo } from '../lib/format.js';
 
@@ -137,6 +137,8 @@ export default function NoteEditor() {
   }, [routeId, loadTick]);
   const readOnly = previewOnly || !verified;
 
+  const createdForImage = useRef(null); // id of a note created only to hold an image (see below)
+
   // Save the current note if it changed. Serialized so creates never duplicate.
   // forImage: create the note even while it's empty (an image is being added to it).
   const save = useCallback(async ({ forImage = false } = {}) => {
@@ -149,6 +151,7 @@ export default function NoteEditor() {
     if (current.locked && !unlockToken.current) return; // wait for PIN
     if (idRef.current && !isTempId(idRef.current) && !verifiedRef.current) return; // body never loaded: never overwrite it
     if (previewOnlyRef.current) return; // never save a truncated excerpt over the real note
+    const imageOnly = createEmpty && isEmpty(current); // a note made only to hold an image
     setStatus('saving'); setError('');
     const run = (async () => {
       const fields = { title: current.title, content: current.content, tags: current.tags, color: current.color, emoji: current.emoji };
@@ -156,10 +159,11 @@ export default function NoteEditor() {
         ? await api.updateLockedNote(idRef.current, fields, unlockToken.current, { session })
         : idRef.current
         ? await api.updateNote(idRef.current, fields, { session })
-        : await api.createNote({ ...current, folderId: current.folderId || undefined, ...(createEmpty && isEmpty(current) && { forImage: true }) });
+        : await api.createNote({ ...current, folderId: current.folderId || undefined, ...(imageOnly && { forImage: true }) }, { queueOffline: !imageOnly });
       lastSaved.current = snap;
       setUpdatedAt(saved.updatedAt);
       if (!idRef.current) {
+        if (imageOnly && !queued) createdForImage.current = saved._id;
         idRef.current = saved._id;
         setNoteId(saved._id);
         navigate(`/notes/${saved._id}`, { replace: true, state: { created: true } });
@@ -169,12 +173,24 @@ export default function NoteEditor() {
     })();
     inflight.current = run;
     try { await run; } catch (e) {
+      // The image couldn't get a note to go into (offline): the upload shows "Needs a connection"; the
+      // note itself had nothing to save, so it isn't an editor error.
+      if (imageOnly && isNetworkFailure(e)) { setStatus((st) => (st === 'saving' ? 'idle' : st)); return; }
       setStatus('error');
       if (e.status === 423) { unlockToken.current = null; setNeedsPin(true); setError('Your unlock expired. Enter your PIN to keep saving.'); }
       else setError(e.message);
     }
     finally { if (inflight.current === run) inflight.current = null; }
   }, [navigate, session]);
+
+  // A note created just to hold an image whose upload then failed or was cancelled: if it's still
+  // empty when you leave, it's deleted (no stray "Untitled" notes).
+  useEffect(() => () => {
+    const id = createdForImage.current;
+    if (id && id === idRef.current && isEmpty(noteRef.current) && !noteRef.current.locked) {
+      api.deleteForever(id).then(() => window.dispatchEvent(new Event('noted:notes-changed'))).catch(() => {});
+    }
+  }, []);
 
   // When an offline-created note syncs, switch to its real id.
   useEffect(() => {
@@ -258,6 +274,9 @@ export default function NoteEditor() {
 
   const unlock = async (pin, { beforeClose } = {}) => {
     const { note: n, unlockToken: token } = await api.unlockNote(idRef.current, pin);
+    // Start fetching its images now, in parallel with the unlock animation, so they're ready (or
+    // nearly) when the editor shows them instead of each starting only once it's on screen.
+    for (const { image } of splitImages(n.content || '')) if (image) loadNoteImage(image, { noteId: idRef.current, locked: true, unlockToken: token }).catch(() => {});
     await beforeClose?.(); // the lock icon opens first
     unlockToken.current = token;
     setNeedsPin(false); setError('');
@@ -376,6 +395,7 @@ export default function NoteEditor() {
       return null;
     },
     upload: async (prepared, { onProgress, signal }) => {
+      if (!isOnline()) throw Object.assign(new Error('Needs a connection: images can be added when you’re back online.'), { retryable: true });
       await save({ forImage: true });
       const id = idRef.current;
       if (!id || isTempId(id)) throw Object.assign(new Error('Needs a connection: the note has to be saved before images can be added.'), { retryable: true });
