@@ -228,6 +228,10 @@ never cached by the service worker. The app keeps its own copy of notes you've v
 offline reading, and queues creates/edits made offline, syncing them in order when the connection returns.
 All local data is cleared on logout. Pin/archive/delete need a connection.
 
+## Changelog
+
+The public release notes at [`/changelog`](https://noted-lac-phi.vercel.app/changelog) are rendered from one data file, `client/src/data/changelog.js`. To publish a release, add an object at the top of `RELEASES` (`version`, `date`, `title`, `summary`, `changes: [{ type: 'new' | 'improved' | 'fixed' | 'security', text }]`, optional `build`) and deploy. The build also writes `/changelog.xml` (RSS 2.0) and `/changelog.json` (JSON Feed 1.1) from the same list (`client/build/changelogFeeds.js`), and `npm test` in `client/` checks the file (valid dates, newest first, known types, no duplicates).
+
 ## Deploying to Vercel
 
 The repo deploys as a single Vercel project:
