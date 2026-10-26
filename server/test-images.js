@@ -68,7 +68,7 @@ try {
   ok(got.buf.equals(p1), 'bytes round-trip');
   ok(got.headers.get('content-type') === 'image/png', 'Content-Type from stored mime');
   ok(got.headers.get('x-content-type-options') === 'nosniff', 'nosniff');
-  ok(/private/.test(got.headers.get('cache-control')) && /immutable/.test(got.headers.get('cache-control')) && /max-age=31536000/.test(got.headers.get('cache-control')), 'private immutable cache by id');
+  ok(/private/.test(got.headers.get('cache-control')) && /no-store/.test(got.headers.get('cache-control')) && !/immutable|max-age/.test(got.headers.get('cache-control')), 'private, no-store (a note can be locked later)');
   ok(!/public/.test(got.headers.get('cache-control')), 'never cached publicly');
   ok(/default-src 'none'/.test(got.headers.get('content-security-policy') || ''), 'image response has a no-script CSP');
   for (const [bytes, type, w, h] of [[jpeg, 'image/jpeg', 56, 42], [gif, 'image/gif', 1, 1], [webp(640, 480), 'image/webp', 640, 480]]) {
@@ -112,10 +112,14 @@ try {
   await call('PATCH', `/notes/${bLocked._id}/lock`, { token: B.token, body: { locked: true } });
   is(await call('GET', `/images/${lockedImg._id}`, { token: B.token }), 423, 'locked note’s image is 423 without the unlock');
   is(await upload(B.token, bLocked._id, p1), 423, 'can’t upload into a locked note without the unlock');
+  is(await call('GET', `/images/${lockedImg._id}`, { token: B.token, headers: { 'X-Unlock-Token': 'not-a-token' } }), 423, 'a fake unlock token is still 423');
+  is(await call('GET', `/images/${lockedImg._id}`, { token: B.token, headers: { 'X-Unlock-Token': B.token } }), 423, 'a session token used as an unlock token is 423');
+  is(await call('GET', `/images/${lockedImg._id}`, {}), 401, 'no sign-in is 401 (before anything about the image is revealed)');
   const unlock = (await call('POST', `/notes/${bLocked._id}/unlock`, { token: B.token, body: { pin: '482913' } })).data.unlockToken;
   ok(Boolean(unlock), 'unlock token');
   const lockedGot = await call('GET', `/images/${lockedImg._id}`, { token: B.token, headers: { 'X-Unlock-Token': unlock } });
   is(lockedGot, 200, 'served while unlocked');
+  ok(/no-store/.test(lockedGot.headers.get('cache-control')), 'locked note image is no-store');
   ok(/no-store/.test(lockedGot.headers.get('cache-control')) && lockedGot.headers.get('x-note-locked') === '1', 'locked images are never cached');
   const otherUnlock = (await call('POST', `/notes/${bLocked._id}/unlock`, { token: B.token, body: { pin: '482913' } })).data.unlockToken;
   is(await call('GET', `/images/${lockedImg._id}`, { token: A.token, headers: { 'X-Unlock-Token': otherUnlock } }), 404, 'another user with a stolen unlock token still gets 404');

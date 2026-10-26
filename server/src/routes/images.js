@@ -63,7 +63,9 @@ router.get('/images/:imageId', requireAuth, asyncHandler(async (req, res) => {
     'Content-Length': buf.length,
     'X-Content-Type-Options': 'nosniff',
     'Content-Disposition': 'inline',
-    'Cache-Control': note.locked ? 'private, no-store' : 'private, max-age=31536000, immutable',
+    // Never kept in the browser's HTTP cache: any note can be locked later, and a cached copy would
+    // outlive the lock. The app keeps its own copy (Cache Storage, unlocked notes only; memory for locked).
+    'Cache-Control': 'private, no-store',
     'X-Image-Width': img.width,
     'X-Image-Height': img.height,
     ...(note.locked && { 'X-Note-Locked': '1' }),
