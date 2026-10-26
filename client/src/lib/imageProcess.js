@@ -93,7 +93,10 @@ export async function prepareImage(file) {
 }
 
 // A readable default alt text from the file name ("" for generic names like image.png).
-export function altFromName(name = '') {
+// Alt text for a new image: its file name when that says something, else a plain description of
+// where it came from ("Pasted image", "Image"), never empty. It can be edited any time (Alt button).
+export function altFromName(name = '', fallback = 'Image') {
   const stem = String(name).replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
-  return /^(image|img|blob|photo|picture|screenshot|pasted|untitled)?\s*\d*$/i.test(stem) ? '' : stem.slice(0, 120);
+  if (/^screen ?shot\b/i.test(stem)) return 'Screenshot';
+  return /^(image|img|blob|photo|picture|screenshot|pasted|untitled|dsc|dcim|pxl)?\s*[\d\s]*$/i.test(stem) ? fallback : stem.slice(0, 120);
 }

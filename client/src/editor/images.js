@@ -41,7 +41,8 @@ const uploadsField = StateField.define({
 
 const host = (view) => view.state.facet(imageHost)();
 
-export function addImages(view, files, pos = view.state.selection.main.head) {
+// source: 'paste' | 'drop' | 'pick' (pasted images get "Pasted image" as alt text when their name says nothing).
+export function addImages(view, files, pos = view.state.selection.main.head, { source = 'pick' } = {}) {
   const h = host(view);
   if (!h || view.state.readOnly) return false;
   const list = [...files];
@@ -52,7 +53,7 @@ export function addImages(view, files, pos = view.state.selection.main.head) {
     const problem = checkFile(file);
     if (problem) { h.notify(problem); continue; }
     const id = `up${++seq}`;
-    jobs.set(id, { file });
+    jobs.set(id, { file, source });
     view.dispatch({ effects: addUpload.of({ id, pos, name: file.name || 'Image', progress: 0, error: '' }) });
     run(view, id);
   }
@@ -77,7 +78,7 @@ async function run(view, id) {
     const u = view.state.field(uploadsField).find((x) => x.id === id);
     const line = view.state.doc.lineAt(u.pos);
     const before = view.state.sliceDoc(line.from, u.pos); const after = view.state.sliceDoc(u.pos, line.to);
-    const md = imageMarkdown(image._id, altFromName(job.file.name));
+    const md = imageMarkdown(image._id, altFromName(job.file.name, job.source === 'paste' ? 'Pasted image' : 'Image'));
     // Own line: dropped/pasted mid-line, the image goes after that line instead of splitting its text.
     const from = after.trim() ? line.to : u.pos;
     const insert = `${(after.trim() ? line.text : before).trim() ? '\n' : ''}${md}`;
@@ -227,7 +228,7 @@ const events = EditorView.domEventHandlers({
     const files = imageFiles(e.clipboardData);
     if (!files.length) return false;
     e.preventDefault();
-    return addImages(view, files);
+    return addImages(view, files, undefined, { source: 'paste' });
   },
   dragover(e, view) {
     if (!hasFiles(e.dataTransfer) || view.state.readOnly) return false;
@@ -242,7 +243,7 @@ const events = EditorView.domEventHandlers({
     if (!files.length) return false;
     e.preventDefault();
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? view.state.selection.main.head;
-    return addImages(view, files, pos);
+    return addImages(view, files, pos, { source: 'drop' });
   },
 });
 
