@@ -13,9 +13,10 @@ import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
-import { useOnReconnect, useRefetch, useIsOnline, isOfflineError, isNetworkText } from '../lib/network.js';
+import { useOnReconnect, useRefetch, useIsOnline, isOfflineError, isNetworkText, RECONNECTED } from '../lib/network.js';
 import RetryStatus from '../components/RetryStatus.jsx';
 import { unlockFor, trashPin } from '../lib/unlock.js';
+import { displayTitle } from '../lib/unlocked.js';
 
 
 export default function Dashboard({ view = 'active', compact = false, activeId }) {
@@ -37,8 +38,8 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   useEffect(() => preloadEditor(), []);
   useEffect(() => {
     const load = () => api.folders().then(({ folders }) => setFolders(folders)).catch(() => {});
-    load(); window.addEventListener('noted:folders-changed', load); window.addEventListener('online', load);
-    return () => { window.removeEventListener('noted:folders-changed', load); window.removeEventListener('online', load); };
+    load(); window.addEventListener('noted:folders-changed', load); window.addEventListener(RECONNECTED, load);
+    return () => { window.removeEventListener('noted:folders-changed', load); window.removeEventListener(RECONNECTED, load); };
   }, []);
   const folderName = folders.find((f) => f._id === folder)?.name;
   const [loading, setLoading] = useState(true); // a refresh is in flight (cached rows may be showing)
@@ -187,8 +188,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     try { await api.restoreNote(note._id); await done; }
     catch (e) { setNotes((l) => [note, ...l]); setError(e.message); }
   };
+  // Locked notes in the trash: the PIN shows the title (unlockNote remembers it in memory only).
+  const revealTitle = async (note) => {
+    try { await unlockFor(dialog, note, { action: 'see its title' }); } catch (e) { setError(e.message); }
+  };
   const deleteForever = async (note) => {
-    if (!(await dialog.confirm({ title: 'Delete forever?', body: `“${note.title || (note.locked ? 'Locked note' : 'Untitled')}” and its history will be gone for good. This can’t be undone.`, confirmLabel: 'Delete forever', danger: true }))) return;
+    if (!(await dialog.confirm({ title: 'Delete forever?', body: `“${note.locked ? displayTitle(note) : note.title || 'Untitled'}” and its history will be gone for good. This can’t be undone.`, confirmLabel: 'Delete forever', danger: true }))) return;
     try {
       const token = await unlockFor(dialog, note, { action: 'delete it for good' });
       if (token === null) return;
@@ -316,7 +321,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
           {pinned.length > 0 && <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
             <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
-              notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} needsConnection={noConnection} />
+              notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} onReveal={revealTitle} needsConnection={noConnection} />
           )}
           {noConnection && view === 'trash' && <p id="needs-connection" className="sr-only">Needs a connection</p>}
         </>
@@ -326,12 +331,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
   );
 }
 
-function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, needsConnection, compact, activeId, selecting, selected = [], onSelect, leaving, entering }) {
+function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, onReveal, needsConnection, compact, activeId, selecting, selected = [], onSelect, leaving, entering }) {
   return (
     <section className="mt-6">
       <h2 className="mb-3 section-label">{title}</h2>
       <div className={`grid ${compact ? 'gap-2' : 'grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-4'}`}>
-        {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} needsConnection={needsConnection} />)}
+        {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} onReveal={onReveal} needsConnection={needsConnection} />)}
       </div>
     </section>
   );

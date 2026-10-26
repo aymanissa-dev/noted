@@ -7,13 +7,18 @@ import Icon from './Icon.jsx';
 import { cardClass } from '../lib/colors.js';
 import { previewText } from '../lib/markdown.js';
 
-export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, needsConnection = false, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
+export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever, onReveal, needsConnection = false, compact, active, selecting, selectedIndex = -1, onSelect, leaving, entering }) {
   useUnlockedVersion(); // a locked note unlocked elsewhere shows its title right away
   const motion = leaving ? 'animate-leave pointer-events-none' : entering ? 'animate-slide-in' : '';
   if (note.deletedAt) {
     return (
       <div data-flip-id={note._id} className={`${motion} flex flex-col rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 p-4`}>
         <h3 className="flex items-center gap-1.5 font-semibold text-stone-700 dark:text-stone-200 line-clamp-1 break-words">{note.locked ? <><Icon name="lock" />{displayTitle(note)}</> : note.title || 'Untitled'}</h3>
+        {/* A locked note's title stays private on the server (lists, search, offline copies). In the
+            trash the PIN shows it (title only, the body stays locked) until the lock comes back. */}
+        {note.locked && !unlockedPeek(note._id) && onReveal && (
+          <button type="button" className="mt-1 self-start text-xs font-medium text-stone-600 underline-offset-2 hover:underline disabled:opacity-50 dark:text-stone-300" disabled={needsConnection} onClick={() => onReveal(note)}>Show title</button>
+        )}
         <p className="mt-1 flex-1 whitespace-pre-line text-sm text-muted line-clamp-3">{previewText(note.content, note.title)}</p>
         <div className="mt-3 flex items-center gap-1">
           <span className="text-xs text-faint">Deleted {timeAgo(note.deletedAt)}</span>
