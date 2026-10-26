@@ -207,7 +207,7 @@ unlock expires or the page reloads); the body stays locked.
   "Image", pasted ones "Pasted image". Never empty; editable in the lightbox.
 - **Offline**: adding an image needs a connection ("Needs a connection" + Retry). Adding one to a new, empty note
   offline doesn't create or queue the note. The offline banner only clears once noted. answers (a `/api/health`
-  probe), not on the browser's `online` event alone.
+  probe right away, then every second for 15s, then backing off to 30s), not on the browser's `online` event alone.
 - **Lifecycle**: trashing a note keeps its images; deleting it for good (or emptying the trash, or deleting the
   account) deletes them, unless another note of yours still references one (it moves to that note). An image no
   note or version references any more is deleted after `IMAGE_ORPHAN_GRACE_MS` (24 h), so Undo and version history

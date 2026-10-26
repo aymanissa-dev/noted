@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 // Going offline is believed at once (the browser's 'offline' event, or navigator.onLine false).
 // Coming back is only believed once a request actually gets an answer: navigator.onLine can turn
 // true while nothing gets through (DevTools offline, flaky Wi-Fi, captive portals), and saying
-// "Back online. Syncing…" then is wrong. So on 'online' we probe /api/health (backing off while it
-// fails); any API response counts too (markReachable, called by api.js). Confirmation fires
+// "Back online. Syncing…" then is wrong. So on 'online' we probe /api/health (every second for 15s,
+// then backing off); any API response counts too (markReachable, called by api.js). Confirmation fires
 // RECONNECTED, which is what the rest of the app listens to instead of 'online'.
 export const RECONNECTED = 'noted:reconnected';
 const HEALTH = `${(import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '')}/health`;
@@ -13,33 +13,55 @@ const hasWindow = typeof window !== 'undefined';
 let reachable = !hasWindow || navigator.onLine;
 const subscribers = new Set();
 const emit = () => subscribers.forEach((fn) => fn());
-let probeTimer = null; let probeDelay = 1000; let probing = false;
+// Probing: right away on 'online', then every second for FAST_WINDOW (a real reconnect is confirmed
+// within ~1s), then backing off (2s, 4s, … 30s) so a fake "online" (DevTools, captive portal) doesn't
+// hammer the server. A new 'online' event, focus, or the tab becoming visible restarts the fast window.
+const FAST_WINDOW = 15_000; const FAST_EVERY = 1000; const MAX_DELAY = 30_000; const PROBE_TIMEOUT = 4000;
+let probeTimer = null; let fastUntil = 0; let slowDelay = 2000; let inflight = null;
 
 export function markReachable() {
   if (reachable || !navigator.onLine) return;
-  reachable = true; clearTimeout(probeTimer); probeDelay = 1000;
+  reachable = true; stopProbing();
   emit();
   window.dispatchEvent(new Event(RECONNECTED));
 }
+function stopProbing() { clearTimeout(probeTimer); probeTimer = null; inflight?.abort(); inflight = null; }
 function markOffline() {
-  clearTimeout(probeTimer); probeDelay = 1000;
+  stopProbing();
   if (!reachable) return;
   reachable = false; emit();
 }
 async function probe() {
-  if (reachable || probing || !navigator.onLine) return;
-  probing = true;
+  probeTimer = null;
+  if (reachable || !navigator.onLine) return;
+  inflight?.abort();
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = setTimeout(() => ctrl?.abort(), 5000);
+  inflight = ctrl;
+  const timeout = setTimeout(() => ctrl?.abort(), PROBE_TIMEOUT);
   let ok = false;
   try { ok = (await fetch(HEALTH, { cache: 'no-store', signal: ctrl?.signal })).ok; } catch { /* still unreachable */ }
-  clearTimeout(timeout); probing = false;
+  clearTimeout(timeout);
+  if (inflight !== ctrl) return; // superseded by a newer probe (or stopped)
+  inflight = null;
   if (ok) { markReachable(); return; }
-  if (!reachable && navigator.onLine) { probeTimer = setTimeout(probe, probeDelay); probeDelay = Math.min(probeDelay * 2, 30000); }
+  if (reachable || !navigator.onLine) return;
+  let delay = FAST_EVERY;
+  if (Date.now() >= fastUntil) { delay = slowDelay; slowDelay = Math.min(slowDelay * 2, MAX_DELAY); }
+  probeTimer = setTimeout(probe, delay);
+}
+// Probe now and keep probing every second for a while.
+function probeSoon() {
+  if (reachable || !navigator.onLine) return;
+  fastUntil = Date.now() + FAST_WINDOW; slowDelay = 2000;
+  clearTimeout(probeTimer);
+  probe();
 }
 if (hasWindow) {
   window.addEventListener('offline', markOffline);
-  window.addEventListener('online', () => { clearTimeout(probeTimer); probeDelay = 1000; probe(); });
+  window.addEventListener('online', probeSoon);
+  window.addEventListener('focus', probeSoon);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') probeSoon(); });
+  if (!reachable) probeSoon();
 }
 const subscribe = (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); };
 // Online for the app: the browser says so AND a request got through since the last time it didn't.
