@@ -363,7 +363,7 @@ export default function Settings() {
       <PasswordSection />
       <SessionsSection />
       <DeleteAccountSection />
-      <p className="text-center text-xs text-faint" data-testid="build-id">noted. build {__BUILD_ID__} · {new Date(__BUILD_TIME__).toLocaleDateString(undefined, { dateStyle: 'medium' })}</p>
+      <p className="text-center text-xs text-faint" data-testid="build-id">noted. build {__BUILD_ID__} · {new Date(__BUILD_TIME__).toLocaleDateString(undefined, { dateStyle: 'medium' })} · <Link to="/changelog" className="underline decoration-stone-300 underline-offset-2 hover:text-stone-700 dark:decoration-stone-600 dark:hover:text-stone-200">What’s new</Link></p>
     </div>
   );
 }

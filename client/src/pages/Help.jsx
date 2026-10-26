@@ -58,6 +58,7 @@ export default function Help() {
         <button type="button" className="btn-primary" onClick={() => openUI('tour')}><Icon name="compass" />Take the tour</button>
         <button type="button" className="btn-secondary hidden sm:inline-flex" onClick={() => openUI('palette')}><Icon name="command" />Command palette<Kbd combo="Mod+K" size="sm" /></button>
         <button type="button" className="btn-secondary hidden sm:inline-flex" onClick={() => openUI('shortcuts')}><Icon name="keyboard" />All shortcuts<Kbd combo="?" size="sm" /></button>
+        <Link to="/changelog" className="btn-ghost"><Icon name="sparkle" />What’s new</Link>
       </div>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
