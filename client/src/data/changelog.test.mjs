@@ -20,7 +20,8 @@ RELEASES.forEach((r, i) => {
   });
   assert.equal(new Set(r.changes.map((c) => c.text)).size, r.changes.length, `${where}: duplicate change text`);
 });
-assert.match(RELEASES[0].title, /image/i, 'latest release is image uploads');
+assert.match(RELEASES[0].title, /share/i, 'latest release is share links');
+assert.ok(RELEASES.some((r) => /image/i.test(r.title)), 'image uploads release kept');
 
 // Feeds: valid-looking, escaped, one item per release.
 const xml = rss();

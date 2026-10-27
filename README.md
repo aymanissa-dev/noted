@@ -28,12 +28,13 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Folders**: create, rename, delete (notes are moved out, never deleted), move notes; folders round-trip through export/import
 - **Sidebar & smart lists**: recently viewed, pinned, edited today, this week, untagged, locked; split view (list + note) on wide screens; bottom navigation on mobile
 - **Merge notes**: select 2+ notes, choose the order, merge (tags combined; originals go to the trash, Undo restores them)
-- **Accent color**: pick one in Settings (synced to your account); drives the logo dot, highlights, and focus rings
+- **Accent color**: pick one in Settings (synced to your account); drives highlights, links, and focus rings
 - **Storage stats**: notes, words, biggest notes, folders, tags, versions, voice notes
 - **Login activity**: last 20 sign-ins with browser/OS, masked IP and approximate location; shows which sessions are still active
 - **Encrypted backups**: `.noted-backup` files encrypted in the browser (AES-256-GCM, PBKDF2-SHA-256 with 310k iterations); restore with the same duplicate skipping
 - **Voice notes**: record up to 5 minutes (≤ 4 MB) per clip; stored privately in MongoDB, streamed only to the owner, hidden for locked notes until unlocked, deleted with the note or account
 - **Images**: paste, drag and drop, the toolbar **Image** button, `/image`, or (mobile) “…” → Add image for the camera/photo library. The browser resizes to ≤ 2000 px, re-encodes (WebP ~0.82, PNG/JPEG fallback; GIFs kept as-is) which strips EXIF/GPS, and uploads at most 3 MB. Stored privately in MongoDB (`images`), served only to the owner (locked notes: only while unlocked, else 423), 200 images / 100 MB per account. Notes reference them as `![alt](noted-image:<id>)`; the editor shows them inline with upload progress, retry, alt text and a lightbox. See [Images](#images)
+- **Share links**: from a note's “…” menu → Share…, create a public, read-only link (`/s/<token>`), copy it, regenerate it, or stop sharing; Settings → Shared links lists them all. No sign-in to read; never indexed. See [Sharing](#sharing)
 - **Motion**: subtle 150–250ms animations, all disabled under `prefers-reduced-motion`
 
 ## Keyboard shortcuts & help
@@ -216,6 +217,46 @@ unlock expires or the page reloads); the body stays locked.
   sends the notes plus a manifest and the browser adds the image files (a ZIP with them could exceed Vercel's
   4.5 MB response limit). JSON exports and encrypted backups keep the `noted-image:` links but **not the image
   bytes**, so restored notes on another account show “This image was deleted.”
+
+## Sharing
+
+A note can be shared through one public, **read-only** link: `https://<host>/s/<token>`.
+
+- **Owner API** (signed in): `GET /api/shares` (all your links, with note title/emoji), `GET /api/notes/:id/share`
+  (`{ share }` or `{ share: null }`), `POST /api/notes/:id/share` (201 new, or 200 with the existing link: one link
+  per note), `POST /api/notes/:id/share/rotate` (new token, the old one dies at once), `DELETE /api/notes/:id/share`
+  (204). Another account's note is `404`.
+- **Public API** (no auth; a bearer token is ignored): `GET /api/public/shares/:token` →
+  `{ note: { title, emoji, content, updatedAt }, images: [{ _id, width, height }] }`, and
+  `GET /api/public/shares/:token/images/:imageId`. Unknown, revoked, rotated, locked and trashed all answer the same
+  `404`, re-checked on every request.
+- **Tokens**: 32 random bytes (256 bits, base64url, 43 chars), stored in the `shares` collection so the owner can copy
+  the link again later. `allowEdits` and `allowIndexing` exist on the model and are always `false` for now.
+- **Locked notes can't be shared** (`423`), even while unlocked: remove the lock first. Locking a shared note deletes
+  its link, so a PIN-protected body can never leak through an old link.
+- **Trash**: a trashed note's link answers 404; restoring the note brings the link back. Deleting the note for good
+  (or emptying the trash, or deleting the account) deletes its link.
+- **Images**: the public page never uses the owner's session. Images load from the share-scoped endpoint, which only
+  serves an image that belongs to the shared note and its owner **and** is referenced in the note's current text;
+  anything else is 404 (the page shows `[Image: alt]` instead).
+- **Rendering**: the page escapes the Markdown before turning it into HTML (`client/src/lib/markdown.js`), so raw
+  HTML shows as text; links are `http(s)` only and open in a new tab with `rel="noopener noreferrer nofollow ugc"`.
+- **Privacy & headers**: `/s/*` and the public API send `X-Robots-Tag: noindex, nofollow, noarchive` and
+  `Referrer-Policy: no-referrer`; the page also sets `<meta name="robots">`/`<meta name="referrer">` and has no
+  canonical link. `/s/*` has its own strict CSP (`script-src 'self'`, `img-src 'self' data: blob:`,
+  `media-src 'none'`, `base-uri 'none'`, `form-action 'none'`, `frame-ancestors 'none'`), and `Cache-Control: no-store`.
+  Public responses are `no-store` too, so revoking takes effect immediately.
+- **Rate limits** (per IP, counted before the token is checked, so guessing is throttled too): 120 page loads and 600
+  image loads per 10 minutes; plus 3000 requests per link per 10 minutes. Over the limit: `429` with `Retry-After`.
+
+## Logo and icons
+
+The logo (folded-corner **N** + **Noted** wordmark) is traced to SVG from `client/brand/noted-logo-source.png`
+(`client/brand/noted-logo.svg`, `noted-mark.svg`). `node client/scripts/brand.mjs` (from the repo root) regenerates
+everything from those: `client/src/brand.js` (paths for the `<Logo>` component, which draws in `currentColor`, so it
+is near-black in light mode and near-white in dark mode), `public/brand/*.svg`, `favicon.svg` (with a dark-scheme
+variant), `favicon.ico` (16/32/48, heavier strokes for small sizes), `apple-touch-icon.png`, the PWA icons
+(`pwa-192x192.png`, `pwa-512x512.png`, `maskable-512x512.png`) and the 1200×630 `og.png`.
 
 ## Sessions
 

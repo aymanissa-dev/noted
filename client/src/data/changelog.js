@@ -19,6 +19,21 @@ export const CHANGE_TYPES = {
 
 export const RELEASES = [
   {
+    version: '1.7',
+    date: '2026-10-27',
+    title: 'Share a note with a link, and a new look',
+    summary: 'Send anyone a read-only link to a note: no account needed to read it, and you can turn it off at any time. Noted also has a new logo.',
+    changes: [
+      { type: 'new', text: 'Share a note from its “…” menu → Share…: create a link, copy it, make a new one, or stop sharing. People with the link see the note’s title, text and images, read-only.' },
+      { type: 'new', text: 'Settings → Shared links lists every note you’ve shared, with Copy link and Stop sharing.' },
+      { type: 'new', text: 'A new logo: the folded-corner N and the Noted wordmark, across the site, the app, the browser tab and your home screen. It switches to light-on-dark in dark mode.' },
+      { type: 'improved', text: 'Mistyped addresses now show a proper “Page not found” page instead of jumping to the home page.' },
+      { type: 'security', text: 'Shared pages are hidden from search engines, never send your link on to other sites, and can only load images from the note you shared.' },
+      { type: 'security', text: 'Locked notes can’t be shared. Locking a shared note, or moving it to the trash, turns its link off straight away.' },
+      { type: 'security', text: 'Making a new link or stopping sharing breaks the old link immediately. Links are long random codes that can’t be guessed.' },
+    ],
+  },
+  {
     version: '1.6',
     date: '2026-10-24',
     title: 'Images in your notes',
