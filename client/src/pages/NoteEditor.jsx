@@ -17,6 +17,7 @@ import VoiceNotes from '../components/VoiceNotes.jsx';
 import { EditorSkeleton, Bar } from '../components/Skeleton.jsx';
 import EditorTools from '../editor/EditorTools.jsx';
 import Icon from '../components/Icon.jsx';
+import ShareDialog from '../components/ShareDialog.jsx';
 import Menu from '../components/Menu.jsx';
 import Dialog from '../components/Dialog.jsx';
 import { toHtml, headings } from '../lib/markdown.js';
@@ -55,6 +56,7 @@ export default function NoteEditor() {
   const [notFound, setNotFound] = useState(false);
   useClearOfflineMessage(setError);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Locked notes: content is only available after PIN entry; the unlock token authorizes saves for 15 min.
   const [needsPin, setNeedsPin] = useState(false);
@@ -491,6 +493,7 @@ export default function NoteEditor() {
                 {saved && !note.deletedAt && (note.locked
                   ? <button role="menuitem" type="button" className="menu-item" aria-label="Remove lock" onClick={() => setRemoveLockOpen(true)}><Icon name="unlock" />Remove lock…</button>
                   : <button role="menuitem" type="button" className="menu-item" aria-label="Lock with PIN" onClick={lockNote}><Icon name="lock" />Lock with PIN</button>)}
+                {saved && !note.deletedAt && <button role="menuitem" type="button" className="menu-item" aria-label="Share" onClick={() => setShareOpen(true)}><Icon name="link" />Share…</button>}
                 <button role="menuitem" type="button" className="menu-item" aria-label="Print or save as PDF" onClick={print}><Icon name="printer" />Print or save as PDF</button>
                 {saved && !note.deletedAt && <>
                   <div className="menu-sep" />
@@ -588,6 +591,7 @@ export default function NoteEditor() {
         <PinPrompt title="Remove lock?" description="Enter your PIN. The note will be readable without a PIN." submitLabel="Remove lock"
           onSubmit={removeLock} onCancel={() => setRemoveLockOpen(false)} />
       )}
+      {shareOpen && <ShareDialog note={{ ...note, _id: noteId }} onClose={() => setShareOpen(false)} />}
       {confirmDelete && (
         <Dialog role="alertdialog" title="Delete forever?" description={`“${note.title || 'Untitled'}” and its history will be gone for good. This can’t be undone.`}
           onClose={() => setConfirmDelete(false)}

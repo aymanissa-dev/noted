@@ -280,3 +280,26 @@ html[data-input=keyboard] .editor-title:focus { outline: 2px solid rgb(var(--acc
   .typing, .preview-float { animation: none; }
 }
 @keyframes noted-img-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* Public shared note: escaped Markdown rendered as HTML. */
+.share-prose { color: #292524; font-size: 1.0625rem; line-height: 1.75; overflow-wrap: anywhere; }
+.dark .share-prose { color: #e7e5e4; }
+.share-prose > * + * { margin-top: 1em; }
+.share-prose h1, .share-prose h2, .share-prose h3, .share-prose h4, .share-prose h5, .share-prose h6 { font-weight: 650; line-height: 1.3; color: #1c1917; margin-top: 1.6em; }
+.dark .share-prose :is(h1, h2, h3, h4, h5, h6) { color: #fafaf9; }
+.share-prose h1 { font-size: 1.6em; } .share-prose h2 { font-size: 1.35em; } .share-prose h3 { font-size: 1.15em; }
+.share-prose ul { list-style: disc; padding-left: 1.4em; } .share-prose ol { list-style: decimal; padding-left: 1.4em; }
+.share-prose li + li { margin-top: 0.25em; }
+.share-prose li.task { list-style: none; margin-left: -1.3em; }
+.share-prose a { color: rgb(var(--accent)); text-decoration: underline; text-underline-offset: 2px; }
+.share-prose blockquote { border-left: 3px solid #d6d3d1; padding-left: 1em; color: #57534e; }
+.dark .share-prose blockquote { border-color: #44403c; color: #a8a29e; }
+.share-prose code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875em; background: #f5f5f4; padding: 0.1em 0.35em; border-radius: 0.3em; }
+.dark .share-prose code { background: #292524; }
+.share-prose pre { background: #f5f5f4; padding: 0.9em 1em; border-radius: 0.6rem; overflow-x: auto; }
+.dark .share-prose pre { background: #1c1917; }
+.share-prose pre code { background: none; padding: 0; }
+.share-prose hr { border-color: #e7e5e4; } .dark .share-prose hr { border-color: #292524; }
+.share-prose img { display: block; max-width: 100%; height: auto; max-height: 40rem; border-radius: 0.75rem; margin: 1.25em 0; background: #f5f5f4; }
+.dark .share-prose img { background: #292524; }
+.share-prose .share-img-missing { font-size: 0.85em; color: #a8a29e; }

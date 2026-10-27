@@ -555,6 +555,12 @@ export const api = {
   deleteNote: (id, unlockToken) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`, undefined, unlockHeaders(unlockToken)); cacheNotes([r.note]); return changed(r); }), // moves to trash
   deleteForever: async (id, unlockToken) => { const r = await request('DELETE', `/notes/${id}?permanent=true`, undefined, unlockHeaders(unlockToken)); uncache(id); return changed(r); },
   toggleArchive: (id, archived) => withMove(id, archived === undefined ? {} : archived ? { archived: true, pinned: false } : { archived: false }, async () => { const r = await request('PATCH', `/notes/${id}/archive`); cacheNotes([r.note]); return changed(r); }),
+  // Public links (read-only). The link is /s/<token>; see server/src/routes/shares.js.
+  shareStatus: (id) => request('GET', `/notes/${id}/share`),
+  createShare: (id) => request('POST', `/notes/${id}/share`),
+  rotateShare: (id) => request('POST', `/notes/${id}/share/rotate`),
+  revokeShare: (id) => request('DELETE', `/notes/${id}/share`),
+  listShares: () => request('GET', '/shares'),
   restoreNote: async (id) => { const r = await request('POST', `/notes/${id}/restore`); cacheNotes([r.note]); return changed(r); },
   async emptyTrash(pin) {
     const r = await request('DELETE', '/notes/trash', pin ? { pin } : undefined);

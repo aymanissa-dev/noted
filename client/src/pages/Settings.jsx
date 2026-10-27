@@ -10,6 +10,7 @@ import Icon from '../components/Icon.jsx';
 import { passwordProblem, PASSWORD_HINT } from '../lib/passwordHints.js';
 import { useIsOnline, useRefetch, useClearOfflineMessage, isOfflineError, isNetworkFailure, isNetworkText } from '../lib/network.js';
 import RetryStatus from '../components/RetryStatus.jsx';
+import { copyText, shareUrl } from '../components/ShareDialog.jsx';
 
 // If the user has a lock PIN, optionally ask for it so locked notes are included in the export.
 // Resolves to the PIN, '' (export locked notes as placeholders), or null (cancelled).
@@ -122,6 +123,48 @@ function ActivitySection() {
         </ul>
       )}
       {checkedAt && <p className="mt-2 text-xs text-faint" data-testid="activity-checked">Updated {new Date(checkedAt).toLocaleTimeString(undefined, { timeStyle: 'short' })}</p>}
+    </Card>
+  );
+}
+
+// Notes shared through public links: open, copy, or stop sharing (the link stops working at once).
+function SharesSection() {
+  const online = useIsOnline();
+  const [shares, setShares] = useState(null);
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState('');
+  const [busy, setBusy] = useState('');
+  const load = async () => {
+    try { setShares((await api.listShares()).shares); setError(''); }
+    catch (e) { setError(isOfflineError(e) || isNetworkFailure(e) ? 'offline' : e.message); }
+  };
+  useEffect(() => { load(); }, []);
+  useRefetch(load, { failing: Boolean(error) });
+  const revoke = async (s) => {
+    setBusy(s._id);
+    try { await api.revokeShare(s.note); setShares((l) => l.filter((x) => x._id !== s._id)); }
+    catch (e) { setError(e.message); } finally { setBusy(''); }
+  };
+  const copy = async (s) => { if (await copyText(shareUrl(s.token))) { setCopied(s._id); setTimeout(() => setCopied((c) => (c === s._id ? '' : c)), 2000); } };
+  return (
+    <Card id="shared-links" title="Shared links" description="Notes anyone with the link can read (read-only, hidden from search engines). Share a note from its ⋯ menu.">
+      <RetryStatus testId="shares-error" error={error || (!online && !shares ? 'offline' : '')} onRetry={load} className={shares?.length ? 'mb-3' : ''} />
+      {!shares && !error && online && <p className="text-sm text-muted">Loading…</p>}
+      {shares && !shares.length && <p className="text-sm text-muted" data-testid="shares-empty">You haven’t shared any notes.</p>}
+      {shares?.length > 0 && (
+        <ul data-testid="shares" className="-mx-2 divide-y divide-stone-100 dark:divide-stone-800">
+          {shares.map((s) => (
+            <li key={s._id} className="flex flex-wrap items-center gap-2 px-2 py-2.5 text-sm">
+              <div className="min-w-0 flex-1">
+                <Link to={`/notes/${s.note}`} className="block truncate font-medium hover:underline">{s.emoji ? `${s.emoji} ` : ''}{s.title || 'Untitled'}</Link>
+                <p className="truncate text-xs text-muted">Shared {new Date(s.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}{s.inTrash ? ' · in the trash, link off until restored' : ''}</p>
+              </div>
+              <button type="button" className="btn-secondary btn-sm" onClick={() => copy(s)} aria-label={`Copy link to ${s.title || 'Untitled'}`}><Icon name={copied === s._id ? 'check' : 'copy'} size="xs" />{copied === s._id ? 'Copied' : 'Copy link'}</button>
+              <button type="button" className="btn-danger btn-sm" disabled={!online || busy === s._id} onClick={() => revoke(s)} aria-label={`Stop sharing ${s.title || 'Untitled'}`}>Stop sharing</button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -359,6 +402,7 @@ export default function Settings() {
       <AccentSection />
       <DataSection />
       <LockPinSection />
+      <SharesSection />
       <ActivitySection />
       <PasswordSection />
       <SessionsSection />

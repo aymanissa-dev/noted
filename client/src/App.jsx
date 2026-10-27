@@ -14,6 +14,7 @@ const Settings = lazy(() => import('./pages/Settings.jsx'));
 const Stats = lazy(() => import('./pages/Stats.jsx'));
 const Help = lazy(() => import('./pages/Help.jsx'));
 const Changelog = lazy(() => import('./pages/Changelog.jsx'));
+const SharedNote = lazy(() => import('./pages/SharedNote.jsx'));
 export const preloadApp = () => { loadApp(); loadDashboard(); };
 import { ProtectedRoute, GuestRoute } from './components/RouteGuards.jsx';
 import Login from './pages/Login.jsx';
@@ -21,6 +22,7 @@ import Register from './pages/Register.jsx';
 import Landing from './pages/Landing.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 import { useHead } from './lib/useHead.js';
+import NotFound from './components/NotFound.jsx';
 
 // Public landing page for visitors; signed-in users go straight to their notes.
 function Home() {
@@ -37,6 +39,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/changelog" element={<Changelog />} />
+      <Route path="/s/:token" element={<SharedNote />} />
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -53,7 +56,7 @@ export default function App() {
           <Route path="/notes/:id" element={<NoteRoute />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
     </Suspense>
   );
