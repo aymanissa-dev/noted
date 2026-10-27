@@ -41,10 +41,11 @@ try {
   await p.waitForSelector('[data-testid=pin-lock][data-state=open]', { timeout: 3000 });
   ok(await p.$eval('[data-testid=pin-lock]', (e) => e.textContent === '🔓'), 'lock opens on correct PIN');
   await p.waitForSelector('.cm-content', { timeout: 3000 }); ok(true, 'note opens after unlock');
-  // landing dot bounce, and reduced motion disables animations
+  // landing: the logo is the SVG wordmark (no animated dot any more); reduced motion stops landing animations
   const lc = await b.createBrowserContext(); const l = await lc.newPage(); await l.goto(BASE + '/', { waitUntil: 'networkidle0' });
-  ok(await l.$eval('header .animate-dot-bounce', (e) => getComputedStyle(e).animationName === 'dot-bounce' && getComputedStyle(e).animationIterationCount === '1'), 'landing dot bounces once');
+  ok(await l.$eval('header svg[aria-label=Noted]', (e) => e.getBoundingClientRect().width > 60), 'landing header shows the logo');
+  ok(await l.$eval('.preview-float', (e) => getComputedStyle(e).animationName !== 'none'), 'landing preview floats');
   await l.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-  ok(await l.$eval('header .animate-dot-bounce', (e) => parseFloat(getComputedStyle(e).animationDuration) < 0.001), 'reduced motion disables animation');
+  ok(await l.$eval('.preview-float', (e) => getComputedStyle(e).animationName === 'none'), 'reduced motion disables animation');
   ok(!p.errors.length, 'no errors ' + p.errors.join('|'));
 } finally { await cleanup(); await b.close(); }

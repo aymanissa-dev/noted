@@ -6,12 +6,13 @@ import { readFileSync } from 'node:fs';
 import changelogFeeds from './build/changelogFeeds.js';
 
 // Security headers (CSP etc.) live in vercel.json; `vite preview` serves the same ones so local QA
-// runs under the production policy. Locally the API is another origin, so it's added to connect-src.
+// runs under the production policy. Locally the API is another origin, so it's added to connect-src
+// (and img-src, for shared-note images, which production serves same-origin).
 const securityHeaders = () => {
   const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
   const rule = vercel.headers.find((h) => h.headers.some((x) => x.key === 'Content-Security-Policy'));
   const api = process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : '';
-  return Object.fromEntries(rule.headers.map(({ key, value }) => [key, key === 'Content-Security-Policy' && api ? value.replace("connect-src 'self'", `connect-src 'self' ${api}`) : value]));
+  return Object.fromEntries(rule.headers.map(({ key, value }) => [key, key === 'Content-Security-Policy' && api ? value.replace("connect-src 'self'", `connect-src 'self' ${api}`).replace("img-src 'self'", `img-src 'self' ${api}`) : value]));
 };
 
 // Which build is this? Shown in Settings and on <html data-build>, so QA can tell a stale cached app
@@ -31,7 +32,7 @@ export default defineConfig({
       // reload (right away, or once you leave an open note) live in src/lib/swUpdate.js.
       registerType: 'autoUpdate',
       injectRegister: false,
-      includeAssets: ['favicon.png', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'favicon.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'noted.',
         short_name: 'noted.',
@@ -51,8 +52,9 @@ export default defineConfig({
           { src: '/screenshots/notes-narrow.webp', sizes: '780x1688', type: 'image/webp', form_factor: 'narrow', label: 'Your notes on your phone' },
         ],
         icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
           { src: 'maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },

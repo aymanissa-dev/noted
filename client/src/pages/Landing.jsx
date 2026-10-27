@@ -51,7 +51,7 @@ export function Nav({ base = '', signedIn = false }) {
     <header className={`sticky top-0 z-30 transition-colors ${scrolled ? 'border-b border-stone-200/70 bg-stone-50/80 backdrop-blur-md dark:border-stone-800/70 dark:bg-stone-950/75' : 'border-b border-transparent'}`}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
         <div className="flex items-center gap-8">
-          <Link to="/" aria-label="noted. home"><Logo className="text-[1.6rem]" bounce /></Link>
+          <Link to="/" aria-label="noted. home"><Logo className="text-[1.6rem]" /></Link>
           {!signedIn && (
             <nav aria-label="Sections" className="hidden items-center gap-6 text-sm text-stone-600 dark:text-stone-400 md:flex">
               {[['#features', 'Features'], ['#shortcuts', 'Shortcuts'], ['#privacy', 'Privacy'], ['#faq', 'FAQ']].map(([h, l]) => <a key={h} href={base + h} className="transition hover:text-stone-900 dark:hover:text-white">{l}</a>)}
