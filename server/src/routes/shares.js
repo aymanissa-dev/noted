@@ -85,6 +85,12 @@ router.delete('/notes/:id/share', requireAuth, asyncHandler(async (req, res) => 
 
 // ---- Public ----
 
+// Every public answer (including 404s and 429s) is noindex and sends no referrer.
+router.use('/public/shares', (req, res, next) => {
+  res.set({ 'X-Robots-Tag': 'noindex, nofollow, noarchive', 'Referrer-Policy': 'no-referrer' });
+  next();
+});
+
 async function limit(req, key, lim) {
   if (bypassed(req)) return;
   const r = await hit(key, lim);

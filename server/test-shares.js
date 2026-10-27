@@ -109,7 +109,7 @@ try {
 
   // ---- Bad tokens ----
   is(await call('GET', '/public/shares/short'), 404, 'malformed token 404');
-  is(await call('GET', `/public/shares/${'A'.repeat(43)}`), 404, 'unknown token 404');
+  { const u = await call('GET', `/public/shares/${'A'.repeat(43)}`); is(u, 404, 'unknown token 404'); ok(/noindex/.test(u.headers.get('x-robots-tag') || '') && u.headers.get('referrer-policy') === 'no-referrer', 'unknown token 404 is noindex + no-referrer'); }
   is(await call('GET', `/public/shares/${'A'.repeat(43)}/images/${img._id}`), 404, 'unknown token image 404');
 
   // ---- Rotate ----
