@@ -1,3 +1,4 @@
+import Share from '../models/Share.js';
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -199,6 +200,7 @@ router.delete('/me', requireAuth, asyncHandler(async (req, res) => {
   await RevokedSession.deleteMany({ user: user._id });
   await AudioClip.deleteMany({ user: user._id });
   await Image.deleteMany({ user: user._id });
+  await Share.deleteMany({ user: user._id });
   const { deletedCount } = await Note.deleteMany({ user: user._id });
   await user.deleteOne();
   res.json({ ok: true, deletedNotes: deletedCount });

@@ -1,3 +1,4 @@
+import Share from '../models/Share.js';
 import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import AudioClip from '../models/AudioClip.js';
@@ -72,6 +73,7 @@ export async function deleteNotesWithHistory(filter) {
   if (!ids.length) return 0;
   await NoteVersion.deleteMany({ note: { $in: ids } });
   await AudioClip.deleteMany({ note: { $in: ids } });
+  await Share.deleteMany({ note: { $in: ids } });
   await deleteImagesOfNotes(ids); // images another remaining note shows move to it instead
   await User.updateMany({ 'recent.note': { $in: ids } }, { $pull: { recent: { note: { $in: ids } } } });
   const { deletedCount } = await Note.deleteMany({ _id: { $in: ids } });

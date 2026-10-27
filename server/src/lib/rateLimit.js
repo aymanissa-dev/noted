@@ -10,6 +10,9 @@ export const LIMITS = {
   registerIp: { max: 20, windowMs: 60 * 60 * 1000 }, // sign-up attempts per IP
   registerNet: { max: 60, windowMs: 60 * 60 * 1000 }, // sign-up attempts per network
   password: { max: 5, windowMs: 15 * 60 * 1000 }, // wrong account passwords per signed-in user
+  shareViewIp: { max: 120, windowMs: 10 * 60 * 1000 }, // public share page loads per IP (any token, valid or not)
+  shareImageIp: { max: 600, windowMs: 10 * 60 * 1000 }, // public share images per IP
+  shareToken: { max: 3000, windowMs: 10 * 60 * 1000 }, // requests per share link, from everyone
 };
 
 // Tests can switch limits off, but never on Vercel (production or preview): RATE_LIMITS=off for

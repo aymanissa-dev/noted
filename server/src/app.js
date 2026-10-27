@@ -7,6 +7,7 @@ import folderRoutes from './routes/folders.js';
 import statsRoutes from './routes/stats.js';
 import audioRoutes from './routes/audio.js';
 import imageRoutes from './routes/images.js';
+import shareRoutes from './routes/shares.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 // CORS: the app calls its API same-origin, so cross-origin access is only for known front ends:
@@ -54,6 +55,7 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api', audioRoutes); // /api/notes/:id/audio, /api/audio/:clipId
   app.use('/api', imageRoutes); // /api/notes/:id/images, /api/images/:imageId
+  app.use('/api', shareRoutes); // /api/shares, /api/notes/:id/share, /api/public/shares/:token (no auth)
   app.use('/api/notes', noteRoutes);
   app.use('/api/folders', folderRoutes);
   app.use('/api/stats', statsRoutes);

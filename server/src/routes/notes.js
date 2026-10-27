@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import Share from '../models/Share.js';
 import Note, { NOTE_COLORS } from '../models/Note.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -298,6 +299,7 @@ router.patch('/:id/lock', asyncHandler(async (req, res) => {
     if (!user?.hasLockPin) throw new HttpError(400, 'Set a lock PIN in Settings first');
     note.locked = true;
     note.$locals.unlocked = false;
+    await Share.deleteMany({ note: note._id, user: req.userId }); // a locked note is never public
   } else if (note.locked) {
     await verifyLockPin(req.userId, req.body?.pin);
     note.locked = false;
