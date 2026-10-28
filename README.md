@@ -6,6 +6,8 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 
 ## Features
 
+**Simple by default.** A note is a title, optional tags and your text. Everything else (image, color & emoji, voice note, outline, find, focus, typewriter, share, lock, history, print, archive, trash) is in the note's single **···** menu. The header is just the logo and the account menu (Settings, Help, Theme, Log out); the sidebar shows All notes, folders, tags (collapsed) and Archive/Trash. Power features stay available without taking up space: `Ctrl/⌘+K` searches everything, and smart lists still work by URL (`/notes?smart=pinned`, …).
+
 - **Authentication**: register, log in, log out (JWT + bcrypt)
 - **Notes**: create, read, edit, delete
 - **Search**: find notes by title or content
@@ -20,35 +22,35 @@ A simple, private space to capture thoughts, ideas, and notes. No AI, no collabo
 - **Account settings**: change password, delete your account and all notes
 - **Colors & emoji**: optional color and emoji per note
 - **Note history**: versions are saved as you edit (at most one per 5 minutes, or on large changes; 50 per note); preview and restore
-- **Quick capture**: type a line on the dashboard and press Enter (first line = title, `#tags` become tags); works offline
 - **Sign out everywhere**: revoke every session from Settings; changing your password also signs out other devices
 - **PIN-locked notes**: lock individual notes behind a 6-digit PIN (PINs set before Oct 2026 may be 4–5 digits and keep working); the server never returns their contents without it
 - **Works offline (PWA)**: installable; read saved notes offline, and new notes and edits made offline sync when you reconnect
 - **Markdown editor** (CodeMirror 6, lazy-loaded): plain-text notes render as-is; `/` slash commands (H1–H3, checklist, divider, date, code block, quote), clickable checklists, highlights in four colors (`==text==`, `=={green}text==`), foldable heading sections, outline, find & replace (⌘/Ctrl+F), `:emoji` completion, undo history that survives reloads (IndexedDB; never for locked notes, cleared on logout), focus mode with typewriter scrolling, print / save as PDF
 - **Folders**: create, rename, delete (notes are moved out, never deleted), move notes; folders round-trip through export/import
-- **Sidebar & smart lists**: recently viewed, pinned, edited today, this week, untagged, locked; split view (list + note) on wide screens; bottom navigation on mobile
-- **Merge notes**: select 2+ notes, choose the order, merge (tags combined; originals go to the trash, Undo restores them)
+- **Sidebar**: all notes, folders, tags (collapsed until opened), archive and trash; split view (list + note) on wide screens; bottom navigation on mobile. Smart lists (recently viewed, pinned, edited today, this week, untagged, locked) are reachable from `Ctrl/⌘+K`
+- **Merge notes**: from the list's ··· menu → Select notes to merge, select 2+ notes, choose the order, merge (tags combined; originals go to the trash, Undo restores them)
 - **Accent color**: pick one in Settings (synced to your account); drives highlights, links, and focus rings
-- **Storage stats**: notes, words, biggest notes, folders, tags, versions, voice notes
+- **Storage stats** (linked from Settings): notes, words, biggest notes, folders, tags, versions, voice notes
 - **Login activity**: last 20 sign-ins with browser/OS, masked IP and approximate location; shows which sessions are still active
 - **Encrypted backups**: `.noted-backup` files encrypted in the browser (AES-256-GCM, PBKDF2-SHA-256 with 310k iterations); restore with the same duplicate skipping
 - **Voice notes**: record up to 5 minutes (≤ 4 MB) per clip; stored privately in MongoDB, streamed only to the owner, hidden for locked notes until unlocked, deleted with the note or account
-- **Images**: paste, drag and drop, the toolbar **Image** button, `/image`, or (mobile) “…” → Add image for the camera/photo library. The browser resizes to ≤ 2000 px, re-encodes (WebP ~0.82, PNG/JPEG fallback; GIFs kept as-is) which strips EXIF/GPS, and uploads at most 3 MB. Stored privately in MongoDB (`images`), served only to the owner (locked notes: only while unlocked, else 423), 200 images / 100 MB per account. Notes reference them as `![alt](noted-image:<id>)`; the editor shows them inline with upload progress, retry, alt text and a lightbox. See [Images](#images)
-- **Share links**: from a note's “…” menu → Share…, create a public, read-only link (`/s/<token>`), copy it, regenerate it, or stop sharing; Settings → Shared links lists them all. No sign-in to read; never indexed. See [Sharing](#sharing)
+- **Images**: paste, drag and drop, `/image`, or the note's ··· → Add image (camera/photo library on phones). The browser resizes to ≤ 2000 px, re-encodes (WebP ~0.82, PNG/JPEG fallback; GIFs kept as-is) which strips EXIF/GPS, and uploads at most 3 MB. Stored privately in MongoDB (`images`), served only to the owner (locked notes: only while unlocked, else 423), 200 images / 100 MB per account. Notes reference them as `![alt](noted-image:<id>)`; the editor shows them inline with upload progress, retry, alt text and a lightbox. See [Images](#images)
+- **Share links**: from a note's ··· menu → Share…, create a public, read-only link (`/s/<token>`), copy it, regenerate it, or stop sharing; Settings → Shared links lists them all. No sign-in to read; never indexed. See [Sharing](#sharing)
+- **Landing page**: CSS-only motion (hero entrance, a self-typing app demo, scroll reveals, CTA hover); no video, no animation library
 - **Motion**: subtle 150–250ms animations, all disabled under `prefers-reduced-motion`
 
 ## Keyboard shortcuts & help
 
-Press `?` anywhere for the full, searchable list, `Ctrl/⌘+K` for the command palette (search notes, jump to views, run actions), or open **How to use noted.** (`/help`) from the account menu, the sidebar or the palette. Labels adapt to the platform (⌘ on Mac, Ctrl elsewhere); the Help page also has a touch version for phones. New web sign-ups get a short, skippable tour (re-run it from Help).
+Press `?` anywhere for the shortcuts worth knowing, `Ctrl/⌘+K` to search everything and jump anywhere, or open **Help** (`/help`) from the account menu. Labels adapt to the platform (⌘ on Mac, Ctrl elsewhere); the Help page also has a touch version for phones. The list is short on purpose; the editor's other standard bindings (move/duplicate line, fold, typewriter `Alt+Shift+T`, …) still work.
 
 | Group | Shortcuts |
 |---|---|
 | Navigation | `G` `N` all notes · `G` `A` archive · `G` `T` trash · `G` `S` settings · `G` `H` help · `Esc` back / close |
-| Notes | `N` new note · `Q` quick capture · `Mod+S` save now · `Enter` / `Shift+Enter` in quick capture |
-| Editor | `/` commands · `:` emoji · `Mod+Z` undo · `Mod+Shift+Z` (Mac) / `Ctrl+Y` redo · `Alt+↑/↓` move line · `Shift+Alt+↑/↓` duplicate line · `Mod+Shift+K` delete line · `Mod+]` / `Mod+[` indent · fold/unfold `⌘⌥[` `⌘⌥]` (Mac) / `Ctrl+Shift+[` `Ctrl+Shift+]` · `Mod+A` select all |
-| Formatting | `Mod+B` bold · `Mod+I` italic · `Mod+E` inline code · `Mod+Shift+X` strikethrough · `Mod+Shift+H` highlight · `Mod+Enter` toggle checklist item |
-| Search | `/` search notes · `Mod+F` find & replace · `Mod+G` / `Shift+Mod+G` next / previous match · `Mod+D` select next occurrence · `Esc` clear |
-| App | `Mod+K` command palette · `?` shortcuts · `↑` `↓` in menus and the palette |
+| Notes | `N` new note · `Mod+S` save now |
+| Editor | `/` commands · `:` emoji · `Mod+V` paste an image · `Mod+Z` undo · `Mod+Shift+Z` (Mac) / `Ctrl+Y` redo |
+| Formatting | `Mod+B` bold · `Mod+I` italic · `Mod+Enter` toggle checklist item |
+| Search | `/` search notes · `Mod+F` find & replace · `Esc` clear |
+| App | `Mod+K` search everything · `?` shortcuts |
 
 `Mod` is ⌘ on Mac and Ctrl elsewhere. The list lives in `client/src/lib/shortcutList.js` and is checked against the real bindings by `client/src/lib/keys.test.mjs`.
 

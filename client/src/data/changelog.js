@@ -19,6 +19,21 @@ export const CHANGE_TYPES = {
 
 export const RELEASES = [
   {
+    version: '1.8',
+    date: '2026-10-28',
+    title: 'A simpler noted., and a new home page',
+    summary: 'Noted is quieter now: a note is just a title and your words, and everything else lives in one ··· menu. The home page is new too, with a little motion.',
+    changes: [
+      { type: 'improved', text: 'Notes open to a clean page: title, tags and text. Image, color & emoji, voice note, outline, find, focus and typewriter moved into the note’s ··· menu, next to Share, Lock, History, Archive and Trash.' },
+      { type: 'improved', text: 'A calmer sidebar: All notes, your folders, tags (folded away until you open them), Archive and Trash.' },
+      { type: 'improved', text: 'The header is just the logo and your account menu, where Settings, Help, Theme and Log out live. Search everything is still on Ctrl/⌘ K.' },
+      { type: 'improved', text: 'The notes list is a search box and New note. Selecting notes to merge is under the list’s ··· menu.' },
+      { type: 'improved', text: 'Help and the shortcuts list now cover just what you see, in plain words.' },
+      { type: 'new', text: 'A new home page: a live little demo of writing and searching, three short sections (write, find, private), and gentle animations that switch off if your device asks for reduced motion.' },
+      { type: 'improved', text: 'The quick-capture line, the guided tour, smart lists in the sidebar and the storage-stats menu item are gone from view. Storage stats are still linked from Settings.' },
+    ],
+  },
+  {
     version: '1.7',
     date: '2026-10-27',
     title: 'Share a note with a link, and a new look',
