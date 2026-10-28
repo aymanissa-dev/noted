@@ -200,6 +200,8 @@ html[data-input=keyboard] .editor-title:focus { outline: 2px solid rgb(var(--acc
 .md-editor .cm-search button[name=close] { margin-left: auto; font-size: 1rem; color: #78716c; background: none; border: 0; }
 .md-editor .cm-searchMatch { background: rgb(var(--accent) / 0.25); border-radius: 2px; }
 .md-editor .cm-searchMatch-selected { background: rgb(var(--accent) / 0.55); }
+.md-editor .fold-open { opacity: 0; transition: opacity 0.15s ease; }
+.md-editor:hover .fold-open, .md-editor .cm-gutterElement:focus-visible .fold-open { opacity: 0.7; }
 .md-editor .cm-foldPlaceholder { background: rgb(120 113 108 / 0.15); border: none; border-radius: 4px; padding: 0 6px; color: #78716c; }
 
 /* ---- Print / PDF: only the note itself ---- */
@@ -254,22 +256,37 @@ html[data-input=keyboard] .editor-title:focus { outline: 2px solid rgb(var(--acc
 .typing { display: inline-block; width: 1.5px; height: 1.05em; margin-left: 2px; vertical-align: -0.15em; background: rgb(var(--accent)); animation: blink 1.1s steps(1) infinite; }
 .preview-float { animation: float 6s ease-in-out infinite; }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-.feature-art { background: radial-gradient(120% 90% at 20% 0%, #fff7ed 0%, #fde7c7 45%, #f8d4a6 100%); }
-.feature-art-1 { background: radial-gradient(120% 90% at 80% 0%, #f0f9ff 0%, #d7ecfb 45%, #b9dcf5 100%); }
-.feature-art-2 { background: radial-gradient(120% 90% at 20% 100%, #fafaf9 0%, #ece7e2 50%, #ddd5cc 100%); }
-.feature-art-3 { background: radial-gradient(120% 90% at 80% 100%, #f5f3ff 0%, #e5e0fb 45%, #d3cbf5 100%); }
-.dark .feature-art { background: radial-gradient(120% 90% at 20% 0%, rgb(var(--accent) / 0.22), #1c1917 70%); }
-.dark .feature-art-1 { background: radial-gradient(120% 90% at 80% 0%, rgb(14 165 233 / 0.22), #1c1917 70%); }
-.dark .feature-art-2 { background: radial-gradient(120% 90% at 20% 100%, rgb(168 162 158 / 0.18), #1c1917 70%); }
-.dark .feature-art-3 { background: radial-gradient(120% 90% at 80% 100%, rgb(139 92 246 / 0.22), #1c1917 70%); }
-/* Dark "ink" bands: scanlines + a low accent glow, like a screen at night. */
-.ink-glow { background:
-  radial-gradient(70% 60% at 85% 110%, rgb(var(--accent) / 0.22), transparent 70%),
-  repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 4px); }
-.cta-glow { background: radial-gradient(60% 120% at 0% 100%, rgb(var(--accent) / 0.25), transparent 60%), repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 4px); }
-.ink .keycaps .kbd { height: 2.75rem; min-width: 2.75rem; border-color: rgb(255 255 255 / 0.14); border-bottom-width: 3px; background: rgb(255 255 255 / 0.05); color: #fafaf9; font-size: 0.95rem; border-radius: 0.6rem; padding: 0 0.7rem; }
-.ink .keycaps .text-faint { color: #a8a29e; }
-@media (max-width: 639px) { .ink .keycaps .kbd { height: 2.25rem; min-width: 2.25rem; font-size: 0.8rem; padding: 0 0.45rem; border-radius: 0.5rem; } .ink .keycaps { gap: 0.2rem; } }
+/* Hero: a slow, soft accent glow that drifts behind the headline. */
+.hero-orb { background: radial-gradient(closest-side, rgb(var(--accent) / 0.22), transparent); filter: blur(24px); animation: orb 16s ease-in-out infinite alternate; }
+@keyframes orb { from { transform: translate(-60%, 0) scale(1); } to { transform: translate(-40%, 30px) scale(1.12); } }
+/* CTAs lift a touch on hover; the arrow nudges forward. */
+.cta-lift { transition: transform 200ms cubic-bezier(.2,.7,.2,1), box-shadow 200ms ease, background-color 150ms ease, border-color 150ms ease; }
+.cta-lift:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgb(28 25 23 / 0.45); }
+.cta-lift:active { transform: translateY(0); }
+.cta-arrow { transition: transform 200ms cubic-bezier(.2,.7,.2,1); }
+.cta-lift:hover .cta-arrow, .cta-lift:focus-visible .cta-arrow { transform: translateX(3px); }
+/* Hero mockup: notes slide in, lines type themselves, then search highlights the match. Plays once. */
+.mock-note { animation: note-in 500ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(0.5s + var(--i) * 0.12s); }
+@keyframes note-in { from { opacity: 0; transform: translateX(-10px); } }
+.mock-type { animation: type-in calc(var(--n) * 28ms) steps(var(--n)) backwards; animation-delay: var(--d); }
+@keyframes type-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.mock-query { display: inline-block; animation: type-in 700ms steps(6) 4.3s backwards; }
+.mock-query-caret { animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.mock-hit { animation: note-in 500ms cubic-bezier(.2,.7,.2,1) backwards, hit 600ms ease forwards; animation-delay: calc(0.5s + var(--i) * 0.12s), 5.1s; }
+@keyframes hit { from { background-color: transparent; } to { background-color: rgb(var(--accent) / 0.14); border-color: rgb(var(--accent) / 0.6); } }
+.mock-miss { animation: note-in 500ms cubic-bezier(.2,.7,.2,1) backwards, dim 500ms ease 5.1s forwards; animation-delay: calc(0.5s + var(--i) * 0.12s), 5.1s; }
+@keyframes dim { to { opacity: 0.45; } }
+.preview-float-2 { animation-delay: -3s; }
+/* Beats: each illustration plays when its card scrolls in. */
+.beat .beat-type, .beat .beat-pop { opacity: 0; }
+.beat.in .beat-type { opacity: 1; animation: type-in 900ms steps(16) backwards; animation-delay: calc(var(--d, 0s) + 300ms); }
+.beat.in .beat-pop { opacity: 1; animation: pop-in 450ms cubic-bezier(.2,1.4,.4,1) backwards; animation-delay: calc(var(--d, 0s) + 1.1s); }
+.beat.in .beat-pop-2 { animation-delay: calc(var(--d, 0s) + 1.35s); }
+@keyframes pop-in { from { opacity: 0; transform: translateY(6px) scale(0.92); } }
+.beat-art { min-height: 5.5rem; }
+/* FAQ answers ease open. */
+.faq details[open] .faq-answer { animation: reveal 350ms cubic-bezier(.2,.7,.2,1); }
 .wordmark::before { content: 'noted'; }
 .wordmark::after { content: '.'; color: rgb(var(--accent) / 0.45); }
 .wordmark { font-size: clamp(6rem, 27vw, 24rem); margin-top: 2.5rem; margin-bottom: -0.16em; color: rgb(28 25 23 / 0.06); }
@@ -277,7 +294,11 @@ html[data-input=keyboard] .editor-title:focus { outline: 2px solid rgb(var(--acc
 .faq summary::-webkit-details-marker { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .landing .reveal { opacity: 1; transform: none; }
-  .typing, .preview-float { animation: none; }
+  .landing .hero-in, .landing .marker::before, .hero-orb, .typing, .preview-float, .mock-note, .mock-type, .mock-query, .mock-hit, .mock-miss,
+  .beat .beat-type, .beat .beat-pop, .faq details[open] .faq-answer { animation: none !important; }
+  .beat .beat-type, .beat .beat-pop { opacity: 1; }
+  .mock-hit { background-color: rgb(var(--accent) / 0.14); border-color: rgb(var(--accent) / 0.6); }
+  .cta-lift:hover, .cta-lift:hover .cta-arrow { transform: none; }
 }
 @keyframes noted-img-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
