@@ -9,7 +9,9 @@ try {
   const p = await pageAs(b, u.token, u.user);
   await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
   ok(await p.$('nav[aria-label="Sidebar"]'), 'sidebar on desktop');
-  ok(await p.$eval('nav[aria-label="Sidebar"]', (e) => e.innerText.includes('Work') && e.textContent.includes('Recently viewed') && e.innerText.includes('todo') && e.innerText.includes('Loose')), 'sidebar lists folders, smart, tags, recent');
+  ok(await p.$eval('nav[aria-label="Sidebar"]', (e) => e.innerText.includes('Work') && !e.textContent.includes('Recently viewed') && !e.textContent.includes('Edited today')), 'sidebar is simple: folders, no smart lists or recent');
+  await p.click('nav[aria-label="Sidebar"] button[aria-controls=sidebar-tags]'); await p.waitForSelector('#sidebar-tags');
+  ok(await p.$eval('#sidebar-tags', (e) => e.innerText.includes('todo')), 'tags fold open from the sidebar');
   await p.click(`nav[aria-label="Sidebar"] a[href="/notes?folder=${f._id}"]`); await p.waitForFunction(() => !document.querySelector('main').innerText.includes('Loose'), { timeout: 8000 }).catch(() => {});
   ok(await p.$eval('main', (e) => e.innerText.includes('Plan') && !e.innerText.includes('Loose')), 'folder filter');
   ok(await p.$eval('main h1', (e) => e.textContent === 'Work'), 'folder heading');

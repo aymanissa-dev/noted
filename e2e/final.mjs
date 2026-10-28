@@ -39,7 +39,7 @@ try {
     await ctx.close();
   }
 
-  // (d) quick note whose create reached the server but whose answer was lost (reload mid-request):
+  // (d) new note whose create reached the server but whose answer was lost (reload mid-request):
   // one note on the server, and the local link / list lead to the real id after sync.
   {
     const p = await page();
@@ -55,12 +55,12 @@ try {
       }
       req.continue();
     });
-    await p.click('#quick-capture');
-    await p.keyboard.type('Reload race note'); await p.keyboard.press('Enter');
-    await p.waitForFunction(() => [...document.querySelectorAll('a[href^="/notes/local-"]')].length > 0, { timeout: 5000 }).catch(() => {});
-    const localHref = await p.evaluate(() => document.querySelector('a[href^="/notes/local-"]')?.getAttribute('href'));
+    await p.goto(`${BASE}/notes/new`, { waitUntil: 'networkidle0' }); await p.waitForSelector('input[aria-label=Title]');
+    await p.type('input[aria-label=Title]', 'Reload race note');
+    await p.waitForFunction(() => location.pathname.startsWith('/notes/local-'), { timeout: 8000 }).catch(() => {});
+    const localHref = await p.evaluate(() => (location.pathname.startsWith('/notes/local-') ? location.pathname : null));
     ok(!!localHref && lost === 1, `d: lost answer → note waits under a local id (${localHref})`);
-    await p.reload({ waitUntil: 'networkidle0' });
+    await p.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' });
     await p.waitForFunction(() => !document.querySelector('a[href^="/notes/local-"]') && [...document.querySelectorAll('a[href^="/notes/"]')].some((a) => /Reload race note/.test(a.innerText)), { timeout: 15000 }).catch(() => {});
     const after = await p.evaluate(() => [...document.querySelectorAll('a[href^="/notes/"]')].filter((a) => /Reload race note/.test(a.innerText)).map((a) => a.getAttribute('href')));
     const server = (await api('GET', '/notes', null, u.token)).data.notes.filter((n) => n.title === 'Reload race note' || /Reload race note/.test(n.content || ''));

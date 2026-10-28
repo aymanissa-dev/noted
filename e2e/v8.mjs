@@ -99,9 +99,6 @@ try {
     await p.waitForSelector('input[aria-label=PIN]');
     await p.type('input[aria-label=PIN]', '246813'); await p.keyboard.press('Enter');
     await p.waitForFunction(() => document.querySelector('input[aria-label=Title]')?.value === 'Hidden plans', { timeout: 6000 });
-    const side = () => p.evaluate(() => document.querySelector('nav[aria-label=Sidebar]')?.innerText || '');
-    await p.waitForFunction(() => /Hidden plans/.test(document.querySelector('nav[aria-label=Sidebar]')?.innerText || ''), { timeout: 3000 }).catch(() => {});
-    ok(/Hidden plans/.test(await side()), 'L unlock: sidebar recent shows the title without a refresh');
     await p.evaluate(() => [...document.querySelectorAll('a')].find((a) => a.getAttribute('href') === '/notes' && /Notes|All notes/.test(a.textContent)).click());
     await p.waitForFunction((id) => document.querySelector(`[data-flip-id="${id}"]`), { timeout: 5000 }, n._id);
     ok(/Hidden plans/.test(await card()) && !/Locked note/.test(await card()), `L unlock: list card shows the title without a refresh (${(await card()).replace(/\s+/g, ' ').slice(0, 60)})`);

@@ -6,7 +6,8 @@ try {
   const p = await pageAs(b, u.token, u.user, { width: 1100 });
   await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
   const btn = async (text) => { for (const h of await p.$$('xpath/.//button[normalize-space(.)="' + text + '"]')) if (await h.isVisible()) return h; };
-  await (await btn('Select')).click();
+  await p.click('[data-testid=list-more]'); await p.waitForSelector('[role=menu]');
+  for (const h of await p.$$('xpath/.//*[@role="menuitem" and contains(normalize-space(.), "Select notes to merge")]')) if (await h.isVisible()) { await h.click(); break; }
   await p.click('button[aria-label="Select One"]'); await p.click('button[aria-label="Select Three"]'); await p.click('button[aria-label="Select Two"]');
   ok(await p.$eval('[role=status]', (e) => e.textContent.includes('3 selected')), 'selection count');
   await (await btn('Merge 3')).click(); await p.waitForSelector('[role=dialog]');

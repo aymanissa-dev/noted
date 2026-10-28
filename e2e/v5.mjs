@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 // v5 regressions for the QA v3 retest: wide screens, landing CTA + contrast, standalone typewriter,
 // fast "/Heading 2" after an emoji line, list exit on Enter, note-not-found, reactive online state.
 import { createRequire } from 'node:module';
-import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep } from './h.mjs';
+import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep, noteAction } from './h.mjs';
 const require = createRequire(import.meta.url);
 let axePath = null; try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* optional */ }
 const b = await launch();
@@ -36,24 +36,26 @@ try {
   // C. Typewriter mode on its own: toolbar toggle, palette entry, Alt+Shift+T.
   const long = Array.from({ length: 90 }, (_, i) => `Line ${i + 1} of a long note`).join('\n');
   const t = (await api('POST', '/notes', { title: 'Long', content: long }, u.token)).data.note;
-  await open(p, `/notes/${t._id}`); await p.waitForSelector('[data-testid=typewriter-toggle]');
-  await p.click('[data-testid=typewriter-toggle]'); await sleep(200);
-  ok(await p.$eval('[data-testid=typewriter-toggle]', (x) => x.getAttribute('aria-pressed') === 'true'), 'typewriter: toolbar toggle turns it on (outside focus mode)');
+  // The toggle lives in the note's ··· menu (a menuitemcheckbox): read its state by opening the menu.
+  const twOn = async () => { await p.click('[data-testid=note-more]'); await p.waitForSelector('[data-testid=typewriter-toggle]', { visible: true }); const v = await p.$eval('[data-testid=typewriter-toggle]', (x) => x.getAttribute('aria-checked')); await p.keyboard.press('Escape'); await sleep(100); return v === 'true'; };
+  await open(p, `/notes/${t._id}`); await p.waitForSelector('.cm-content');
+  await noteAction(p, '[data-testid=typewriter-toggle]'); await sleep(200);
+  ok(await twOn(), 'typewriter: ··· menu toggle turns it on (outside focus mode)');
   await p.click('.cm-content'); await mod(p, 'End'); await p.keyboard.type(' end'); await sleep(400);
   const off = () => p.evaluate(() => { const s = getSelection(); const r = s.getRangeAt(0).getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2 - innerHeight / 2); });
   let d = await off(); ok(Math.abs(d) < 60 && !(await p.$('.fixed.inset-0[data-testid=editor-card]')), `typewriter (no focus mode): caret centered at end (off ${d}px)`);
   for (let i = 0; i < 25; i++) await p.keyboard.press('ArrowUp');
   await sleep(400); d = await off(); ok(Math.abs(d) < 60, `typewriter (no focus mode): stays centered moving up (off ${d}px)`);
   await p.keyboard.down('Alt'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyT'); await p.keyboard.up('Shift'); await p.keyboard.up('Alt'); await sleep(200);
-  ok(await p.$eval('[data-testid=typewriter-toggle]', (x) => x.getAttribute('aria-pressed') === 'false'), 'typewriter: Alt+Shift+T toggles it off');
+  ok(!(await twOn()), 'typewriter: Alt+Shift+T toggles it off');
   await mod(p, 'k'); await p.waitForSelector('[data-testid=palette]'); await p.keyboard.type('typewriter'); await sleep(200);
   const first = await p.$eval('[data-testid=palette] [role=option]', (x) => x.textContent);
   ok(/Typewriter mode/.test(first), `palette: "typewriter" finds Typewriter mode (${first.trim().slice(0, 40)})`);
   await p.keyboard.press('Enter'); await sleep(300);
-  ok(await p.$eval('[data-testid=typewriter-toggle]', (x) => x.getAttribute('aria-pressed') === 'true'), 'palette: Enter turns typewriter mode on');
+  ok(await twOn(), 'palette: Enter turns typewriter mode on');
   await p.evaluate(() => localStorage.setItem('noted:typewriter', '0'));
   await open(p, '/help'); await p.waitForSelector('[data-testid=help-page]');
-  ok(await p.evaluate(() => document.body.innerText.includes('Typewriter')), 'Help mentions typewriter mode and its shortcut');
+  ok(await p.evaluate(() => /typewriter/i.test(document.body.innerText)), 'Help mentions typewriter mode');
 
   // 2. "/Heading 2" typed fast on the line after an emoji, then Enter, becomes an H2.
   for (const pause of [0, 60, 150]) {

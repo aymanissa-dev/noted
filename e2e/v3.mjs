@@ -1,4 +1,4 @@
-// v3: command palette, shortcuts (reference + behaviour), platform labels, Help, guided tour, landing page.
+// v3: command palette, shortcuts (reference + behaviour), platform labels, Help, simple chrome, landing page.
 import { launch, newUser, pageAs, api, ok, cleanup, created, BASE, noScroll, sleep } from './h.mjs';
 const b = await launch();
 const ctrl = async (p, key, shift = false) => { await p.keyboard.down('Control'); if (shift) await p.keyboard.down('Shift'); await p.keyboard.press(key); if (shift) await p.keyboard.up('Shift'); await p.keyboard.up('Control'); };
@@ -11,8 +11,10 @@ try {
     await p.setViewport({ width: 1440, height: 900 });
     await p.goto(BASE + '/', { waitUntil: 'networkidle0' });
     ok((await p.$eval('h1', (e) => e.textContent)).replace(/\s+/g, ' ').includes('Write it down.Find it later.') || (await p.$eval('h1', (e) => e.innerText)).includes('Find it later'), 'landing: tagline headline');
-    const ids = await p.$$eval('section[id]', (s) => s.map((x) => x.id));
-    ok(['features', 'shortcuts', 'privacy', 'faq'].every((i) => ids.includes(i)), 'landing: features, shortcuts, privacy, FAQ sections ' + ids.join(','));
+    const ids = await p.$$eval('main [id]', (s) => s.map((x) => x.id));
+    ok(['features', 'privacy', 'faq'].every((i) => ids.includes(i)), 'landing: features, privacy, FAQ sections ' + ids.join(','));
+    ok(await p.$$eval('#features article', (a) => a.length === 3), 'landing: three feature beats (write, find, private)');
+    ok(await p.$$eval('a[href="/login"]', (a) => a.length >= 1) && await p.$('a[href="/changelog"]'), 'landing: links to log in and the changelog');
     ok(await p.$('a[href="https://github.com/aymanissa-dev/noted"]'), 'landing: GitHub link in footer');
     ok(await p.$$eval('a[href="/register"]', (a) => a.length >= 3), 'landing: CTAs to sign up');
     const meta = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"], meta[name=description]')].map((m) => [m.getAttribute('property') || m.name, m.content])));
@@ -22,14 +24,15 @@ try {
     ok(await p.evaluate(() => getComputedStyle(document.body).fontFamily.includes('Geist') || getComputedStyle(document.querySelector('h1')).fontFamily.includes('Geist')), 'landing: Geist font');
     await p.click('#faq summary'); await sleep(200);
     ok(await p.$eval('#faq details', (d) => d.open), 'landing: FAQ expands');
-    await p.keyboard.press('n'); await sleep(100);
-    ok(await p.$eval('[data-key="N"]', (e) => e.className.includes('bg-white')), 'landing: shortcut showcase reacts to keys');
+    ok(await p.$eval('.mock-type', (e) => getComputedStyle(e).animationName !== 'none'), 'landing: hero demo animates');
+    ok(await p.$eval('.cta-lift', (e) => getComputedStyle(e).transitionDuration !== '0s'), 'landing: CTAs have a hover transition');
     ok(errs.length === 0, 'landing: no page errors ' + errs.join('|'));
     const m = await b.newPage(); await m.setViewport({ width: 375, height: 812, isMobile: true, hasTouch: true });
     await m.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }, { name: 'prefers-color-scheme', value: 'dark' }]);
     await m.goto(BASE + '/', { waitUntil: 'networkidle0' });
     ok(await noScroll(m), 'landing: no horizontal scroll at 375');
     ok(await m.$$eval('.reveal', (els) => els.every((e) => getComputedStyle(e).opacity === '1')), 'landing: reduced motion shows everything');
+    ok(await m.$$eval('.mock-type, .hero-orb, .mock-note', (els) => els.every((e) => ['none', ''].includes(getComputedStyle(e).animationName) || parseFloat(getComputedStyle(e).animationDuration) < 0.001)), 'landing: reduced motion stops the demo');
     ok(await m.evaluate(() => document.documentElement.classList.contains('dark')), 'landing: dark mode follows system');
     await m.close(); await p.close();
   }
@@ -54,16 +57,18 @@ try {
   ok(true, 'palette: Ctrl+K works inside the editor');
   await p.keyboard.type('settings'); await sleep(200); await p.keyboard.press('Enter');
   ok(await waitPath(p, /^\/settings/), 'palette: runs "Settings" command');
-  await p.click('[data-testid=palette-button]'); await p.waitForSelector('[data-testid=palette]');
+  await ctrl(p, 'k'); await p.waitForSelector('[data-testid=palette]');
   await p.keyboard.press('Escape'); await sleep(150);
-  ok(!(await p.$('[data-testid=palette]')), 'palette: header button opens, Esc closes');
+  ok(!(await p.$('[data-testid=palette]')), 'palette: Esc closes');
+  ok(!(await p.$('[data-testid=palette-button]')) && !(await p.$('header [aria-label*="theme" i]')), 'header: simple (no palette button, no theme toggle)');
 
   // Shortcuts reference
   await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
   await p.keyboard.press('?'); await p.waitForSelector('[role=dialog]');
   const groups = await p.$$eval('[role=dialog] [data-testid^=shortcut-group-] h3', (h) => h.map((x) => x.textContent));
   ok(JSON.stringify(groups) === JSON.stringify(['Navigation', 'Notes', 'Editor', 'Formatting', 'Search', 'App']), '? opens grouped shortcuts: ' + groups.join(', '));
-  ok(await p.$$eval('[role=dialog] li', (l) => l.length) >= 35, 'shortcuts: complete list');
+  const nShort = await p.$$eval('[role=dialog] li', (l) => l.length);
+  ok(nShort >= 15 && nShort <= 30, 'shortcuts: just the essentials (' + nShort + ')');
   await p.type('[aria-label="Filter shortcuts"]', 'bold');
   ok(await p.$$eval('[role=dialog] li', (l) => l.length === 1 && l[0].textContent.includes('Bold')), 'shortcuts: filter');
   await p.keyboard.press('Escape'); await sleep(150);
@@ -89,21 +94,11 @@ try {
   // Help page reachable from account menu, sidebar, palette
   await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
   await p.click('[data-testid=account-menu]'); await p.waitForSelector('[role=menu] a[href="/help"]');
-  ok(await p.$eval('[role=menu]', (m) => m.innerText.includes('How to use noted.')), 'help: in account menu');
+  ok(await p.$eval('[role=menu]', (m) => m.innerText.includes('Help') && m.innerText.includes('Theme') && !m.innerText.includes('Storage stats')), 'help + theme in account menu');
   await p.click('[role=menu] a[href="/help"]'); ok(await waitPath(p, /^\/help/), 'help: account menu → /help');
-  await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
-  await p.click('nav[aria-label=Sidebar] a[href="/help"]'); ok(await waitPath(p, /^\/help/), 'help: sidebar → /help');
   await p.waitForSelector('[data-testid=help-page]');
   ok(await p.$$eval('[data-testid=help-page] [data-testid^=shortcut-group-]', (g) => g.length === 6), 'help: full shortcut reference on the page');
-  // Tour re-run from Help
-  await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Take the tour')).click());
-  ok(await p.waitForSelector('[data-testid=tour]', { timeout: 3000 }).then(() => true, () => false), 'tour: re-runnable from Help');
-  let steps = 0;
-  for (let i = 0; i < 6; i++) {
-    const t = await p.$('[data-testid=tour]'); if (!t) break; steps++;
-    await p.click('[data-testid=tour] [data-primary]'); await sleep(250);
-  }
-  ok(steps >= 3 && steps <= 5 && !(await p.$('[data-testid=tour]')), `tour: ${steps} steps then closes`);
+  ok(await p.$eval('[data-testid=help-page]', (e) => e.innerText.includes('···') && !e.innerText.includes('tour')), 'help: explains the ··· menu, no tour');
 
   // Platform-aware labels
   const mac = await b.newPage();
@@ -112,8 +107,10 @@ try {
   await mac.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
   await mac.evaluate((t, us) => { localStorage.setItem('noted.token', t); localStorage.setItem('noted.user', JSON.stringify(us)); }, u.token, u.user);
   await mac.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
-  ok(await mac.$eval('[data-testid=palette-button]', (e) => e.innerText.includes('⌘')), 'labels: ⌘ on Mac');
-  ok(await p.$eval('[data-testid=palette-button]', (e) => e.innerText.includes('Ctrl')), 'labels: Ctrl elsewhere');
+  const kLabel = async (pg) => { await pg.keyboard.press('?'); await pg.waitForSelector('[role=dialog]'); const t = await pg.$$eval('[role=dialog] li', (l) => l.find((x) => x.textContent.includes('Search everything'))?.innerText || ''); await pg.keyboard.press('Escape'); await sleep(150); return t; };
+  await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
+  ok((await kLabel(mac)).includes('⌘'), 'labels: ⌘ on Mac');
+  ok((await kLabel(p)).includes('Ctrl'), 'labels: Ctrl elsewhere');
   await mac.close();
 
   // Mobile help

@@ -1,5 +1,5 @@
-// v4 regressions for QA v3 bugs: typewriter centering, palette Enter, "/Heading 1", ":smile", quick capture focus, live sidebar tags.
-import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep } from './h.mjs';
+// v4 regressions for QA v3 bugs: typewriter centering, palette Enter, "/Heading 1", ":smile", live sidebar tags.
+import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep, noteAction } from './h.mjs';
 const b = await launch();
 const content = async (u, id) => (await api('GET', `/notes/${id}`, null, u.token)).data.note.content;
 const mod = async (p, key) => { await p.keyboard.down('Control'); await p.keyboard.press(key); await p.keyboard.up('Control'); };
@@ -12,7 +12,7 @@ try {
   const long = Array.from({ length: 90 }, (_, i) => `Line ${i + 1} of a long note`).join('\n');
   const n = (await api('POST', '/notes', { title: 'Long', content: long }, u.token)).data.note;
   await p.goto(BASE + `/notes/${n._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('.cm-content');
-  await p.click('button[aria-label="Focus mode"]'); await sleep(300);
+  await noteAction(p, 'button[aria-label="Focus mode"]'); await sleep(300);
   await p.click('.cm-content'); await mod(p, 'End'); await p.keyboard.type(' end'); await sleep(400);
   const off = () => p.evaluate(() => { const r = document.querySelector('.cm-cursor')?.getBoundingClientRect() || document.querySelector('.cm-activeLine, .cm-line')?.getBoundingClientRect(); const s = getSelection(); const rr = s.rangeCount ? s.getRangeAt(0).getBoundingClientRect() : r; const y = (rr.top + rr.bottom) / 2; return Math.round(y - innerHeight / 2); });
   let d = await off(); ok(Math.abs(d) < 40, `typewriter: caret centered at end of note (off by ${d}px)`);
@@ -57,25 +57,11 @@ try {
   await p.keyboard.type('long'); await sleep(900); await p.keyboard.press('Enter'); await sleep(400);
   ok(p.url().includes(n._id), 'palette: note title match still opens the note');
 
-  // Design 6: replaying the tour from Help goes to the notes list and anchors step 1 to New note.
+  // The tour is gone; tags in the sidebar fold open and update live.
   await p.goto(BASE + '/help', { waitUntil: 'networkidle0' });
-  await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Take the tour/.test(x.textContent))?.click());
-  await p.waitForSelector('[data-testid=tour] [role=dialog]', { timeout: 5000 }); await sleep(300);
-  const tour = await p.evaluate(() => { const d = document.querySelector('[data-testid=tour] [role=dialog]').getBoundingClientRect(); const t = [...document.querySelectorAll('[data-tour=new]')].find((e) => e.getClientRects().length)?.getBoundingClientRect(); return { path: location.pathname, near: !!t && Math.abs(d.top - t.bottom) < 40 }; });
-  ok(tour.path === '/notes' && tour.near, `tour replay from Help opens on /notes anchored to New note (${JSON.stringify(tour)})`);
-  await p.keyboard.press('Escape'); await sleep(200);
-
-  // 5. Quick capture releases focus after saving, so Q works again; 6. sidebar tags update live.
-  await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' }); await sleep(400);
-  await p.keyboard.press('q'); ok(await p.evaluate(() => document.activeElement?.id === 'quick-capture'), 'Q focuses quick capture');
-  await p.keyboard.type('Captured idea #freshtag'); await p.keyboard.press('Enter'); await sleep(300);
-  ok(await p.evaluate(() => document.activeElement?.id !== 'quick-capture'), 'quick capture blurs after saving');
-  await p.keyboard.press('q'); await sleep(100);
-  ok(await p.evaluate(() => document.activeElement?.id === 'quick-capture' && document.activeElement.value === ''), 'Q reopens quick capture without typing "q"');
-  await p.keyboard.press('Escape');
+  ok(!(await p.evaluate(() => [...document.querySelectorAll('button')].some((x) => /tour/i.test(x.textContent)))), 'Help has no tour button');
+  await p.evaluate(() => localStorage.setItem('noted.tagsOpen', '1'));
   const sidebarHas = (t) => p.evaluate((t) => [...document.querySelectorAll('nav[aria-label=Sidebar] a')].some((a) => a.textContent.trim() === t), t);
-  await p.waitForFunction(() => [...document.querySelectorAll('nav[aria-label=Sidebar] a')].some((a) => a.textContent.trim() === 'freshtag'), { timeout: 5000 }).catch(() => {});
-  ok(await sidebarHas('freshtag'), 'sidebar shows a quick-capture tag without reload');
   // Tag added in the editor
   await p.goto(BASE + `/notes/${e._id}`, { waitUntil: 'networkidle0' }); await p.waitForSelector('input[placeholder="Add tag…"]');
   await p.type('input[placeholder="Add tag…"]', 'editortag'); await p.keyboard.press('Enter');

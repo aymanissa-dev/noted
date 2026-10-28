@@ -41,60 +41,8 @@ try {
     // Close it: an open, online tab shares localStorage and would sync the next test's offline queue.
     await p.close();
   }
-  if (want('capture')) {
-    const u = await newUser('fix');
-    await api('POST', '/notes', { title: 'Existing', content: 'x' }, u.token);
-    const p = await page(u);
-    await p.goto(`${BASE}/notes`, { waitUntil: 'networkidle0' });
-    // slow server: the note must show before the POST returns
-    await p.setRequestInterception(true);
-    let slow = true, failCreates = false;
-    p.on('request', async (r) => {
-      if (r.isInterceptResolutionHandled()) return;
-      if (r.method() === 'POST' && /\/api\/notes$/.test(r.url())) {
-        if (failCreates) return r.abort('internetdisconnected');
-        if (slow) { await sleep(2000); }
-      }
-      r.continue().catch(() => {});
-    });
-    await p.click('#quick-capture'); await p.keyboard.type('QC line one');
-    await p.keyboard.down('Shift'); await p.keyboard.press('Enter'); await p.keyboard.up('Shift');
-    await p.keyboard.type('line two #qatag');
-    const t0 = Date.now(); await p.keyboard.press('Enter');
-    await p.waitForFunction(() => [...document.querySelectorAll('[data-flip-id] h3')].some((h) => h.innerText.includes('QC line one')), { timeout: 5000 });
-    const shown = Date.now() - t0;
-    ok(shown < 400, `quick capture shows the note immediately (${shown}ms, server takes 2s)`);
-    await p.evaluate(() => window.dispatchEvent(new Event('noted:notes-changed'))); // a list refetch races the save
-    await sleep(700);
-    ok(await p.evaluate(() => [...document.querySelectorAll('[data-flip-id] h3')].some((h) => h.innerText.includes('QC line one'))), 'optimistic card survives a list refetch while saving');
-    await p.waitForFunction(() => !document.querySelector('[data-flip-id^=optimistic]'), { timeout: 8000 });
-    const list = (await api('GET', '/notes', null, u.token)).data.notes;
-    const qc = list.find((n) => n.title === 'QC line one');
-    ok(qc && qc.tags.includes('qatag') && qc.content === 'line two #qatag', `#tag in the body becomes a tag (${JSON.stringify(qc?.tags)})`);
-    ok(await p.$$eval('[data-flip-id]', (els) => els.filter((e) => e.innerText.includes('QC line one')).length === 1), 'optimistic card replaced by the saved note (no duplicate)');
-    slow = false;
-    // offline: queue two notes, then come back online while the network is still flaky
-    await p.setOfflineMode(true); await p.waitForFunction(() => !navigator.onLine); await sleep(300);
-    for (const t of ['Offline QC note', 'Quick capture xyz']) { await p.click('#quick-capture'); await p.keyboard.type(t); await p.keyboard.press('Enter'); await sleep(200); }
-    const banner = () => p.evaluate(() => document.querySelector('[role=status]')?.innerText || '');
-    ok(/2 pending/.test(await banner()), 'offline: pending count 2 — ' + (await banner()));
-    failCreates = true; // network "up" but requests still failing at first
-    await p.setOfflineMode(false);
-    await sleep(1500);
-    failCreates = false;
-    const t1 = Date.now();
-    await p.waitForFunction(() => !/pending/.test(document.querySelector('[role=status]')?.innerText || ''), { timeout: 30000 });
-    ok(true, `queue flushed without reload ${Date.now() - t1}ms after the network recovered`);
-    const titles = (await api('GET', '/notes', null, u.token)).data.notes.map((n) => n.title);
-    ok(titles.filter((t) => t === 'Offline QC note').length === 1 && titles.includes('Quick capture xyz'), 'offline notes synced once, full titles intact');
-    // the online event alone flushes too
-    await p.setOfflineMode(true); await sleep(200);
-    await p.click('#quick-capture'); await p.keyboard.type('Third offline'); await p.keyboard.press('Enter'); await sleep(200);
-    const t2 = Date.now(); await p.setOfflineMode(false);
-    await p.waitForFunction(() => !/pending/.test(document.querySelector('[role=status]')?.innerText || ''), { timeout: 10000 });
-    ok(Date.now() - t2 < 3000, `'online' event flushes the queue (${Date.now() - t2}ms)`);
-    await p.close();
-  }
+  // (Quick capture was removed from the app in 1.8; its optimistic/offline checks went with it.
+  //  Offline creation from the editor is covered by v7/final/sw.)
   if (want('pin')) {
     const u = await newUser('fix');
     await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '246800' }, u.token);
@@ -201,35 +149,22 @@ try {
     await p.close();
   }
   if (want('recent')) {
+    // The sidebar no longer shows "Recently viewed" (1.8); the server list still backs ⌘K.
     const u = await newUser('fix');
-    await api('PUT', '/auth/lock-pin', { password: 'quiet-otter-lamp-91', pin: '246800' }, u.token);
     const mk = async (title) => (await api('POST', '/notes', { title, content: title }, u.token)).data.note;
-    const a = await mk('Alpha recent'), bn = await mk('Beta recent'), l = await mk('Secret recent');
-    await api('PATCH', `/notes/${l._id}/lock`, { locked: true }, u.token);
-    for (const n of [a, bn, l]) { await api('GET', `/notes/${n._id}`, null, u.token); await sleep(20); }
+    const a = await mk('Alpha recent'), bn = await mk('Beta recent');
+    for (const n of [a, bn]) { await api('GET', `/notes/${n._id}`, null, u.token); await sleep(20); }
     await api('DELETE', `/notes/${bn._id}`, null, u.token); // in the trash
-    const p = await page(u);
-    const recent = () => p.evaluate(() => { const h = [...document.querySelectorAll('nav[aria-label=Sidebar] h2')].find((x) => /recent/i.test(x.innerText)); return h ? h.closest('div').parentElement.innerText : ''; });
+    const p = await page(u); p.on('dialog', (d) => d.accept());
     await p.goto(`${BASE}/trash`, { waitUntil: 'networkidle0' }); await sleep(300);
-    ok(/Locked note/.test(await recent()) && !/Beta recent/.test(await recent()), 'recent: trashed note hidden, locked note shown as locked');
-    p.on('dialog', (d) => d.accept());
-
-    // delete forever from the trash
+    ok(!(await p.evaluate(() => [...document.querySelectorAll('nav[aria-label=Sidebar] h2')].some((x) => /recent/i.test(x.innerText)))), 'recent: not shown in the sidebar');
     await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Delete forever/.test(x.innerText)).click());
     await sleep(300);
     await p.evaluate(() => { const c = document.querySelector('[role=alertdialog] button[data-confirm], [role=dialog] button[data-confirm]'); c?.click(); });
     await p.waitForFunction(() => !document.body.innerText.includes('Beta recent'), { timeout: 5000 });
     const r1 = await api('GET', '/notes/recent', null, u.token);
-    ok(!r1.data.notes.some((n) => n._id === bn._id), 'recent (server): permanently deleted note gone');
-    // remove the PIN in Settings → the sidebar shows the note's real title without a reload
-    await p.goto(`${BASE}/settings`, { waitUntil: 'networkidle0' });
-    await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Remove PIN').click());
-    await p.waitForSelector('input[placeholder="Account password"]'); await p.type('input[placeholder="Account password"]', 'quiet-otter-lamp-91');
-    await p.evaluate(() => [...document.querySelectorAll('form button')].find((x) => /Remove PIN/.test(x.innerText)).click());
-    await p.waitForFunction(() => /PIN removed/.test(document.body.innerText), { timeout: 8000 });
-    const t0 = Date.now();
-    await p.waitForFunction(() => { const nav = document.querySelector('nav[aria-label=Sidebar]'); return nav && nav.innerText.includes('Secret recent') && !nav.innerText.includes('Locked note'); }, { timeout: 5000 }).catch(() => {});
-    ok(/Secret recent/.test(await recent()), `recent: PIN removed → title shown (${Date.now() - t0}ms) — ${(await recent()).replace(/\s+/g, ' ')}`);
+    ok(!r1.data.notes.some((n) => n._id === bn._id) && r1.data.notes.some((n) => n._id === a._id), 'recent (server): permanently deleted note gone, others kept');
+    await p.close();
   }
   if (want('activity')) {
     const u = await newUser('fix');

@@ -2,7 +2,7 @@
 import { launch, newUser, pageAs, api, ok, cleanup, created, BASE, noScroll, sleep } from './h.mjs';
 const b = await launch();
 try {
-  // Register through the UI → welcome note + tour
+  // Register through the UI → welcome note
   const p = await b.newPage(); p.errors = []; p.on('pageerror', (e) => p.errors.push(e.message));
   await p.setViewport({ width: 1440, height: 900 });
   await p.goto(BASE + '/register', { waitUntil: 'networkidle0' });
@@ -26,10 +26,8 @@ try {
   created.push({ email, token: login.data.token });
   await p.waitForFunction(() => document.querySelector('main')?.innerText.includes('Welcome'), { timeout: 10000 }).catch(() => {});
   ok(await p.$eval('main', (e) => e.innerText.includes('Welcome')), 'welcome note on first run');
-  ok(await p.waitForSelector('[data-testid=tour]', { timeout: 5000 }).then(() => true, () => false), 'first-run tour shown');
-  await p.evaluate(() => [...document.querySelectorAll('[data-testid=tour] button')].find((b) => b.textContent === 'Skip tour').click()); await sleep(300);
-  await p.reload({ waitUntil: 'networkidle0' }); await sleep(1200);
-  ok(!(await p.$('[data-testid=tour]')), 'tour stays dismissed');
+  await sleep(1200);
+  ok(!(await p.$('[data-testid=tour]')) && !(await p.$('#quick-capture')), 'first run is calm: no tour, no quick-capture bar');
   // In-app folder dialog
   await p.click('nav[aria-label="Sidebar"] button[aria-label="New folder"]');
   await p.waitForSelector('[role=dialog] input');

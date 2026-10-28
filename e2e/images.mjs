@@ -2,7 +2,7 @@
 // render + reload (from the local cache), lightbox, alt text, offline "Needs a connection" + retry,
 // SVG rejection, lock (423 / PIN), Markdown export with images/, delete cleanup, logout wipes the
 // image cache, 375px mobile + dark mode. Runs against production with BASE/API.
-import { launch, newUser, api, ok, cleanup, BASE, API, sleep, pageAs, noScroll } from './h.mjs';
+import { launch, newUser, api, ok, cleanup, BASE, API, sleep, pageAs, noScroll, noteAction } from './h.mjs';
 import { mkdirSync, readdirSync, rmSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import JSZip from '../server/node_modules/jszip/lib/index.js';
@@ -86,8 +86,8 @@ try {
 
   // 3. Toolbar button → file picker, with a photo carrying EXIF + GPS → stripped
   await endOfDoc(p);
-  const [chooser] = await Promise.all([p.waitForFileChooser({ timeout: 5000 }), p.click('[data-testid=add-image]')]);
-  ok(chooser.isMultiple(), 'picker: toolbar "Image" opens a multi-file picker');
+  const [chooser] = await Promise.all([p.waitForFileChooser({ timeout: 5000 }), noteAction(p, '[data-testid=add-image]')]);
+  ok(chooser.isMultiple(), 'picker: ··· → "Add image" opens a multi-file picker');
   await chooser.accept([FIX + 'gps-photo.jpg']);
   note = await waitContent(n._id, u.token, (c) => ids(c).length === 3, 30000);
   const picked = ids(note.content).find((x) => x !== pasted && x !== dropped);
@@ -122,6 +122,7 @@ try {
   ok(await p.waitForSelector('[data-testid=lightbox-image]', { timeout: 3000 }).then(() => true).catch(() => false), 'lightbox opens on click');
   await p.keyboard.press('Escape'); await sleep(300);
   ok(!(await p.$('[data-testid=lightbox-image]')), 'lightbox closes with Escape');
+  await p.waitForSelector('.cm-image .cm-image-alt', { timeout: 5000 });
   await p.hover('.cm-image'); await p.click('.cm-image-alt');
   await p.waitForSelector('#prompt-input');
   await p.$eval('#prompt-input', (i) => { i.select(); }); await p.keyboard.type('Blue circle on white');

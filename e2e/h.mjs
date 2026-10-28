@@ -59,3 +59,9 @@ export async function pageAs(browser, token, user, { width = 1440, height = 900,
 }
 export const noScroll = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The note editor keeps its extra actions in one "···" menu (data-testid=note-more): open it and click `sel`.
+export async function noteAction(p, sel) {
+  if (!(await p.$('[data-testid=note-more][aria-expanded=true]'))) await p.click('[data-testid=note-more]');
+  await p.waitForSelector(`[role=menu] ${sel}`, { visible: true, timeout: 5000 });
+  await p.click(`[role=menu] ${sel}`);
+}

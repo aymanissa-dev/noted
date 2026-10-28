@@ -44,7 +44,13 @@ const register = async (p, email) => {
   await Promise.all([p.waitForFunction(() => location.pathname.startsWith('/notes'), { timeout: 15000 }), p.click('button[type=submit]')]);
   created.push({ email, token: await p.evaluate(() => localStorage.getItem('noted.token')) });
 };
-const capture = async (p, t) => { await p.click('#quick-capture'); await p.keyboard.type(t); await p.keyboard.press('Enter'); await sleep(1200); };
+// Creates a note through the UI (New note → title → autosave), then returns to the list.
+const capture = async (p, t) => {
+  await p.goto(BASE + '/notes/new', { waitUntil: 'domcontentloaded' }); await p.waitForSelector('input[aria-label=Title]');
+  await p.type('input[aria-label=Title]', t);
+  await p.waitForFunction(() => /\/notes\/[a-f0-9]{24}/.test(location.pathname) && /Saved/.test(document.querySelector('[data-testid=editor-toolbar]')?.innerText || ''), { timeout: 10000 }).catch(() => {});
+  await sleep(600); await p.goto(BASE + '/notes', { waitUntil: 'networkidle0' });
+};
 const withSw = async (p) => p.waitForFunction(() => !!navigator.serviceWorker?.controller, { timeout: 15000 }).then(() => true).catch(() => false);
 
 try {
@@ -69,7 +75,7 @@ try {
   }
   await p.evaluate(() => localStorage.setItem('noted.tourDone', '1'));
   await login(p, u.email);
-  await p.waitForSelector('#quick-capture');
+  await p.waitForSelector('main');
   for (const t of ['R4 Alpha', 'R4 Beta']) await capture(p, t);
   // a note with a body, written in the editor
   await p.goto(BASE + '/notes/new', { waitUntil: 'domcontentloaded' }); await p.waitForSelector('input[aria-label=Title]');
@@ -231,7 +237,7 @@ try {
   const q = await ctx.newPage(); await q.setViewport({ width: 1280, height: 800 });
   await q.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
   await q.evaluate(() => { localStorage.clear(); localStorage.setItem('noted.tourDone', '1'); }); // the first account signs out of this profile
-  await login(q, A.email); await q.waitForSelector('#quick-capture');
+  await login(q, A.email); await q.waitForSelector('main');
   const secrets = ['Asecret kept note', 'Asecret trashed note', 'Asecret archived note'];
   for (const t of secrets) await capture(q, t);
   const aNotes = (await api('GET', '/notes', null, A.token)).data.notes;

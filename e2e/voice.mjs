@@ -1,4 +1,4 @@
-import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep, API } from './h.mjs';
+import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep, API, noteAction } from './h.mjs';
 const b = await launch();
 try {
   const u = await newUser('voice');
@@ -7,7 +7,8 @@ try {
   const ctx = b.defaultBrowserContext(); await ctx.overridePermissions(new URL(process.env.BASE || 'http://localhost:4173').origin, ['microphone']);
   await p.goto(BASE + `/notes/${n._id}`, { waitUntil: 'networkidle0' });
   const btn = async (t) => (await p.$$(`xpath/.//button[contains(normalize-space(.), "${t}")]`))[0];
-  await (await btn('Record voice note')).click();
+  await p.waitForSelector('.cm-content'); await noteAction(p, 'button[aria-label="Record voice note"]');
+  await p.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => /Stop/.test(b.textContent)), { timeout: 5000 });
   await sleep(2500);
   await (await btn('Stop')).click();
   await p.waitForSelector('audio', { timeout: 10000 });

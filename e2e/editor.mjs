@@ -1,4 +1,4 @@
-import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep } from './h.mjs';
+import { launch, newUser, pageAs, api, ok, cleanup, BASE, sleep, noteAction } from './h.mjs';
 const b = await launch();
 const content = async (u, id) => (await api('GET', `/notes/${id}`, null, u.token)).data.note.content;
 try {
@@ -43,7 +43,7 @@ try {
   ok((await content(u, n._id)).includes('=={green}world=='), 'highlight persisted as =={green}text==');
   ok(await p.$('.cm-hl-green'), 'highlight rendered');
   // outline
-  await p.click('button[aria-label=Outline]'); await p.waitForSelector('[data-testid=outline]');
+  await noteAction(p, 'button[aria-label=Outline]'); await p.waitForSelector('[data-testid=outline]');
   const items = await p.$$eval('[data-testid=outline] button', (bs) => bs.map((x) => x.textContent));
   ok(items.join('|') === 'Section A|Part B', 'outline lists headings ' + items.join('|'));
   await p.evaluate(() => [...document.querySelectorAll('[data-testid=outline] button')].find((x) => x.textContent === 'Section A').click());
@@ -57,7 +57,7 @@ try {
   await p.click('.cm-foldPlaceholder'); await sleep(200);
   ok(!(await p.$('.cm-foldPlaceholder')), 'section unfolds');
   // find & replace
-  await p.click('button[aria-label^="Find and replace"]'); await p.waitForSelector('.cm-search');
+  await noteAction(p, 'button[aria-label^="Find and replace"]'); await p.waitForSelector('.cm-search');
   await p.type('.cm-search input[name=search]', 'milk');
   await p.type('.cm-search input[name=replace]', 'oat milk');
   await p.click('.cm-search button[name=replaceAll]'); await sleep(1300);
@@ -70,7 +70,7 @@ try {
   const after = await content(u, n._id);
   ok(before.includes('oat milk') && !after.includes('oat milk') && after.includes('buy milk'), 'undo history survives reload (IndexedDB)');
   // focus mode
-  await p.click('button[aria-label="Focus mode"]'); await sleep(200);
+  await noteAction(p, 'button[aria-label="Focus mode"]'); await sleep(200);
   ok(await p.$eval('[data-testid=editor-card]', (e) => getComputedStyle(e).position === 'fixed'), 'focus mode full-screen');
   await p.click('.cm-content'); await p.keyboard.press('Escape'); await sleep(200);
   ok(await p.$eval('[data-testid=editor-card]', (e) => getComputedStyle(e).position !== 'fixed'), 'Esc leaves focus mode');
@@ -84,7 +84,7 @@ try {
   const s = (await api('GET', '/notes?search=' + encodeURIComponent('hello world'), null, u.token)).data.notes;
   ok(s.length === 1, 'search matches plain text across highlight markup');
   // emoji picker search
-  await p.click('button[aria-label="Color and emoji"]'); await p.type('input[aria-label="Search emoji"]', 'pizza'); await sleep(100);
+  await noteAction(p, 'button[aria-label="Color and emoji"]'); await p.waitForSelector('input[aria-label="Search emoji"]'); await p.type('input[aria-label="Search emoji"]', 'pizza'); await sleep(100);
   const em = await p.$$eval('button[aria-label^="Emoji "]', (bs) => bs.map((x) => x.textContent));
   ok(em.length === 1 && em[0] === '🍕', 'emoji picker search by name');
   ok(!p.errors.length, 'no page errors ' + p.errors.join('|'));

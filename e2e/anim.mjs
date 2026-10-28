@@ -14,9 +14,6 @@ try {
   ok(anims.some((a) => a.id === ids[0] && a.d === 200), 'pin glides via FLIP (200ms) ' + JSON.stringify(anims));
   // hover lift
   ok(await p.$eval(`[data-flip-id="${ids[1]}"]`, (e) => e.className.includes('hover:-translate-y-0.5') && getComputedStyle(e).transitionDuration.includes('0.2s')), 'card hover lift 200ms');
-  // quick capture slides in
-  await p.type('#quick-capture', 'Captured idea'); await p.keyboard.press('Enter'); await sleep(50);
-  ok(await p.$eval('[class*="animate-slide-in"]', (e) => getComputedStyle(e).animationName === 'slide-in' && parseFloat(getComputedStyle(e).animationDuration) === 0.22), 'quick capture slides in (220ms)');
   // trash restore: shrink-fade
   await api('DELETE', `/notes/${ids[2]}`, null, u.token);
   await p.goto(BASE + '/trash', { waitUntil: 'networkidle0' });
