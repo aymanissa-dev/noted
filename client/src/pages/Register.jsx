@@ -33,7 +33,6 @@ export default function Register() {
     setError(''); setBusy(true);
     try {
       await register({ name: form.name.trim(), email: form.email.trim(), password: form.password, sample: true });
-      localStorage.setItem('noted.tourPending', '1');
       navigate('/notes', { replace: true });
     } catch (err) {
       if (err.data?.field === 'password') { setServerPw(err.message); setTouched((t) => ({ ...t, password: true })); document.getElementById('reg-password')?.focus(); }

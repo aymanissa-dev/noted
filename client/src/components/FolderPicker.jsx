@@ -25,7 +25,8 @@ export default function FolderPicker({ value, onChange, disabled }) {
     }
     onChange(next || null);
   };
-  if (!folders) return null;
+  // No folders yet: keep the toolbar clean (folders are made from the sidebar).
+  if (!folders || (!folders.length && !value)) return null;
   return (
     <label className="relative inline-flex items-center" data-tip="Move to folder">
       <span className="sr-only">Folder</span>

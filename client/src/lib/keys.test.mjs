@@ -17,7 +17,7 @@ assert.deepEqual(SHORTCUT_GROUPS.map((g) => g.title), ['Navigation', 'Notes', 'E
 const src = readFileSync(new URL('../editor/MarkdownEditor.jsx', import.meta.url), 'utf8');
 for (const k of ['Mod-b', 'Mod-i', 'Mod-e', 'Mod-Shift-x', 'Mod-Shift-h', 'Mod-Enter']) assert.ok(src.includes(`'${k}'`), `${k} bound`);
 const shortcuts = readFileSync(new URL('./useShortcuts.js', import.meta.url), 'utf8');
-for (const k of ["k === 'n'", "e.key === '/'", "k === 'q'", "e.key === '?'", "=== 'k'", 'GO[k]']) assert.ok(shortcuts.includes(k), `${k} handled`);
+for (const k of ["k === 'n'", "e.key === '/'", "e.key === '?'", "=== 'k'", 'GO[k]']) assert.ok(shortcuts.includes(k), `${k} handled`);
 for (const g of SHORTCUT_GROUPS) for (const i of g.items) { assert.ok(i.label); assert.ok(keysFor(i, true).length && keysFor(i, false).length); }
 
 // Formatting commands

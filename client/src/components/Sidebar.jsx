@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { api, readMeta } from '../lib/api.js';
-import { SMART } from '../lib/smart.js';
-import { displayTitle, useUnlockedVersion } from '../lib/unlocked.js';
+import { useUnlockedVersion } from '../lib/unlocked.js';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from './Icon.jsx';
 import { OFFLINE_MESSAGE, useRefetch } from '../lib/network.js';
 import { useToast } from '../context/ToastContext.jsx';
-
-const SMART_ICON = { recent: 'clock', pinned: 'pin', today: 'today', week: 'week', untagged: 'untagged', locked: 'lock' };
 
 const row = (active) => `group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition ${active ? 'bg-stone-200/70 font-medium text-stone-900 dark:bg-white/[0.09] dark:text-white dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]' : 'text-stone-600 hover:bg-stone-200/40 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-white/[0.05] dark:hover:text-white'}`;
 
@@ -21,8 +18,25 @@ function Group({ title, action, children }) {
   );
 }
 
-// Desktop sidebar: notes, smart entries, recently viewed, folders, tags, archive, trash.
-export default function Sidebar({ onOpen }) {
+// Tags are secondary: a quiet disclosure that remembers whether it was open.
+function TagGroup({ tags, active }) {
+  const [open, setOpen] = useState(() => localStorage.getItem('noted.tagsOpen') === '1' || Boolean(active));
+  const toggle = () => setOpen((o) => { localStorage.setItem('noted.tagsOpen', o ? '0' : '1'); return !o; });
+  return (
+    <div className="mt-6">
+      <button type="button" onClick={toggle} aria-expanded={open} aria-controls="sidebar-tags" className="flex w-full items-center justify-between rounded-md px-2.5 py-1 text-left transition hover:text-stone-900 dark:hover:text-white">
+        <h2 className="section-label">Tags</h2>
+        <Icon name="chevron" size="xs" className={`text-faint transition-transform ${open ? 'rotate-90' : ''}`} />
+      </button>
+      {open && <div id="sidebar-tags" className="mt-1">{tags.map((t) => (
+        <Link key={t} to={`/notes?tag=${encodeURIComponent(t)}`} className={row(active === t)}><Icon name="tag" /><span className="truncate">{t}</span></Link>
+      ))}</div>}
+    </div>
+  );
+}
+
+// Desktop sidebar, kept calm: all notes, folders, tags (folded away), then archive and trash.
+export default function Sidebar() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(search);
@@ -30,7 +44,6 @@ export default function Sidebar({ onOpen }) {
   // null until the first load when nothing is cached (right after sign-in): a skeleton, not "no folders".
   const [folders, setFolders] = useState(() => readMeta('folders') ?? null);
   const [tags, setTags] = useState(() => readMeta('tags') || []);
-  const [recent, setRecent] = useState(() => (readMeta('recent') || []).slice(0, 5));
   useUnlockedVersion();
 
   const [failing, setFailing] = useState(false);
@@ -38,7 +51,6 @@ export default function Sidebar({ onOpen }) {
     Promise.all([
       api.folders().then(({ folders }) => setFolders(folders)),
       api.tags().then(({ tags }) => setTags(tags)),
-      api.recentNotes().then(({ notes }) => setRecent(notes.slice(0, 5))),
     ]).then(() => setFailing(false), () => setFailing(true));
   }, []);
   // Showing cached copies while a refresh fails: retry on reconnect / focus / backoff.
@@ -108,30 +120,13 @@ export default function Sidebar({ onOpen }) {
       <div className="sticky top-[var(--header-h)] max-h-[calc(100vh-var(--header-h))] overflow-y-auto py-6 pr-4">
         <Link to="/notes" className={row(isAll)}><Icon name="notes" />All notes</Link>
 
-        <Group title="Smart">
-          {SMART.filter(([key]) => key !== 'recent' || recent.length === 0).map(([key, label]) => (
-            <Link key={key} to={`/notes?smart=${key}`} className={row(onList && params.get('smart') === key)}><Icon name={SMART_ICON[key] || 'star'} />{label}</Link>
-          ))}
-        </Group>
-
-        {recent.length > 0 && (
-          <Group title="Recently viewed" action={<Link to="/notes?smart=recent" className="rounded px-1 text-xs text-faint transition hover:text-stone-800 dark:hover:text-stone-200">See all</Link>}>
-            {recent.map((n) => (
-              <Link key={n._id} to={`/notes/${n._id}`} className={row(pathname === `/notes/${n._id}`)}>
-                {n.locked ? <Icon name="lock" /> : n.emoji ? <span aria-hidden="true" className="w-4 text-center text-xs">{n.emoji}</span> : <Icon name="notes" className="text-stone-400 dark:text-stone-400" />}
-                <span className="truncate">{displayTitle(n)}</span>
-              </Link>
-            ))}
-          </Group>
-        )}
-
         <Group title="Folders" action={<button type="button" onClick={newFolder} className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition hover:bg-stone-200/60 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200" aria-label="New folder" data-tip="New folder" data-tip-align="end"><Icon name="plus" size="xs" /></button>}>
           {folders === null && !failing && (
             <div data-testid="folders-loading" aria-busy="true" aria-label="Loading folders" className="space-y-1 px-2.5 py-1">
               {[60, 45, 70].map((w) => <div key={w} className="h-6 animate-pulse rounded-md bg-stone-200/70 dark:bg-white/[0.06]" style={{ width: `${w}%` }} />)}
             </div>
           )}
-          {folders?.length === 0 && <button type="button" onClick={newFolder} className={`${row(false)} text-faint`}><Icon name="folderPlus" />New folder</button>}
+          {folders?.length === 0 && <p className="px-2.5 py-1 text-xs text-faint">None yet</p>}
           {(folders || []).map((f) => f.pending ? (
             <div key={f._id} data-testid="folder-pending" className={`${row(false)} opacity-60`} aria-busy="true"><Icon name="folder" /><span className="truncate">{f.name}</span><span className="ml-auto text-xs text-faint">Saving…</span></div>
           ) : (
@@ -148,18 +143,11 @@ export default function Sidebar({ onOpen }) {
           ))}
         </Group>
 
-        {tags.length > 0 && (
-          <Group title="Tags">
-            {tags.map((t) => (
-              <Link key={t} to={`/notes?tag=${encodeURIComponent(t)}`} className={row(onList && params.get('tag') === t)}><Icon name="tag" /><span className="truncate">{t}</span></Link>
-            ))}
-          </Group>
-        )}
+        {tags.length > 0 && <TagGroup tags={tags} active={onList ? params.get('tag') : null} />}
 
         <div className="mt-6 border-t border-stone-200 pt-4 dark:border-stone-800">
           <NavLink to="/archive" className={({ isActive }) => row(isActive)}><Icon name="archive" />Archive</NavLink>
           <NavLink to="/trash" className={({ isActive }) => row(isActive)}><Icon name="trash" />Trash</NavLink>
-          <NavLink to="/help" data-tour="help" className={({ isActive }) => row(isActive)}><Icon name="help" />Help &amp; shortcuts</NavLink>
         </div>
       </div>
     </nav>
@@ -180,7 +168,7 @@ export function BottomNav() {
       <div className="flex">
         <Link to="/notes" className={item(pathname === '/notes')} aria-current={pathname === '/notes' ? 'page' : undefined}><Icon name="notes" size="md" />Notes</Link>
         <button type="button" onClick={search} className={item(false)}><Icon name="search" size="md" />Search</button>
-        <Link to="/notes/new" data-tour="new" className={item(pathname === '/notes/new')}><span className="grid h-5 w-5 place-items-center rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"><Icon name="plus" size="xs" /></span>New</Link>
+        <Link to="/notes/new" className={item(pathname === '/notes/new')}><span className="grid h-5 w-5 place-items-center rounded-full bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"><Icon name="plus" size="xs" /></span>New</Link>
         <Link to="/settings" className={item(pathname === '/settings')} aria-current={pathname === '/settings' ? 'page' : undefined}><Icon name="settings" size="md" />Settings</Link>
       </div>
     </nav>

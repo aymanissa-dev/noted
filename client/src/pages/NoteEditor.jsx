@@ -15,7 +15,6 @@ import PinPrompt from '../components/PinPrompt.jsx';
 import FolderPicker from '../components/FolderPicker.jsx';
 import VoiceNotes from '../components/VoiceNotes.jsx';
 import { EditorSkeleton, Bar } from '../components/Skeleton.jsx';
-import EditorTools from '../editor/EditorTools.jsx';
 import Icon from '../components/Icon.jsx';
 import ShareDialog from '../components/ShareDialog.jsx';
 import Menu from '../components/Menu.jsx';
@@ -66,6 +65,8 @@ export default function NoteEditor() {
   const previewOnlyRef = useRef(false);
   const [editorApi, setEditorApi] = useState(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [recordSignal, setRecordSignal] = useState(0);
   const [outlineSheet, setOutlineSheet] = useState(false);
   const typewriter = useTypewriter();
   const online = useIsOnline();
@@ -477,18 +478,22 @@ export default function NoteEditor() {
           <button type="button" onClick={togglePin} data-tip={note.pinned ? 'Unpin' : 'Pin to top'} aria-label={note.pinned ? 'Unpin' : 'Pin'} aria-pressed={note.pinned}
             className={`btn-ghost btn-icon ${note.pinned ? 'text-accent' : ''}`}><PinIcon filled={note.pinned} /></button>
           {!note.deletedAt && <FolderPicker value={note.folderId} onChange={moveFolder} />}
-          {!readOnly && <AppearancePicker color={note.color} emoji={note.emoji} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />}
+          <div className="relative">
           <Menu label="More actions" tip="More" testId="note-more" buttonClass="btn-ghost btn-icon text-stone-800 dark:text-stone-100" button={<Icon name="more" size="md" />}>
             {() => (
               <>
-                <div className="sm:hidden">
-                  <button role="menuitem" type="button" className="menu-item" onClick={() => setOutlineSheet(true)}><Icon name="outline" />Outline</button>
-                  {!readOnly && !note.deletedAt && <button role="menuitem" type="button" className="menu-item" onClick={() => setTimeout(() => editorApi?.pickImage(), 50)}><Icon name="image" />Add image</button>}
-                  <button role="menuitem" type="button" className="menu-item" onClick={() => setTimeout(() => editorApi?.openFind(), 50)}><Icon name="find" />Find and replace</button>
-                  <button role="menuitem" type="button" className="menu-item" onClick={() => setFocusMode(true)}><Icon name="focus" />Focus mode</button>
-                  <button role="menuitemcheckbox" aria-checked={typewriter} type="button" className="menu-item" onClick={toggleTypewriter}><Icon name="typewriter" />Typewriter mode{typewriter && <Icon name="check" size="xs" className="ml-auto text-accent" />}</button>
+                {/* Everything beyond title + body lives here, so the page stays quiet. */}
+                {!readOnly && !note.deletedAt && <>
+                  <button role="menuitem" type="button" className="menu-item" aria-label="Add image" data-testid="add-image" onClick={() => setTimeout(() => editorApi?.pickImage(), 50)}><Icon name="image" />Add image</button>
+                  <button role="menuitem" type="button" className="menu-item" aria-label="Color and emoji" onClick={() => setTimeout(() => setAppearanceOpen(true), 0)}><Icon name="palette" />Color &amp; emoji</button>
+                  {(!note.locked || unlockToken.current) && <button role="menuitem" type="button" className="menu-item" aria-label="Record voice note" onClick={() => setRecordSignal((n) => n + 1)}><Icon name="mic" />Record voice note</button>}
                   <div className="menu-sep" />
-                </div>
+                </>}
+                <button role="menuitem" type="button" className="menu-item" aria-label="Outline" onClick={() => setOutlineSheet(true)}><Icon name="outline" />Outline</button>
+                <button role="menuitem" type="button" className="menu-item" aria-label="Find and replace" onClick={() => setTimeout(() => editorApi?.openFind(), 50)}><Icon name="find" />Find and replace</button>
+                <button role="menuitem" type="button" className="menu-item" aria-label="Focus mode" onClick={() => setFocusMode(true)}><Icon name="focus" />Focus mode</button>
+                <button role="menuitemcheckbox" aria-checked={typewriter} type="button" className="menu-item" data-testid="typewriter-toggle" onClick={toggleTypewriter}><Icon name="typewriter" />Typewriter mode{typewriter && <Icon name="check" size="xs" className="ml-auto text-accent" />}</button>
+                <div className="menu-sep" />
                 {saved && <button role="menuitem" type="button" className="menu-item" aria-label="Version history" onClick={openHistory}><Icon name="history" />Version history</button>}
                 {saved && !note.deletedAt && (note.locked
                   ? <button role="menuitem" type="button" className="menu-item" aria-label="Remove lock" onClick={() => setRemoveLockOpen(true)}><Icon name="unlock" />Remove lock…</button>
@@ -508,6 +513,8 @@ export default function NoteEditor() {
               </>
             )}
           </Menu>
+          {appearanceOpen && !readOnly && <AppearancePicker open color={note.color} emoji={note.emoji} onClose={() => setAppearanceOpen(false)} onChange={(patch) => setNote((n) => ({ ...n, ...patch }))} />}
+          </div>
           <button type="button" className="btn-primary ml-1 px-3 sm:px-4" onClick={done} data-tip={`Save and close · Esc`} data-tip-align="end">Done</button>
         </div>
       </div>
@@ -542,19 +549,17 @@ export default function NoteEditor() {
         <input autoFocus={!routeId} aria-label="Title" className="editor-title w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={readOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
         {!focusMode && (
-        <div className="mt-3 border-b border-stone-100 dark:border-stone-800 pb-3" inert={readOnly ? '' : undefined}>
+        <div className="mt-2 pb-2" inert={readOnly ? '' : undefined}>
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
-          {/* Phones: these live in the ··· menu, so there's a single toolbar row. */}
-          <div className="hidden sm:block"><EditorTools content={note.content} editor={editorApi} canAddImage={!readOnly && !note.deletedAt} focusMode={focusMode} onFocusMode={setFocusMode} typewriter={typewriter} onTypewriter={toggleTypewriter} /></div>
         </div>
         )}
         <Suspense fallback={<div className="mt-4 min-h-[50vh]"><Bar className="h-3.5 w-3/4" /><Bar className="mt-3 h-3.5 w-2/3" /></div>}>
-          <MarkdownEditor value={note.content} readOnly={readOnly} placeholder="Start writing… Type / for headings, checklists and more"
+          <MarkdownEditor value={note.content} readOnly={readOnly} placeholder="Start writing…"
             persist={persist} focusMode={focusMode} typewriter={typewriter} onReady={setEditorApi} images={imageHost}
             onChange={(content) => setNote((n) => ({ ...n, content }))} />
         </Suspense>
         {!focusMode && !readOnly && !note.deletedAt && (!note.locked || unlockToken.current) && (
-          <VoiceNotes noteId={noteId && !isTempId(noteId) ? noteId : null} unlockToken={unlockToken.current}
+          <VoiceNotes recordSignal={recordSignal} noteId={noteId && !isTempId(noteId) ? noteId : null} unlockToken={unlockToken.current}
             ensureSaved={async () => { await save(); return idRef.current && !isTempId(idRef.current) ? idRef.current : null; }} />
         )}
         </div>
@@ -564,10 +569,7 @@ export default function NoteEditor() {
         {note.tags.length > 0 && <p className="print-tags">{note.tags.map((t) => `#${t}`).join('  ')}</p>}
         <div ref={printRef} dangerouslySetInnerHTML={{ __html: printHtml }} />
       </div>
-      <div className="mt-2 flex justify-between text-xs text-faint">
-        <span>{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note'}</span>
-        <span className="hidden sm:inline">Saves as you type</span>
-      </div>
+      <p className="mt-2 text-xs text-faint">{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note · saves as you type'}</p>
       {error && (isNetworkText(error)
         ? <p role="status" className="mt-3 inline-flex items-center gap-2 text-sm text-muted"><Icon name="offline" size="xs" />{error} Your changes are kept and sync when you’re back.</p>
         : <p className="mt-3 text-sm text-red-700 dark:text-red-400">{error}</p>)}
@@ -576,7 +578,7 @@ export default function NoteEditor() {
         <Dialog title="Outline" description="Jump to a heading." closeButton onClose={() => setOutlineSheet(false)}>
           {headings(note.content).length === 0
             ? <p className="text-sm text-muted">No headings yet. Type / at the start of a line and pick a heading.</p>
-            : <div className="-mx-2 max-h-[60vh] overflow-y-auto">{headings(note.content).map((h) => (
+            : <div className="-mx-2 max-h-[60vh] overflow-y-auto" data-testid="outline">{headings(note.content).map((h) => (
               <button key={h.line} type="button" className="menu-item" style={{ paddingLeft: `${0.75 + (h.level - 1) * 0.875}rem` }}
                 onClick={() => { setOutlineSheet(false); setTimeout(() => editorApi?.jumpToLine(h.line), 50); }}>{h.text || 'Untitled heading'}</button>
             ))}</div>}

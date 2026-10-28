@@ -59,6 +59,7 @@ const foldMarker = (open) => {
   const s = document.createElement('span');
   s.textContent = open ? '▾' : '▸';
   s.title = open ? 'Fold section' : 'Unfold section';
+  s.className = open ? 'fold-open' : 'fold-closed'; // open markers stay hidden until you hover the text
   s.setAttribute('aria-hidden', 'true');
   return s;
 };

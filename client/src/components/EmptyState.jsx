@@ -59,10 +59,11 @@ function Picture({ kind, query }) {
   if (kind === 'smart') return (
     <div className="mx-auto w-64 space-y-2">{[0, 1].map((i) => <div key={i} className={`${card} ${i ? 'opacity-50' : ''}`}>{line('w-2/3')}<div className="mt-2">{line('w-2/5')}</div></div>)}</div>
   );
-  // first note: the quick-capture line
+  // first note: a blank page with a blinking caret
   return (
-    <div className="mx-auto w-72 text-left">
-      <div className="flex items-center gap-3 rounded-xl border border-accent/60 bg-white px-3.5 py-2.5 text-sm text-stone-800 shadow-soft ring-4 ring-accent/10 dark:bg-stone-900 dark:text-stone-100"><span className="h-3.5 w-0.5 rounded-full bg-accent" />Call the plumber <span className="text-accent">#home</span><kbd className="kbd kbd-sm ml-auto">↵</kbd></div>
+    <div className={`${card} mx-auto w-64 text-left`}>
+      <p className="flex items-center gap-1 text-sm font-semibold text-stone-800 dark:text-stone-100">Your first note<span className="h-4 w-0.5 rounded-full bg-accent motion-safe:animate-pulse" /></p>
+      <div className="mt-2 space-y-1.5 opacity-60">{line('w-4/5')}{line('w-1/2')}</div>
     </div>
   );
 }

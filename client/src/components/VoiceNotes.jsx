@@ -28,7 +28,7 @@ function Clip({ clip, unlockToken, onDelete }) {
 }
 
 // Record and play voice notes for a saved note (owner-only, private). Hidden for locked notes until unlocked.
-export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
+export default function VoiceNotes({ noteId, unlockToken, ensureSaved, recordSignal = 0 }) {
   const online = useIsOnline();
   const dialog = useDialog();
   const [clips, setClips] = useState([]);
@@ -77,12 +77,21 @@ export default function VoiceNotes({ noteId, unlockToken, ensureSaved }) {
     rec.current = mr; mr.start(1000); setElapsed(0); setRecording(true);
   };
   const stop = () => rec.current?.stop();
+  // "Record voice note" in the note's ··· menu starts a recording; the bar only shows while it's in use.
+  const startRef = useRef(start); startRef.current = start;
+  useEffect(() => {
+    if (!recordSignal) return;
+    if (!supported) { setError('Voice notes aren’t supported in this browser.'); return; }
+    if (!online) { setError('Voice notes need a connection.'); return; }
+    if (!rec.current) startRef.current();
+  }, [recordSignal]); // eslint-disable-line react-hooks/exhaustive-deps
   const remove = async (clip) => {
     if (!(await dialog.confirm({ title: 'Delete this voice note?', body: 'The recording is removed for good.', confirmLabel: 'Delete', danger: true }))) return;
     try { await audioApi.remove(clip._id, unlockToken); setClips((c) => c.filter((x) => x._id !== clip._id)); } catch (e) { setError(e.message); }
   };
 
-  if (!supported && !clips.length) return null;
+  // Quiet by default: nothing until there are clips, a recording, or something to say.
+  if (!clips.length && !recording && !busy && !error) return null;
   return (
     <section aria-label="Voice notes" className="mt-4 border-t border-stone-100 pt-3 dark:border-stone-800 print:hidden">
       {clips.length > 0 && <ul className="mb-2 space-y-2">{clips.map((c) => <Clip key={c._id} clip={c} unlockToken={unlockToken} onDelete={remove} />)}</ul>}

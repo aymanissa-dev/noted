@@ -7,42 +7,34 @@ import { IS_MAC } from '../lib/keys.js';
 
 export const openUI = (what) => window.dispatchEvent(new CustomEvent('noted:open', { detail: what }));
 
+// Matches what's on screen: a title, the text, and one ··· menu for everything else.
 const BASICS = [
   { icon: 'edit', title: 'Write', items: [
-    <>Start a note with <b>New note</b> (<Kbd combo="N" size="sm" />). The first line is the title. It saves as you type.</>,
-    <>Type <Kbd combo="/" size="sm" /> at the start of a line for headings, checklists, quotes, code and today’s date. Type <Kbd combo=":" size="sm" /> for emoji.</>,
-    <>Add <b>images</b> by pasting (<Kbd combo="Mod+V" size="sm" />), dragging them onto the note, the <b>Image</b> button, or <b>/image</b>. Click one to see it full size; <b>Alt</b> describes it. Images are private to you and need a connection to add.</>,
-    <>Select text to highlight it, or use <Kbd combo="Mod+B" size="sm" /> <Kbd combo="Mod+I" size="sm" /> <Kbd combo="Mod+Shift+H" size="sm" />.</>,
-    <><b>Focus</b> hides everything but the text; <b>Typewriter</b> keeps the line you’re typing centered (<Kbd combo="Alt+Shift+T" size="sm" />, or search “typewriter” in the palette); <b>Outline</b> jumps between headings.</>,
-  ] },
-  { icon: 'folder', title: 'Organize', items: [
-    <><b>Pin</b> what you need most; it stays on top.</>,
-    <>Put notes in <b>folders</b> and add <b>#tags</b>, even straight from quick capture: “Call Sam #work”.</>,
-    <>Give a note a color or an emoji from the palette button in its toolbar.</>,
-    <><b>Archive</b> tucks a note away. <b>Trash</b> keeps deleted notes for 30 days.</>,
+    <>Press <b>New note</b> (<Kbd combo="N" size="sm" />). Give it a title, then just write. It saves as you type.</>,
+    <>Type <Kbd combo="/" size="sm" /> at the start of a line for headings, checklists and more. <Kbd combo="Mod+B" size="sm" /> and <Kbd combo="Mod+I" size="sm" /> work too.</>,
+    <>Paste or drop an <b>image</b>, or choose <b>Add image</b> from the note’s <b>···</b> menu.</>,
   ] },
   { icon: 'search', title: 'Find', items: [
-    <>Search (<Kbd combo="/" size="sm" />) looks through titles, text and tags.</>,
-    <>Smart views: Recently viewed, Pinned, Edited today, This week, Untagged, Locked.</>,
-    <>The command palette (<Kbd combo="Mod+K" size="sm" />) finds any note and runs any action.</>,
-    <>Inside a note, <Kbd combo="Mod+F" size="sm" /> finds and replaces.</>,
+    <>Type in <b>Search</b> (<Kbd combo="/" size="sm" />). It looks through titles, text and tags.</>,
+    <><b>Pin</b> a note to keep it on top. Add <b>#tags</b> under the title, or use <b>folders</b> from the sidebar.</>,
+    <>Press <Kbd combo="Mod+K" size="sm" /> to jump to any note from anywhere.</>,
   ] },
-  { icon: 'shield', title: 'Keep it safe', items: [
-    <><b>Lock</b> private notes with a PIN (set it in Settings).</>,
-    <><b>Version history</b> in the <span className="whitespace-nowrap">“…”</span> menu restores earlier drafts.</>,
-    <>Works offline; changes sync when you’re back.</>,
-    <>Export everything as JSON or Markdown from Settings (the Markdown ZIP includes your images). No AI ever reads your notes.</>,
+  { icon: 'more', title: 'The ··· menu', items: [
+    <>In a note, <b>···</b> holds the extras: image, color &amp; emoji, voice note, outline, find, focus and typewriter.</>,
+    <>It also has <b>Share</b>, <b>Lock with PIN</b>, <b>Version history</b>, print, <b>Archive</b> and <b>Move to trash</b>.</>,
+  ] },
+  { icon: 'shield', title: 'Private by default', items: [
+    <><b>Lock</b> private notes with a PIN (set it in Settings). Share links are read-only and you can turn them off any time.</>,
+    <>Works offline; changes sync when you’re back. Export everything from Settings.</>,
   ] },
 ];
 
 const TOUCH = [
   ['Bottom bar', 'Notes, Search, New and Settings are always one tap away.'],
-  ['Menu (☰)', 'Archive, Trash, Help, theme, storage stats and log out.'],
+  ['Menu (☰)', 'Archive, Trash, Help, theme and log out.'],
   ['Open a note', 'Tap a card. Tap the pin on a card to pin or unpin it.'],
-  ['Select several', 'Tap Select above the list, then tap cards to merge, move or delete them together.'],
-  ['In a note', 'Back returns to the list. Done closes the note. “…” holds history, lock, print, archive and delete.'],
+  ['In a note', 'Back returns to the list. “···” holds images, share, lock, history, archive and delete.'],
   ['Formatting', 'Type / at the start of a line for headings and checklists; tap a checkbox to tick it.'],
-  ['Images', 'In a note, “…” → Add image takes a photo or picks one from your library. Tap an image to see it full size.'],
   ['Install', 'Add noted. to your home screen from the browser’s share or menu button; it works offline.'],
 ];
 
@@ -53,10 +45,9 @@ export default function Help() {
     <div className="mx-auto max-w-4xl" data-testid="help-page">
       <p className="eyebrow">Help</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">How to use noted<span className="text-accent">.</span></h1>
-      <p className="mt-3 max-w-xl text-muted">A two-minute guide. Write it down, find it later, and never lose a thought.</p>
+      <p className="mt-3 max-w-xl text-muted">The one-minute guide. Write it down, find it later.</p>
       <div className="mt-6 flex flex-wrap gap-2">
-        <button type="button" className="btn-primary" onClick={() => openUI('tour')}><Icon name="compass" />Take the tour</button>
-        <button type="button" className="btn-secondary hidden sm:inline-flex" onClick={() => openUI('palette')}><Icon name="command" />Command palette<Kbd combo="Mod+K" size="sm" /></button>
+        <Link to="/notes/new" className="btn-primary"><Icon name="plus" />New note</Link>
         <button type="button" className="btn-secondary hidden sm:inline-flex" onClick={() => openUI('shortcuts')}><Icon name="keyboard" />All shortcuts<Kbd combo="?" size="sm" /></button>
         <Link to="/changelog" className="btn-ghost"><Icon name="sparkle" />What’s new</Link>
       </div>

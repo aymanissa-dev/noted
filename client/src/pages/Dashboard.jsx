@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFlip } from '../lib/flip.js';
 import { latestOnly } from '../lib/latest.js';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { SMART, smartLabel } from '../lib/smart.js';
+import { smartLabel } from '../lib/smart.js';
 import { api, matchesList, readMeta } from '../lib/api.js';
 import { preloadEditor } from '../editor/preload.js';
 import Icon from '../components/Icon.jsx';
 import NoteCard from '../components/NoteCard.jsx';
-import QuickCapture from '../components/QuickCapture.jsx';
+import Menu from '../components/Menu.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { ListSkeleton } from '../components/Skeleton.jsx';
 import MergeDialog from '../components/MergeDialog.jsx';
@@ -164,25 +164,6 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
     catch (e) { flip(note.pinned); setError(e.message); }
   };
 
-  // Optimistic quick capture: show the note immediately, then swap in the saved (or offline-queued) note.
-  const capture = async (fields, rawText) => {
-    const tempId = `optimistic-${Date.now()}`;
-    const now = new Date().toISOString();
-    const optimistic = { _id: tempId, ...fields, pinned: false, archived: false, deletedAt: null, color: '', emoji: '', createdAt: now, updatedAt: now, pending: true };
-    setEntering(tempId);
-    setNotes((l) => [optimistic, ...l].sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
-    try {
-      const { note } = await api.createNote(folder ? { ...fields, folderId: folder } : fields);
-      setNotes((l) => l.map((n) => (n._id === tempId ? note : n)));
-      setEntering((e) => (e === tempId ? note._id : e));
-    } catch (e) {
-      setNotes((l) => l.filter((n) => n._id !== tempId));
-      setError(`Couldn't save quick note: ${e.message}`);
-      const input = document.getElementById('quick-capture');
-      if (input && !input.value) { const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(input, rawText); input.dispatchEvent(new Event('input', { bubbles: true })); }
-    }
-  };
-
   const restore = async (note) => {
     const done = removeAnimated(note._id); // optimistic
     try { await api.restoreNote(note._id); await done; }
@@ -232,16 +213,18 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
             {view === 'trash' && <p className="mt-0.5 text-sm text-muted">Notes here are deleted for good after 30 days.</p>}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {view !== 'trash' && notes.length > 1 && (
-              <button type="button" className="btn-ghost btn-sm sm:hidden" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : 'Select'}</button>
-            )}
-            {isActive && (
+            {isActive && folders.length > 0 && (
               <select aria-label="Show" value={scope} onChange={(e) => pickScope(e.target.value)}
                 className="input w-auto max-w-[10rem] py-1.5 lg:hidden">
                 <option value="">All notes</option>
-                <optgroup label="Smart">{SMART.map(([k, l]) => <option key={k} value={`smart:${k}`}>{l}</option>)}</optgroup>
-                {folders.length > 0 && <optgroup label="Folders">{folders.map((f) => <option key={f._id} value={`folder:${f._id}`}>{f.name}</option>)}</optgroup>}
+                {smart && <option value={`smart:${smart}`}>{smartLabel(smart)}</option>}
+                <optgroup label="Folders">{folders.map((f) => <option key={f._id} value={`folder:${f._id}`}>{f.name}</option>)}</optgroup>
               </select>
+            )}
+            {view !== 'trash' && notes.length > 1 && (
+              <Menu label="List options" tip="More" testId="list-more" buttonClass="btn-ghost btn-icon" button={<Icon name="more" size="md" />}>
+                {() => <button role="menuitem" type="button" className="menu-item" onClick={() => setSelecting(true)}><Icon name="select" />Select notes to merge</button>}
+              </Menu>
             )}
           </div>
         </div>
@@ -257,15 +240,10 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
               className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"><Icon name="close" /></button>
           )}
         </div>
-        {view !== 'trash' && !compact && notes.length > 1 && (
-          <button type="button" className="btn-ghost hidden sm:inline-flex" aria-pressed={selecting} data-tip={selecting ? undefined : 'Select notes to merge'}
-            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Cancel' : <><Icon name="select" />Select</>}</button>
-        )}
         {isActive && <Link to={folder ? `/notes/new?folder=${folder}` : '/notes/new'} className={`btn-primary hidden sm:inline-flex ${compact ? 'btn-icon' : ''}`} data-tour="new" aria-label="New note" data-tip="New note · N" data-tip-align="end"><Icon name="plus" />{!compact && 'New note'}</Link>}
         {view === 'trash' && notes.length > 0 && <span title={noConnection ? 'Needs a connection' : undefined}><button className="btn-danger" disabled={noConnection} onClick={emptyTrash}><Icon name="trash" />Empty trash</button></span>}
       </div>
 
-      {isActive && !smart && !compact && <QuickCapture onCapture={capture} />}
       {(offline || loadError === 'offline') && (
         <div role="status" data-testid="list-offline" className="mt-4 flex items-center justify-between gap-3 text-xs text-muted">
           <span className="inline-flex items-center gap-2"><Icon name="offline" size="xs" />
@@ -297,7 +275,10 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
       {selecting && (
         <div role="status" className="sticky top-[calc(var(--header-h)+0.5rem)] z-[6] mt-4 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white/95 px-4 py-2 text-sm shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/95">
           <span>{selected.length ? `${selected.length} selected` : 'Select notes to merge'}</span>
-          <button type="button" className="btn-primary py-1.5" disabled={selected.length < 2} onClick={() => setMerging(true)}>Merge{selected.length > 1 ? ` ${selected.length}` : ''}</button>
+          <span className="flex items-center gap-1">
+            <button type="button" className="btn-ghost btn-sm" onClick={stopSelecting}>Cancel</button>
+            <button type="button" className="btn-primary py-1.5" disabled={selected.length < 2} onClick={() => setMerging(true)}>Merge{selected.length > 1 ? ` ${selected.length}` : ''}</button>
+          </span>
         </div>
       )}
       {merging && <MergeDialog notes={selected} onMerge={merge} onCancel={() => setMerging(false)} />}
@@ -314,13 +295,13 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
           <EmptyState kind="offline" testId="empty-offline" title="Nothing saved on this device" body={`This list hasn’t been saved on this device yet. It loads when you reconnect.`} primary={{ onClick: () => setSyncTick((t) => t + 1), label: 'Try again', icon: 'refresh' }} />
         ) : (
         <Empty compact={compact} view={view} query={query} tag={tag} folder={folder} smart={smart}
-          clear={() => { setSearch(''); setTag(''); }} focusCapture={() => document.getElementById('quick-capture')?.focus()} />
+          clear={() => { setSearch(''); setTag(''); }} />
         )
       ) : (
         <>
           {pinned.length > 0 && <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title="Pinned" notes={pinned} onTogglePin={togglePin} />}
           {others.length > 0 && (
-            <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={!isActive ? (view === 'trash' ? 'Trash' : 'Archived') : pinned.length ? 'Others' : heading ? 'Notes' : 'All notes'}
+            <Section leaving={leaving} entering={entering} selecting={selecting} selected={selected} onSelect={toggleSelect} compact={compact} activeId={activeId} title={isActive && pinned.length ? 'Others' : null}
               notes={others} onTogglePin={isActive ? togglePin : undefined} onRestore={restore} onDeleteForever={deleteForever} onReveal={revealTitle} needsConnection={noConnection} />
           )}
           {noConnection && view === 'trash' && <p id="needs-connection" className="sr-only">Needs a connection</p>}
@@ -334,7 +315,7 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
 function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, onReveal, needsConnection, compact, activeId, selecting, selected = [], onSelect, leaving, entering }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-3 section-label">{title}</h2>
+      {title ? <h2 className="mb-3 section-label">{title}</h2> : <h2 className="sr-only">Notes</h2>}
       <div className={`grid ${compact ? 'gap-2' : 'grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-4'}`}>
         {notes.map((n) => <NoteCard key={n._id} leaving={leaving?.has(n._id)} entering={entering === n._id} note={n} compact={compact} active={n._id === activeId} selecting={selecting && !n.locked && !String(n._id).startsWith('optimistic-')} selectedIndex={selected.findIndex((x) => x._id === n._id)} onSelect={onSelect} onTogglePin={onTogglePin} onRestore={onRestore} onDeleteForever={onDeleteForever} onReveal={onReveal} needsConnection={needsConnection} />)}
       </div>
@@ -343,16 +324,16 @@ function Section({ title, notes, onTogglePin, onRestore, onDeleteForever, onReve
 }
 
 // What to show when a list is empty: teach the feature and offer the real next step.
-function Empty({ compact, view, query, tag, folder, smart, clear, focusCapture }) {
+function Empty({ compact, view, query, tag, folder, smart, clear }) {
   const newNote = { to: folder ? `/notes/new?folder=${folder}` : '/notes/new', label: 'New note', icon: 'plus' };
   let p;
   if (query || tag) p = { kind: 'search', title: 'No matches', body: `No notes match ${query ? `“${query}”` : `#${tag}`}. Try fewer words, another tag, or search the archive.`, primary: { onClick: clear, label: 'Clear search' }, secondary: newNote, shortcuts: [['Esc', 'clear search'], ['Mod+K', 'search everywhere']] };
   else if (folder) p = { kind: 'folder', title: 'This folder is empty', body: 'Create a note here, or open any note and use its folder button to move it in.', primary: { ...newNote, label: 'New note in this folder' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['N', 'new note']] };
-  else if (smart === 'locked') p = { kind: 'locked', title: 'No locked notes', body: 'Lock a private note from its ••• menu (Lock with PIN). Set your PIN in Settings first.', primary: { to: '/settings', label: 'Set up a PIN', icon: 'lock' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['G S', 'settings']] };
+  else if (smart === 'locked') p = { kind: 'locked', title: 'No locked notes', body: 'Lock a private note from its ··· menu (Lock with PIN). Set your PIN in Settings first.', primary: { to: '/settings', label: 'Set up a PIN', icon: 'lock' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['G S', 'settings']] };
   else if (smart) p = { kind: 'smart', title: 'Nothing here right now', body: 'Smart views fill themselves: notes show up here as soon as they match.', primary: newNote, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['N', 'new note'], ['G N', 'all notes']] };
-  else if (view === 'archive') p = { kind: 'archive', title: 'Nothing archived', body: 'Archive notes you want to keep but not see every day: open a note, press •••, then Archive. They stay searchable here.', primary: { to: '/notes', label: 'Choose a note to archive', icon: 'archive' }, shortcuts: [['G A', 'open the archive'], ['G N', 'all notes']] };
+  else if (view === 'archive') p = { kind: 'archive', title: 'Nothing archived', body: 'Archive notes you want to keep but not see every day: open a note, press ···, then Archive. They stay searchable here.', primary: { to: '/notes', label: 'Choose a note to archive', icon: 'archive' }, shortcuts: [['G A', 'open the archive'], ['G N', 'all notes']] };
   else if (view === 'trash') p = { kind: 'trash', title: 'Trash is empty', body: 'Deleted notes wait here for 30 days, so you can restore them. After that they’re gone for good.', primary: { to: '/notes', label: 'Back to notes' }, shortcuts: [['G T', 'open the trash'], ['G N', 'all notes']] };
-  else p = { kind: 'first', title: 'No notes yet', body: 'Write your first note, or jot one line in quick capture above and press Enter.', primary: newNote, secondary: { onClick: focusCapture, label: 'Quick capture', icon: 'bolt' }, shortcuts: [['N', 'new note'], ['Q', 'quick capture'], ['?', 'all shortcuts']] };
+  else p = { kind: 'first', title: 'No notes yet', body: 'Write it down now. Find it later with search.', primary: newNote, shortcuts: [['N', 'new note']] };
   if (compact) {
     return (
       <div className="px-2 py-10 text-center text-sm" data-testid="empty-state" data-kind={p.kind}>

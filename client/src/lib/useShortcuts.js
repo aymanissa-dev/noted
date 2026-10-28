@@ -62,9 +62,6 @@ export function useShortcuts({ helpOpen, setHelpOpen, paletteOpen, setPaletteOpe
       } else if (e.key === '/') {
         e.preventDefault();
         focusSearch(navigate, pathname);
-      } else if (k === 'q') {
-        const el = document.getElementById('quick-capture');
-        if (el) { e.preventDefault(); el.focus(); }
       } else if (e.key === '?') {
         e.preventDefault();
         setHelpOpen((o) => !o);

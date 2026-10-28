@@ -27,7 +27,7 @@ export const matchScore = (label, s) => {
 };
 
 // Ctrl/⌘+K: search notes, jump to a view, or run an action. Each command shows its shortcut.
-export default function CommandPalette({ onClose, onShortcuts, onTour }) {
+export default function CommandPalette({ onClose, onShortcuts }) {
   const navigate = useNavigate();
   const { cycle, theme } = useTheme();
   const { logout } = useAuth();
@@ -45,7 +45,6 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
   const commands = useMemo(() => [
     { id: 'new', group: 'Actions', label: 'New note', icon: 'plus', keys: 'N', run: go('/notes/new') },
     { id: 'search', group: 'Actions', label: 'Search notes', icon: 'search', keys: '/', run: () => focusSearch(navigate, location.pathname) },
-    { id: 'capture', group: 'Actions', label: 'Quick capture', icon: 'bolt', keys: 'Q', run: () => { navigate('/notes'); setTimeout(() => document.getElementById('quick-capture')?.focus(), 80); } },
     { id: 'typewriter', group: 'Actions', label: `Typewriter mode (now ${typewriter ? 'on' : 'off'})`, icon: 'typewriter', keys: 'Alt+Shift+T',
       run: () => { const on = toggleTypewriter(); toast.show(on ? 'Typewriter mode on: the line you’re typing stays centered.' : 'Typewriter mode off.'); } },
     { id: 'theme', group: 'Actions', label: `Switch theme (now ${theme})`, icon: 'sun', run: cycle, keep: true },
@@ -58,7 +57,6 @@ export default function CommandPalette({ onClose, onShortcuts, onTour }) {
     { id: 'go-stats', group: 'Go to', label: 'Storage stats', icon: 'chart', run: go('/stats') },
     { id: 'help', group: 'Help', label: 'How to use noted.', icon: 'help', keys: 'G H', run: go('/help') },
     { id: 'shortcuts', group: 'Help', label: 'Keyboard shortcuts', icon: 'keyboard', keys: '?', run: onShortcuts },
-    { id: 'tour', group: 'Help', label: 'Take the tour again', icon: 'compass', run: onTour },
     { id: 'logout', group: 'Account', label: 'Log out', icon: 'logout', run: () => logout() },
   ], [theme, typewriter]); // eslint-disable-line react-hooks/exhaustive-deps
 
