@@ -20,7 +20,8 @@ RELEASES.forEach((r, i) => {
   });
   assert.equal(new Set(r.changes.map((c) => c.text)).size, r.changes.length, `${where}: duplicate change text`);
 });
-assert.match(RELEASES[0].title, /simpler/i, 'latest release is the simpler app');
+assert.match(RELEASES[0].title, /depth/i, 'latest release is the 3D home page');
+assert.ok(RELEASES.some((r) => /simpler/i.test(r.title)), 'the simpler app release is kept');
 assert.ok(RELEASES.some((r) => /share/i.test(r.title)), 'share links release kept');
 assert.ok(RELEASES.some((r) => /image/i.test(r.title)), 'image uploads release kept');
 

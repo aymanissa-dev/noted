@@ -19,6 +19,17 @@ export const CHANGE_TYPES = {
 
 export const RELEASES = [
   {
+    version: '1.9',
+    date: '2026-10-29',
+    title: 'A home page with depth',
+    summary: 'The home page preview now has a little depth: it tips up as you scroll, leans toward your pointer and has notes floating around it.',
+    changes: [
+      { type: 'improved', text: 'The home page preview rises into place, flattens as you scroll and turns gently toward your mouse.' },
+      { type: 'improved', text: 'Paper notes float around the preview at different depths, and feature cards tip toward you on hover.' },
+      { type: 'improved', text: 'With “reduce motion” turned on, the home page stays completely still.' },
+    ],
+  },
+  {
     version: '1.8',
     date: '2026-10-28',
     title: 'A simpler noted., and a new home page',
