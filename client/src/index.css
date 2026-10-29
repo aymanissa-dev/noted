@@ -300,6 +300,56 @@ html[data-input=keyboard] .editor-title:focus { outline: 2px solid rgb(var(--acc
   .mock-hit { background-color: rgb(var(--accent) / 0.14); border-color: rgb(var(--accent) / 0.6); }
   .cta-lift:hover, .cta-lift:hover .cta-arrow { transform: none; }
 }
+/* ---- Hero depth (3D) ----
+   The stage holds a perspective; .mock-3d leans back on a tilted plane that flattens as the hero
+   scrolls up (--sp 0→1) and turns a few degrees toward the pointer (--px/--py −1…1, set by useDepth).
+   Floating cards and badges sit at their own depth (translateZ) and drift a little. GPU transforms only. */
+.mock-stage { perspective: 1600px; perspective-origin: 50% 20%; }
+.mock-3d {
+  transform-style: preserve-3d; transform-origin: 50% 0;
+  transform: rotateX(calc((1 - var(--sp, 0)) * 14deg + var(--py, 0) * -3deg)) rotateY(calc(var(--px, 0) * 5deg)) translateZ(0);
+}
+.depth-live .mock-3d { will-change: transform; transition: transform 120ms linear; }
+.mock-window { transform: translateZ(0); box-shadow: 0 1px 0 rgb(255 255 255 / 0.6) inset, 0 40px 80px -30px rgb(28 25 23 / 0.35), 0 18px 36px -24px rgb(28 25 23 / 0.25); }
+.dark .mock-window { box-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 40px 90px -30px rgb(0 0 0 / 0.8); }
+/* A soft contact shadow under the window that tightens as it flattens. */
+.mock-shadow { position: absolute; left: 8%; right: 8%; bottom: -2.5rem; height: 4rem; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(28 25 23 / 0.22), transparent); filter: blur(10px);
+  transform: scaleX(calc(0.92 + var(--sp, 0) * 0.08)); opacity: calc(0.6 + var(--sp, 0) * 0.4); }
+.dark .mock-shadow { background: radial-gradient(closest-side, rgb(0 0 0 / 0.6), transparent); }
+.pop-z { transform-style: preserve-3d; }
+.mock-3d .pop-z { translate: 0 0 70px; }
+/* The whole mockup rises out of the page on load, tipping up into place. */
+.mock-rise { perspective: 1600px; animation: rise 1100ms cubic-bezier(.16,.8,.24,1) 300ms both; transform-origin: 50% 100%; }
+@keyframes rise { from { opacity: 0; transform: translateY(70px) rotateX(24deg) scale(0.94); } to { opacity: 1; transform: none; } }
+/* Floating paper notes around the window, each at its own depth; they parallax with the pointer. */
+.floater { position: absolute; display: none; z-index: 1; translate: calc(var(--px, 0) * var(--z) * -0.12) calc(var(--py, 0) * var(--z) * -0.08) var(--z); }
+@media (min-width: 1024px) { .floater { display: block; } }
+.floater-card { width: 11.5rem; padding: 0.7rem 0.85rem; border-radius: 0.9rem; border: 1px solid rgb(231 229 228 / 0.9);
+  background: rgb(255 255 255 / 0.92); box-shadow: 0 24px 40px -22px rgb(28 25 23 / 0.35), 0 2px 6px -2px rgb(28 25 23 / 0.08);
+  animation: drift 9s ease-in-out infinite, card-in 900ms cubic-bezier(.16,.8,.24,1) backwards; }
+.dark .floater-card { background: rgb(41 37 36 / 0.92); border-color: rgb(68 64 60 / 0.9); box-shadow: 0 24px 40px -20px rgb(0 0 0 / 0.7); }
+.floater-a { left: -7.5rem; top: 4rem; } .floater-a .floater-card { rotate: -7deg; animation-delay: -1s, 900ms; }
+.floater-b { right: -8rem; top: 9rem; } .floater-b .floater-card { rotate: 6deg; animation-delay: -4s, 1050ms; }
+.floater-c { left: -4.5rem; bottom: 1.5rem; filter: blur(0.6px); opacity: 0.85; } .floater-c .floater-card { rotate: 4deg; animation-delay: -6s, 1200ms; }
+.floater-d { right: -5rem; bottom: -1.5rem; } .floater-d .floater-card { rotate: -5deg; animation-delay: -2.5s, 1350ms; }
+@keyframes drift { 0%, 100% { transform: translate3d(0, 0, 0) rotateX(0) rotateY(0); } 50% { transform: translate3d(0, -10px, 0) rotateX(6deg) rotateY(-8deg); } }
+@keyframes card-in { from { opacity: 0; transform: translate3d(0, 30px, -80px) rotateX(30deg); } }
+/* Hero floor: a perspective grid that slowly rolls toward you under the mockup. */
+.hero-floor { perspective: 600px; overflow: hidden; -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 90%); mask-image: linear-gradient(to top, #000 10%, transparent 90%); }
+.hero-floor-grid { position: absolute; left: -50%; right: -50%; top: 0; height: 200%; transform-origin: 50% 0; transform: rotateX(62deg);
+  background: linear-gradient(to right, rgb(120 113 108 / 0.13) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(to bottom, rgb(120 113 108 / 0.13) 1px, transparent 1px) 0 0 / 44px 44px; }
+.dark .hero-floor-grid { background: linear-gradient(to right, rgb(255 255 255 / 0.07) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(to bottom, rgb(255 255 255 / 0.07) 1px, transparent 1px) 0 0 / 44px 44px; }
+.hero-floor-grid { animation: floor 6s linear infinite; }
+@keyframes floor { from { translate: 0 -44px; } to { translate: 0 0; } }
+/* Feature cards tip toward you on hover. */
+.landing .beat-3d.in { transition: transform 350ms cubic-bezier(.2,.7,.2,1), box-shadow 300ms ease, opacity 700ms ease; }
+.landing .beat-3d.in:hover { transform: perspective(900px) rotateX(5deg) rotateY(-4deg) translateY(-4px); }
+@media (prefers-reduced-motion: reduce) {
+  .mock-3d, .mock-3d .pop-z, .floater, .mock-shadow { transform: none !important; translate: none !important; transition: none !important; }
+  .mock-rise, .floater-card, .hero-floor-grid { animation: none !important; }
+  .landing .beat-3d.in:hover { transform: none; }
+}
 @keyframes noted-img-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 /* Public shared note: escaped Markdown rendered as HTML. */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../components/Logo.jsx';
 import Icon from '../components/Icon.jsx';
@@ -73,6 +73,43 @@ export function Nav({ base = '', signedIn = false }) {
 
 // The hero mockup: a tiny noted. window that plays once: notes slide in, a line types itself,
 // then a search finds the right note. CSS only (no images, no video); still under reduced motion.
+// Hero depth: the mockup sits on a tilted plane that flattens as you scroll, leans toward the pointer
+// and has note cards floating at different depths around it. Only CSS variables change (one rAF per
+// frame, passive listeners, paused off-screen); nothing runs with reduced motion or on touch-only pointers.
+function useDepth(ref) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    let raf = 0; let px = 0; let py = 0; let visible = true;
+    const paint = () => {
+      raf = 0;
+      const sp = Math.min(1, scrollY / (innerHeight * 0.6)); // 0 at the top → 1 (flat) after ~60% of a screen
+      el.style.setProperty('--sp', sp.toFixed(3));
+      el.style.setProperty('--px', px.toFixed(3));
+      el.style.setProperty('--py', py.toFixed(3));
+    };
+    const queue = () => { if (!raf && visible) raf = requestAnimationFrame(paint); };
+    const onMove = (e) => { px = (e.clientX / innerWidth) * 2 - 1; py = (e.clientY / innerHeight) * 2 - 1; queue(); };
+    const io = new IntersectionObserver(([en]) => { visible = en.isIntersecting; if (visible) queue(); });
+    io.observe(el);
+    addEventListener('scroll', queue, { passive: true });
+    addEventListener('resize', queue, { passive: true });
+    if (fine) addEventListener('pointermove', onMove, { passive: true });
+    el.classList.add('depth-live');
+    queue();
+    return () => { cancelAnimationFrame(raf); io.disconnect(); removeEventListener('scroll', queue); removeEventListener('resize', queue); removeEventListener('pointermove', onMove); };
+  }, [ref]);
+}
+
+// Paper cards that float in front of and behind the mockup (decorative; wide screens only).
+const FLOATERS = [
+  { cls: 'floater-a', z: 120, title: 'Ideas', body: 'Plant herbs on the balcony', tag: '#home' },
+  { cls: 'floater-b', z: 70, title: 'Wi-Fi', body: 'Guest: pastel-de-nata-28', tag: '#home' },
+  { cls: 'floater-c', z: -60, title: 'Sunday', body: '☐ Call mum  ☐ Laundry', tag: '' },
+  { cls: 'floater-d', z: 160, title: 'Pinned', body: 'Gate code 4417', tag: '📌' },
+];
+
 function HeroMock() {
   const notes = [
     ['Trip ideas', 'Lisbon in May. Tram 28, pastel de nata…', true],
@@ -80,7 +117,18 @@ function HeroMock() {
     ['Book list', 'The Overstory · Piranesi', false],
   ];
   return (
-    <div aria-hidden="true" className="mock relative mx-auto max-w-4xl text-left">
+    <div aria-hidden="true" className="mock-stage relative mx-auto max-w-4xl text-left">
+      <div className="mock-shadow" />
+      <div className="mock-3d relative">
+      {FLOATERS.map((f) => (
+        <div key={f.cls} className={`floater ${f.cls}`} style={{ '--z': `${f.z}px` }}>
+          <div className="floater-card">
+            <p className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">{f.title}</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-stone-500 dark:text-stone-400">{f.body}</p>
+            {f.tag && <p className="mt-1.5 text-[10px] font-medium text-stone-400 dark:text-stone-500">{f.tag}</p>}
+          </div>
+        </div>
+      ))}
       <div className="mock-window overflow-hidden rounded-2xl border border-stone-200/90 bg-white shadow-lift dark:border-stone-800 dark:bg-stone-900">
         <div className="flex items-center gap-1.5 border-b border-stone-100 px-4 py-3 dark:border-stone-800">
           <span className="h-2.5 w-2.5 rounded-full bg-stone-200 dark:bg-stone-700" /><span className="h-2.5 w-2.5 rounded-full bg-stone-200 dark:bg-stone-700" /><span className="h-2.5 w-2.5 rounded-full bg-stone-200 dark:bg-stone-700" />
@@ -112,11 +160,12 @@ function HeroMock() {
           </div>
         </div>
       </div>
-      <div className="preview-float absolute -right-2 -top-4 hidden items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-soft dark:border-stone-700 dark:bg-stone-800 dark:text-emerald-400 sm:inline-flex">
+      <div className="preview-float pop-z absolute -right-2 -top-4 hidden items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-soft dark:border-stone-700 dark:bg-stone-800 dark:text-emerald-400 sm:inline-flex">
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>Saved
       </div>
-      <div className="preview-float preview-float-2 absolute -bottom-4 -left-2 hidden items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-soft dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 sm:inline-flex">
+      <div className="preview-float preview-float-2 pop-z absolute -bottom-4 -left-2 hidden items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-soft dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 sm:inline-flex">
         <Icon name="lock" size="xs" />Only you can read this
+      </div>
       </div>
     </div>
   );
@@ -141,6 +190,8 @@ const FAQ = [
 
 export default function Landing() {
   useReveal();
+  const hero = useRef(null);
+  useDepth(hero);
   useEffect(() => { document.title = 'noted. — Write it down. Find it later.'; return () => { document.title = 'noted.'; }; }, []);
   return (
     <div className="landing min-h-screen overflow-x-clip bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
@@ -148,8 +199,9 @@ export default function Landing() {
       <Nav />
       <main id="main">
         {/* Hero */}
-        <section className="hero relative -mt-16 overflow-hidden pt-16">
+        <section ref={hero} className="hero relative -mt-16 overflow-hidden pt-16">
           <div aria-hidden="true" className="hero-bg pointer-events-none absolute inset-0" />
+          <div aria-hidden="true" className="hero-floor pointer-events-none absolute inset-x-0 bottom-0 h-[26rem]"><div className="hero-floor-grid" /></div>
           <div aria-hidden="true" className="hero-orb pointer-events-none absolute left-1/2 top-24 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full" />
           <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-14 text-center sm:px-8 sm:pt-24">
             <p className="hero-in inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 py-1 pl-1 pr-3 text-xs font-medium text-stone-700 shadow-soft backdrop-blur dark:border-stone-800 dark:bg-stone-900/80 dark:text-stone-300">
@@ -165,7 +217,7 @@ export default function Landing() {
               <Link to="/login" className="btn-secondary cta-lift hidden h-12 px-7 text-base sm:inline-flex">I have an account</Link>
               <Link to="/login" className="mx-auto inline-flex min-h-11 items-center text-sm font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 hover:text-stone-950 dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-white sm:hidden">I have an account</Link>
             </div>
-            <div className="hero-in mt-16 [animation-delay:340ms] sm:mt-20"><HeroMock /></div>
+            <div className="mock-rise mt-16 sm:mt-20"><HeroMock /></div>
           </div>
         </section>
 
@@ -179,7 +231,7 @@ export default function Landing() {
             <div className="mt-14 grid gap-5 md:grid-cols-3">
               {BEATS.map((b, i) => (
                 <article key={b.id} id={b.id === 'privacy' ? 'privacy' : undefined} aria-labelledby={`beat-${b.id}`}
-                  className="reveal beat group scroll-mt-24 rounded-3xl border border-stone-200/80 bg-white p-6 shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-lift dark:border-stone-800 dark:bg-stone-900 sm:p-7"
+                  className="reveal beat beat-3d group scroll-mt-24 rounded-3xl border border-stone-200/80 bg-white p-6 shadow-soft hover:shadow-lift dark:border-stone-800 dark:bg-stone-900 sm:p-7"
                   style={{ transitionDelay: `${i * 90}ms` }}>
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent/15 text-stone-900 transition group-hover:scale-105 dark:text-stone-100"><Icon name={b.icon} /></span>
