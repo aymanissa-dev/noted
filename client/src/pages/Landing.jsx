@@ -73,41 +73,46 @@ export function Nav({ base = '', signedIn = false }) {
 
 // The hero mockup: a tiny noted. window that plays once: notes slide in, a line types itself,
 // then a search finds the right note. CSS only (no images, no video); still under reduced motion.
-// Hero depth: the mockup sits on a tilted plane that flattens as you scroll, leans toward the pointer
-// and has note cards floating at different depths around it. Only CSS variables change (one rAF per
-// frame, passive listeners, paused off-screen); nothing runs with reduced motion or on touch-only pointers.
+// Hero depth: the mockup leans back slightly and settles flat as you scroll, and turns a few degrees
+// toward the pointer. Values ease toward their targets (a short rAF loop that stops once settled), so
+// motion feels weighted rather than twitchy. Only CSS variables change; listeners are passive and the
+// loop pauses off-screen. Nothing runs with reduced motion, and pointer tilt is skipped on touch.
 function useDepth(ref) {
   useEffect(() => {
     const el = ref.current;
     if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
     const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    let raf = 0; let px = 0; let py = 0; let visible = true;
-    const paint = () => {
+    const cur = { sp: 0, px: 0, py: 0 }; const tgt = { sp: 0, px: 0, py: 0 };
+    let raf = 0; let visible = true;
+    const ease = (t) => t * t * (3 - 2 * t); // smoothstep
+    const tick = () => {
       raf = 0;
-      const sp = Math.min(1, scrollY / (innerHeight * 0.6)); // 0 at the top → 1 (flat) after ~60% of a screen
-      el.style.setProperty('--sp', sp.toFixed(3));
-      el.style.setProperty('--px', px.toFixed(3));
-      el.style.setProperty('--py', py.toFixed(3));
+      let moving = false;
+      for (const k of ['sp', 'px', 'py']) {
+        const d = tgt[k] - cur[k];
+        if (Math.abs(d) > 0.001) { cur[k] += d * 0.12; moving = true; } else cur[k] = tgt[k];
+        el.style.setProperty(`--${k}`, cur[k].toFixed(4));
+      }
+      if (moving && visible) raf = requestAnimationFrame(tick);
     };
-    const queue = () => { if (!raf && visible) raf = requestAnimationFrame(paint); };
-    const onMove = (e) => { px = (e.clientX / innerWidth) * 2 - 1; py = (e.clientY / innerHeight) * 2 - 1; queue(); };
+    const queue = () => { if (!raf && visible) raf = requestAnimationFrame(tick); };
+    const onScroll = () => { tgt.sp = ease(Math.min(1, scrollY / (innerHeight * 0.55))); queue(); };
+    const onMove = (e) => { tgt.px = (e.clientX / innerWidth) * 2 - 1; tgt.py = (e.clientY / innerHeight) * 2 - 1; queue(); };
+    const onLeave = () => { tgt.px = 0; tgt.py = 0; queue(); };
     const io = new IntersectionObserver(([en]) => { visible = en.isIntersecting; if (visible) queue(); });
     io.observe(el);
-    addEventListener('scroll', queue, { passive: true });
-    addEventListener('resize', queue, { passive: true });
-    if (fine) addEventListener('pointermove', onMove, { passive: true });
+    addEventListener('scroll', onScroll, { passive: true });
+    if (fine) { addEventListener('pointermove', onMove, { passive: true }); document.documentElement.addEventListener('pointerleave', onLeave); }
     el.classList.add('depth-live');
-    queue();
-    return () => { cancelAnimationFrame(raf); io.disconnect(); removeEventListener('scroll', queue); removeEventListener('resize', queue); removeEventListener('pointermove', onMove); };
+    onScroll(); cur.sp = tgt.sp;
+    return () => { cancelAnimationFrame(raf); io.disconnect(); removeEventListener('scroll', onScroll); removeEventListener('pointermove', onMove); document.documentElement.removeEventListener('pointerleave', onLeave); };
   }, [ref]);
 }
 
-// Paper cards that float in front of and behind the mockup (decorative; wide screens only).
+// Two paper notes floating at different depths beside the mockup (decorative; wide screens only).
 const FLOATERS = [
-  { cls: 'floater-a', z: 120, title: 'Ideas', body: 'Plant herbs on the balcony', tag: '#home' },
-  { cls: 'floater-b', z: 70, title: 'Wi-Fi', body: 'Guest: pastel-de-nata-28', tag: '#home' },
-  { cls: 'floater-c', z: -60, title: 'Sunday', body: '☐ Call mum  ☐ Laundry', tag: '' },
-  { cls: 'floater-d', z: 160, title: 'Pinned', body: 'Gate code 4417', tag: '📌' },
+  { cls: 'floater-a', z: 90, title: 'Ideas', body: 'Plant herbs on the balcony', tag: '#home' },
+  { cls: 'floater-b', z: 140, title: 'Gate code', body: '4417, side entrance', tag: '📌 Pinned' },
 ];
 
 function HeroMock() {
@@ -201,23 +206,18 @@ export default function Landing() {
         {/* Hero */}
         <section ref={hero} className="hero relative -mt-16 overflow-hidden pt-16">
           <div aria-hidden="true" className="hero-bg pointer-events-none absolute inset-0" />
-          <div aria-hidden="true" className="hero-floor pointer-events-none absolute inset-x-0 bottom-0 h-[26rem]"><div className="hero-floor-grid" /></div>
           <div aria-hidden="true" className="hero-orb pointer-events-none absolute left-1/2 top-24 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full" />
-          <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-14 text-center sm:px-8 sm:pt-24">
-            <p className="hero-in inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 py-1 pl-1 pr-3 text-xs font-medium text-stone-700 shadow-soft backdrop-blur dark:border-stone-800 dark:bg-stone-900/80 dark:text-stone-300">
-              <span className="rounded-full bg-stone-900 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white dark:bg-white dark:text-stone-900">New</span>
-              Simpler than ever. Just your notes.
-            </p>
-            <h1 className="hero-in mx-auto mt-7 max-w-4xl text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.045em] [animation-delay:80ms] sm:text-7xl lg:text-[5.5rem]">
+          <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-16 text-center sm:px-8 sm:pt-28">
+            <h1 className="hero-in mx-auto max-w-4xl text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.045em] [animation-delay:80ms] sm:text-7xl lg:text-[5.5rem]">
               Write it down.<br /><span className="marker">Find it later<span className="text-accent">.</span></span>
             </h1>
-            <p className="hero-in mx-auto mt-6 max-w-xl text-lg leading-8 text-stone-600 [animation-delay:160ms] dark:text-stone-400 sm:text-xl">A calm, private place for everything you don’t want to forget. Nothing to learn, nothing in the way.</p>
-            <div className="hero-in mt-9 flex flex-col items-stretch justify-center gap-3 [animation-delay:240ms] sm:flex-row sm:items-center">
+            <p className="hero-in mx-auto mt-6 max-w-lg text-balance text-lg leading-8 text-stone-600 [animation-delay:160ms] dark:text-stone-400 sm:text-xl">The calm, private place for everything you don’t want to forget.</p>
+            <div className="hero-in mt-9 flex flex-col items-center justify-center gap-4 [animation-delay:240ms] sm:flex-row sm:gap-6">
               <Link to="/register" className="btn-primary cta-lift h-12 px-7 text-base">{CTA}<Icon name="arrowRight" size="sm" className="cta-arrow" /></Link>
-              <Link to="/login" className="btn-secondary cta-lift hidden h-12 px-7 text-base sm:inline-flex">I have an account</Link>
-              <Link to="/login" className="mx-auto inline-flex min-h-11 items-center text-sm font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 hover:text-stone-950 dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-white sm:hidden">I have an account</Link>
+              <Link to="/login" className="inline-flex min-h-11 items-center text-sm font-medium text-stone-600 underline decoration-stone-300 underline-offset-4 transition-colors hover:text-stone-950 hover:decoration-stone-500 dark:text-stone-400 dark:decoration-stone-600 dark:hover:text-white">I have an account</Link>
             </div>
-            <div className="mock-rise mt-16 sm:mt-20"><HeroMock /></div>
+            <p className="hero-in mt-5 text-xs font-medium tracking-wide text-stone-500 [animation-delay:300ms] dark:text-stone-400">Free <span aria-hidden="true" className="mx-1.5 text-stone-300 dark:text-stone-600">·</span> No AI on your notes <span aria-hidden="true" className="mx-1.5 text-stone-300 dark:text-stone-600">·</span> Works offline</p>
+            <div className="mock-rise mt-14 sm:mt-16"><HeroMock /></div>
           </div>
         </section>
 
