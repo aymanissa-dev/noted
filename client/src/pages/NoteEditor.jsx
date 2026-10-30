@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, imageApi, optimisticInsert, saveOnUnload, queue, realIdFor } from '../lib/api.js';
@@ -19,6 +20,9 @@ import Icon from '../components/Icon.jsx';
 import ShareDialog from '../components/ShareDialog.jsx';
 import Menu from '../components/Menu.jsx';
 import Dialog from '../components/Dialog.jsx';
+import DueBadge from '../components/DueBadge.jsx';
+import ReminderDialog from '../components/ReminderDialog.jsx';
+import { formatDue, zoneOf } from '../lib/due.js';
 import { toHtml, headings } from '../lib/markdown.js';
 import { dropUndo } from '../editor/undoStore.js';
 import { loadEditor } from '../editor/preload.js';
@@ -33,8 +37,10 @@ import { useTypewriter, toggleTypewriter, isTypewriterShortcut } from '../lib/ty
 import { timeAgo } from '../lib/format.js';
 
 const AUTOSAVE_MS = 800;
+const pdfName = (title) => (title || 'Untitled').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Untitled';
+const printDate = (iso, tz) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 const isEmpty = (n) => !n.title.trim() && !n.content.trim();
-const toLoaded = (n) => ({ title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked), folderId: n.folderId || null });
+const toLoaded = (n) => ({ title: n.title, content: n.content, tags: n.tags, pinned: n.pinned, archived: n.archived, deletedAt: n.deletedAt, color: n.color || '', emoji: n.emoji || '', locked: Boolean(n.locked), folderId: n.folderId || null, dueAt: n.dueAt || null });
 const snapshot = (n) => JSON.stringify({ title: n.title, content: n.content, tags: n.tags, color: n.color, emoji: n.emoji });
 
 export default function NoteEditor() {
@@ -68,6 +74,7 @@ export default function NoteEditor() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [recordSignal, setRecordSignal] = useState(0);
   const [outlineSheet, setOutlineSheet] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const typewriter = useTypewriter();
   const online = useIsOnline();
   previewOnlyRef.current = previewOnly;
@@ -314,6 +321,20 @@ export default function NoteEditor() {
     setRemoveLockOpen(false);
   };
 
+  // Reminders: metadata, so they work on a locked note too and don't count as an edit.
+  const setDue = async (dueAt) => {
+    await save();
+    const { note: n } = await api.setDue(idRef.current, dueAt);
+    setNote((cur) => ({ ...cur, dueAt: n.dueAt || null }));
+    toast.show(n.dueAt ? `Reminder set: ${formatDue(n.dueAt, zoneOf(user))}.` : 'Reminder removed.');
+  };
+  // Done / Snooze from the reminder banner while this note is open.
+  useEffect(() => {
+    const onDue = (e) => { if (e.detail?._id === idRef.current) setNote((cur) => ({ ...cur, dueAt: e.detail.dueAt || null })); };
+    window.addEventListener('noted:due-changed', onDue);
+    return () => window.removeEventListener('noted:due-changed', onDue);
+  }, []);
+
   const openHistory = async () => { await save(); setHistoryOpen(true); };
   const applyRestored = (n) => {
     const restored = { ...noteRef.current, title: n.title, content: n.content, tags: n.tags, color: n.color || '', emoji: n.emoji || '' };
@@ -417,7 +438,19 @@ export default function NoteEditor() {
   const printRef = useRef(null);
   const fillPrintImages = () => Promise.all([...(printRef.current?.querySelectorAll('img[data-noted-image]') || [])].map((img) => imageHost.load(img.dataset.notedImage).then((u) => { img.src = u; return img.decode?.().catch(() => {}); }).catch(() => { img.replaceWith(Object.assign(document.createElement('span'), { textContent: img.alt ? `[Image: ${img.alt}]` : '[Image]' })); })));
   const saved = Boolean(noteId) && !isTempId(noteId);
-  const print = () => { save(); Promise.race([fillPrintImages(), new Promise((r) => setTimeout(r, 4000))]).then(() => setTimeout(() => window.print(), 50)); };
+  // Export PDF: the browser's print dialog with only the note on the page (vector text, selectable,
+  // A4 or Letter as the printer is set). The page title becomes the suggested file name.
+  const print = () => {
+    save();
+    Promise.race([fillPrintImages(), new Promise((r) => setTimeout(r, 4000))]).then(() => setTimeout(() => {
+      const before = document.title;
+      document.title = pdfName(noteRef.current.title);
+      const restore = () => { document.title = before; window.removeEventListener('afterprint', restore); };
+      window.addEventListener('afterprint', restore);
+      window.print();
+      setTimeout(restore, 1000); // browsers without afterprint
+    }, 50));
+  };
   const persist = !note.locked && noteId && !isTempId(noteId) && user?.id ? { userId: user.id, noteId } : null;
 
   if (loading) return <EditorSkeleton />;
@@ -462,6 +495,7 @@ export default function NoteEditor() {
     return (
       <div className="mx-auto max-w-3xl xl:max-w-none">
         <Link to="/notes" className="btn-ghost -ml-2 gap-1 pl-2 pr-3"><Icon name="back" />Notes</Link>
+        {note.dueAt && <div className="mt-4 flex justify-center"><DueBadge dueAt={note.dueAt} testId="editor-due" /></div>}
         <PinPrompt inline onSubmit={unlock} />
       </div>
     );
@@ -498,8 +532,9 @@ export default function NoteEditor() {
                 {saved && !note.deletedAt && (note.locked
                   ? <button role="menuitem" type="button" className="menu-item" aria-label="Remove lock" onClick={() => setRemoveLockOpen(true)}><Icon name="unlock" />Remove lock…</button>
                   : <button role="menuitem" type="button" className="menu-item" aria-label="Lock with PIN" onClick={lockNote}><Icon name="lock" />Lock with PIN</button>)}
+                {saved && !note.deletedAt && <button role="menuitem" type="button" className="menu-item" aria-label={note.dueAt ? 'Edit reminder' : 'Set reminder'} data-testid="set-reminder" onClick={() => setReminderOpen(true)}><Icon name="bell" />{note.dueAt ? 'Edit reminder…' : 'Set reminder…'}</button>}
                 {saved && !note.deletedAt && <button role="menuitem" type="button" className="menu-item" aria-label="Share" onClick={() => setShareOpen(true)}><Icon name="link" />Share…</button>}
-                <button role="menuitem" type="button" className="menu-item" aria-label="Print or save as PDF" onClick={print}><Icon name="printer" />Print or save as PDF</button>
+                {(!note.locked || unlockToken.current) && <button role="menuitem" type="button" className="menu-item" aria-label="Export PDF" data-testid="export-pdf" onClick={print}><Icon name="printer" />Export PDF</button>}
                 {saved && !note.deletedAt && <>
                   <div className="menu-sep" />
                   <button role="menuitem" type="button" className="menu-item" aria-label={note.archived ? 'Unarchive' : 'Archive'} onClick={toggleArchive}><Icon name="archive" />{note.archived ? 'Move out of archive' : 'Archive'}</button>
@@ -548,6 +583,7 @@ export default function NoteEditor() {
         {focusMode && <button type="button" onClick={() => setFocusMode(false)} className="btn-secondary btn-sm fixed right-4 top-4" aria-label="Exit focus mode">Exit focus <kbd className="kbd">Esc</kbd></button>}
         <input autoFocus={!routeId} aria-label="Title" className="editor-title w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-stone-900 outline-none placeholder:text-stone-300 dark:text-stone-50 dark:placeholder:text-stone-600"
           placeholder="Title" readOnly={readOnly} value={note.title} onChange={(e) => { const title = e.target.value; setNote((n) => ({ ...n, title })); }} />
+        {note.dueAt && !focusMode && <div className="mt-1.5"><DueBadge dueAt={note.dueAt} testId="editor-due" onClick={saved && !note.deletedAt ? () => setReminderOpen(true) : undefined} /></div>}
         {!focusMode && (
         <div className="mt-2 pb-2" inert={readOnly ? '' : undefined}>
           <TagInput tags={note.tags} onChange={(tags) => setNote((n) => ({ ...n, tags }))} />
@@ -564,11 +600,15 @@ export default function NoteEditor() {
         )}
         </div>
       </div>
-      <div className="print-area" aria-hidden="true">
-        <h1>{note.emoji ? `${note.emoji} ` : ''}{note.title || 'Untitled'}</h1>
-        {note.tags.length > 0 && <p className="print-tags">{note.tags.map((t) => `#${t}`).join('  ')}</p>}
-        <div ref={printRef} dangerouslySetInnerHTML={{ __html: printHtml }} />
-      </div>
+      {createPortal(
+        <div className="print-area" aria-hidden="true">
+          <h1>{note.emoji ? `${note.emoji} ` : ''}{note.title || 'Untitled'}</h1>
+          <p className="print-meta">{[updatedAt && `Edited ${printDate(updatedAt, zoneOf(user))}`, note.dueAt && `Due ${printDate(note.dueAt, zoneOf(user))}`].filter(Boolean).join('  ·  ')}</p>
+          {note.tags.length > 0 && <p className="print-tags">{note.tags.map((t) => `#${t}`).join('  ')}</p>}
+          <div ref={printRef} className="print-body" dangerouslySetInnerHTML={{ __html: printHtml }} />
+        </div>,
+        document.body,
+      )}
       <p className="mt-2 text-xs text-faint">{updatedAt ? `Edited ${timeAgo(updatedAt)}` : 'New note · saves as you type'}</p>
       {error && (isNetworkText(error)
         ? <p role="status" className="mt-3 inline-flex items-center gap-2 text-sm text-muted"><Icon name="offline" size="xs" />{error} Your changes are kept and sync when you’re back.</p>
@@ -593,6 +633,7 @@ export default function NoteEditor() {
         <PinPrompt title="Remove lock?" description="Enter your PIN. The note will be readable without a PIN." submitLabel="Remove lock"
           onSubmit={removeLock} onCancel={() => setRemoveLockOpen(false)} />
       )}
+      {reminderOpen && <ReminderDialog dueAt={note.dueAt} onSave={setDue} onClose={() => setReminderOpen(false)} />}
       {shareOpen && <ShareDialog note={{ ...note, _id: noteId }} onClose={() => setShareOpen(false)} />}
       {confirmDelete && (
         <Dialog role="alertdialog" title="Delete forever?" description={`“${note.title || 'Untitled'}” and its history will be gone for good. This can’t be undone.`}

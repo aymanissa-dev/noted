@@ -11,6 +11,7 @@ import { useTheme } from '../lib/theme.js';
 import Sidebar, { BottomNav } from './Sidebar.jsx';
 import Icon from './Icon.jsx';
 import Menu from './Menu.jsx';
+import Reminders from './Reminders.jsx';
 
 const NAV = [['/notes', 'Notes'], ['/archive', 'Archive'], ['/trash', 'Trash']];
 
@@ -96,6 +97,7 @@ export default function Layout() {
           </span>
         </div>
       )}
+      <Reminders />
       <div className="flex w-full gap-6 px-3 sm:px-4 lg:px-6 2xl:gap-8 2xl:px-8">
         <Sidebar />
         <main className="min-w-0 flex-1 py-6 pb-28 sm:py-8 sm:pb-8">

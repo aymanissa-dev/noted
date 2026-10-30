@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ACCENTS, applyAccent, storedAccent } from '../lib/accent.js';
@@ -7,6 +7,8 @@ import { decryptBackup, encryptBackup, isBackup } from '../lib/backup.js';
 import PasswordDialog from '../components/PasswordDialog.jsx';
 import { useDialog } from '../context/DialogContext.jsx';
 import Icon from '../components/Icon.jsx';
+import { DEFAULT_TIME_ZONE, formatDue, timeZones } from '../lib/due.js';
+import { askNotifyOnce, notifyPermission, notifySupported } from '../lib/notify.js';
 import { passwordProblem, PASSWORD_HINT } from '../lib/passwordHints.js';
 import { useIsOnline, useRefetch, useClearOfflineMessage, isOfflineError, isNetworkFailure, isNetworkText } from '../lib/network.js';
 import RetryStatus from '../components/RetryStatus.jsx';
@@ -68,6 +70,40 @@ function AccentSection() {
         ))}
       </div>
       {msg && <p className="mt-3 text-sm text-muted">{msg}</p>}
+    </Card>
+  );
+}
+
+function RemindersSection() {
+  const { user, updateUser } = useAuth();
+  const [tz, setTz] = useState(user?.preferences?.timeZone || DEFAULT_TIME_ZONE);
+  const [perm, setPerm] = useState(notifyPermission());
+  const [msg, setMsg] = useState(null);
+  useClearOfflineMessage(setMsg);
+  const zones = useMemo(() => { const z = timeZones(); return z.includes(tz) ? z : [tz, ...z]; }, [tz]);
+  const device = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
+  const save = async (next) => {
+    const prev = tz; setTz(next); setMsg(null);
+    try { const { user: u } = await api.updatePreferences({ timeZone: next }); updateUser(u); setMsg({ text: `Reminders now use ${next.replace(/_/g, ' ')}.` }); }
+    catch (e) { setTz(prev); setMsg({ text: e.message, error: true }); }
+  };
+  const ask = async () => { setPerm(await askNotifyOnce({ force: true })); };
+  const permText = !notifySupported() ? 'This browser can’t show notifications; reminders appear as a banner in noted.'
+    : perm === 'granted' ? 'On. When a reminder is due and noted. is in the background, you get a notification on this device.'
+    : perm === 'denied' ? 'Blocked for this site. Allow notifications in your browser’s site settings; until then reminders show as a banner in noted.'
+    : 'Off. Reminders show as a banner in noted. Turn notifications on to hear about them when the tab is in the background.';
+  return (
+    <Card id="reminders" title="Reminders" description="Due dates and times on notes. Set one from a note’s ··· menu; times are stored in UTC and shown in your time zone.">
+      <label htmlFor="tz" className="text-sm font-medium">Time zone</label>
+      <select id="tz" data-testid="tz-select" className="input mt-1.5" value={tz} onChange={(e) => save(e.target.value)}>
+        {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}
+      </select>
+      <p className="field-hint">Now: {formatDue(new Date().toISOString(), tz)}.{device && device !== tz && <> This device is on {device.replace(/_/g, ' ')} · <button type="button" className="underline underline-offset-2" onClick={() => save(device)}>use it</button></>}</p>
+      <Msg msg={msg} className="mt-2" />
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-md text-sm text-muted" data-testid="notify-status"><span className="font-medium text-stone-900 dark:text-stone-100">Notifications: </span>{permText}</p>
+        {notifySupported() && perm === 'default' && <button type="button" className="btn-secondary btn-sm" onClick={ask}><Icon name="bell" size="xs" />Turn on notifications</button>}
+      </div>
     </Card>
   );
 }
@@ -392,6 +428,12 @@ function DeleteAccountSection() {
 
 export default function Settings() {
   const { user } = useAuth();
+  const { hash } = useLocation();
+  // Deep links such as /settings#reminders or #lock-pin land on their card.
+  useEffect(() => {
+    const el = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  }, [hash]);
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -400,6 +442,7 @@ export default function Settings() {
         <Link to="/stats" className="mt-2 inline-block text-sm underline-offset-4 hover:underline">View storage stats →</Link>
       </div>
       <AccentSection />
+      <RemindersSection />
       <DataSection />
       <LockPinSection />
       <SharesSection />

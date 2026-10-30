@@ -51,6 +51,7 @@ export default function CommandPalette({ onClose, onShortcuts }) {
     { id: 'go-notes', group: 'Go to', label: 'All notes', icon: 'notes', keys: 'G N', run: go('/notes') },
     { id: 'go-pinned', group: 'Go to', label: 'Pinned', icon: 'pin', run: go('/notes?smart=pinned') },
     { id: 'go-recent', group: 'Go to', label: 'Recently viewed', icon: 'clock', run: go('/notes?smart=recent') },
+    { id: 'go-due', group: 'Go to', label: 'Reminders', icon: 'bell', run: go('/notes?smart=due') },
     { id: 'go-archive', group: 'Go to', label: 'Archive', icon: 'archive', keys: 'G A', run: go('/archive') },
     { id: 'go-trash', group: 'Go to', label: 'Trash', icon: 'trash', keys: 'G T', run: go('/trash') },
     { id: 'go-settings', group: 'Go to', label: 'Settings', icon: 'settings', keys: 'G S', run: go('/settings') },

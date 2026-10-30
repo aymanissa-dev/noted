@@ -221,9 +221,12 @@ export default function Dashboard({ view = 'active', compact = false, activeId }
                 <optgroup label="Folders">{folders.map((f) => <option key={f._id} value={`folder:${f._id}`}>{f.name}</option>)}</optgroup>
               </select>
             )}
-            {view !== 'trash' && notes.length > 1 && (
+            {view !== 'trash' && (notes.length > 1 || isActive) && (
               <Menu label="List options" tip="More" testId="list-more" buttonClass="btn-ghost btn-icon" button={<Icon name="more" size="md" />}>
-                {() => <button role="menuitem" type="button" className="menu-item" onClick={() => setSelecting(true)}><Icon name="select" />Select notes to merge</button>}
+                {() => <>
+                  {isActive && smart !== 'due' && <Link role="menuitem" to="/notes?smart=due" className="menu-item" data-testid="show-reminders"><Icon name="bell" />Reminders</Link>}
+                  {notes.length > 1 && <button role="menuitem" type="button" className="menu-item" onClick={() => setSelecting(true)}><Icon name="select" />Select notes to merge</button>}
+                </>}
               </Menu>
             )}
           </div>
@@ -329,6 +332,7 @@ function Empty({ compact, view, query, tag, folder, smart, clear }) {
   let p;
   if (query || tag) p = { kind: 'search', title: 'No matches', body: `No notes match ${query ? `“${query}”` : `#${tag}`}. Try fewer words, another tag, or search the archive.`, primary: { onClick: clear, label: 'Clear search' }, secondary: newNote, shortcuts: [['Esc', 'clear search'], ['Mod+K', 'search everywhere']] };
   else if (folder) p = { kind: 'folder', title: 'This folder is empty', body: 'Create a note here, or open any note and use its folder button to move it in.', primary: { ...newNote, label: 'New note in this folder' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['N', 'new note']] };
+  else if (smart === 'due') p = { kind: 'smart', title: 'No reminders', body: 'Open a note and pick Set reminder… from its ··· menu. Notes with a reminder show up here, soonest first.', primary: { to: '/notes', label: 'All notes', icon: 'back' }, shortcuts: [['G N', 'all notes']] };
   else if (smart === 'locked') p = { kind: 'locked', title: 'No locked notes', body: 'Lock a private note from its ··· menu (Lock with PIN). Set your PIN in Settings first.', primary: { to: '/settings', label: 'Set up a PIN', icon: 'lock' }, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['G S', 'settings']] };
   else if (smart) p = { kind: 'smart', title: 'Nothing here right now', body: 'Smart views fill themselves: notes show up here as soon as they match.', primary: newNote, secondary: { to: '/notes', label: 'All notes' }, shortcuts: [['N', 'new note'], ['G N', 'all notes']] };
   else if (view === 'archive') p = { kind: 'archive', title: 'Nothing archived', body: 'Archive notes you want to keep but not see every day: open a note, press ···, then Archive. They stay searchable here.', primary: { to: '/notes', label: 'Choose a note to archive', icon: 'archive' }, shortcuts: [['G A', 'open the archive'], ['G N', 'all notes']] };

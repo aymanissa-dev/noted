@@ -4,6 +4,7 @@ import { displayTitle, unlockedPeek, useUnlockedVersion } from '../lib/unlocked.
 import { timeAgo } from '../lib/format.js';
 import PinIcon from './PinIcon.jsx';
 import Icon from './Icon.jsx';
+import DueBadge from './DueBadge.jsx';
 import { cardClass } from '../lib/colors.js';
 import { previewText } from '../lib/markdown.js';
 
@@ -68,6 +69,7 @@ export default function NoteCard({ note, onTogglePin, onRestore, onDeleteForever
         {note.tags.map((t) => (
           <span key={t} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300">#{t}</span>
         ))}
+        {note.dueAt && <DueBadge dueAt={note.dueAt} />}
         <span className="ml-auto text-xs text-faint">{note.pending ? (String(note._id).startsWith('optimistic-') ? 'Saving…' : 'Waiting to sync') : timeAgo(note.updatedAt)}</span>
       </div>
     </article>

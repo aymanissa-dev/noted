@@ -6,5 +6,6 @@ export const SMART = [
   ['week', 'This week'],
   ['untagged', 'Untagged'],
   ['locked', 'Locked'],
+  ['due', 'Reminders'],
 ];
 export const smartLabel = (key) => SMART.find(([k]) => k === key)?.[1];

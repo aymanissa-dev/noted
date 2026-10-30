@@ -167,6 +167,7 @@ const prefetched = new Set();
 const DAY = 24 * 60 * 60 * 1000;
 const SMART_LOCAL = {
   pinned: (n) => n.pinned, untagged: (n) => !n.tags.length && !n.locked, locked: (n) => n.locked,
+  due: (n) => Boolean(n.dueAt),
   today: (n) => Date.now() - new Date(n.updatedAt) < DAY, week: (n) => Date.now() - new Date(n.updatedAt) < 7 * DAY,
 };
 function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
@@ -179,6 +180,7 @@ function filterLocal(notes, { search, tag, folder, smart, view = 'active' }) {
     .filter((n) => !s || n.title.toLowerCase().includes(s) || n.content.toLowerCase().includes(s))
     .sort((a, b) => (view === 'trash'
       ? new Date(b.deletedAt) - new Date(a.deletedAt)
+      : smart === 'due' ? new Date(a.dueAt) - new Date(b.dueAt)
       : (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
 }
 
@@ -550,6 +552,9 @@ export const api = {
     return { note: { ...local, updatedAt: new Date().toISOString(), pending: true }, queued: true };
   },
 
+  // Reminders: set (ISO) or clear (null); works on locked notes without unlocking.
+  setDue: async (id, dueAt) => { const r = await request('PATCH', `/notes/${id}/due`, { dueAt }); cacheNotes([r.note]); window.dispatchEvent(new CustomEvent('noted:due-changed', { detail: r.note })); return changed(r); },
+  dueNotes: () => request('GET', '/notes/due'),
   togglePin: async (id) => { const r = await request('PATCH', `/notes/${id}/pin`); cacheNotes([r.note]); return r; },
   // Locked notes need their unlock token (see unlockFor in lib/unlock.js) to be trashed or deleted.
   deleteNote: (id, unlockToken) => withMove(id, { deletedAt: new Date().toISOString() }, async () => { const r = await request('DELETE', `/notes/${id}`, undefined, unlockHeaders(unlockToken)); cacheNotes([r.note]); return changed(r); }), // moves to trash
