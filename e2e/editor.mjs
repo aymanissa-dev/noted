@@ -78,7 +78,7 @@ try {
   // print stylesheet
   await p.emulateMediaType('print');
   ok(await p.$eval('.print-area', (e) => getComputedStyle(e).display === 'block' && e.innerHTML.includes('<h2>Section A')), 'print area renders markdown');
-  ok(await p.$eval('header', (e) => getComputedStyle(e).visibility === 'hidden'), 'app chrome hidden in print');
+  ok(await p.$eval('header', (e) => e.getClientRects().length === 0) && await p.$eval('.print-area', (e) => e.parentElement === document.body), 'app chrome hidden in print (only the print area, a child of body, lays out)');
   await p.emulateMediaType('screen');
   // search matches plain text
   const s = (await api('GET', '/notes?search=' + encodeURIComponent('hello world'), null, u.token)).data.notes;

@@ -19,6 +19,20 @@ export const CHANGE_TYPES = {
 
 export const RELEASES = [
   {
+    version: '1.10',
+    date: '2026-10-30',
+    title: 'Reminders and PDF export',
+    summary: 'Give any note a due date and time and noted. reminds you when it comes up. You can also save any note as a clean PDF.',
+    changes: [
+      { type: 'new', text: 'Set a reminder from a note’s ··· menu: pick “Later today”, “Tomorrow morning” or “Next week”, or choose your own date and time. Remove it from the same place.' },
+      { type: 'new', text: 'Reminders show on the note and in your list, amber when due within a day and red once overdue. Reminders in the list’s ··· menu and the command palette shows them all, soonest first.' },
+      { type: 'new', text: 'When a reminder comes due, a banner lets you open the note, snooze it for an hour or mark it done. With notifications on, you also get one on your device while noted. is in the background.' },
+      { type: 'new', text: 'Export PDF in a note’s ··· menu saves the title, formatted text and images on a clean A4 or Letter page, named after the note.' },
+      { type: 'improved', text: 'Settings has a Reminders section for your time zone (Africa/Nairobi unless you change it) and notifications.' },
+      { type: 'security', text: 'A locked note can carry a reminder without being unlocked. Its text stays hidden, its title never appears in system notifications, and it has to be unlocked before you can export it.' },
+    ],
+  },
+  {
     version: '1.9',
     date: '2026-10-29',
     title: 'A home page with depth',

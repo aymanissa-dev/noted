@@ -25,8 +25,8 @@ try {
   ok(head.robots === 'index, follow', 'indexable');
   ok(head.canonical === BASE + '/changelog', 'canonical');
   ok(head.h1.length === 1 && /What’s new in noted/.test(head.h1[0]), 'one h1');
-  ok(head.releases.length === RELEASES.length && head.releases[0] === 'v1-9', `one entry per release, newest first (${head.releases.join(',')})`);
-  ok(head.h2[0] === RELEASES[0].title && /depth/i.test(head.h2[0]), 'latest is the home page with depth');
+  ok(head.releases.length === RELEASES.length && head.releases[0] === 'v1-10', `one entry per release, newest first (${head.releases.join(',')})`);
+  ok(head.h2[0] === RELEASES[0].title && /reminders/i.test(head.h2[0]), 'latest is reminders and PDF export');
   ok(JSON.stringify(head.times) === JSON.stringify(RELEASES.map((r) => r.date)), 'machine-readable dates');
   ok(/Log in/.test(head.nav), 'guest nav shows Log in');
   ok(head.footerLink, 'footer links to changelog');
