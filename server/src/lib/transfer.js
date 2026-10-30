@@ -9,7 +9,7 @@ export const fingerprint = (n) => createHash('sha1')
   .update(`${n.title || ''}\u0000${n.content || ''}\u0000${new Date(n.createdAt).toISOString()}`).digest('hex');
 
 export const toExportNote = (n) => (n.locked && n.$locals?.redacted
-  ? { id: String(n._id), locked: true, redacted: true, title: '', content: '', tags: [], pinned: n.pinned, archived: n.archived, color: n.color || '', emoji: n.emoji || '', createdAt: n.createdAt, updatedAt: n.updatedAt }
+  ? { id: String(n._id), locked: true, redacted: true, title: '', content: '', tags: [], pinned: n.pinned, archived: n.archived, color: n.color || '', emoji: n.emoji || '', ...(n.dueAt && { dueAt: n.dueAt }), createdAt: n.createdAt, updatedAt: n.updatedAt }
   : {
   id: String(n._id),
   ...(n.locked && { locked: true }),
@@ -20,6 +20,7 @@ export const toExportNote = (n) => (n.locked && n.$locals?.redacted
   archived: n.archived,
   color: n.color || '',
   emoji: n.emoji || '',
+  ...(n.dueAt && { dueAt: n.dueAt }),
   createdAt: n.createdAt,
   updatedAt: n.updatedAt,
 });
@@ -114,6 +115,7 @@ export function parseImport(body) {
       archived: Boolean(archived),
       color,
       emoji,
+      dueAt: validDate(raw.dueAt) || null,
       createdAt,
       updatedAt: validDate(raw.updatedAt) || createdAt,
       folder: typeof raw.folder === 'string' && raw.folder.trim() ? raw.folder.trim().slice(0, 60) : null,

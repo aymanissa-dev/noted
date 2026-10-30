@@ -20,7 +20,15 @@ router.use(requireAuth);
 
 export const TRASH_DAYS = 30;
 export const EXCERPT_CHARS = 300;
-export const SMART_FILTERS = ['pinned', 'untagged', 'today', 'week', 'locked'];
+export const SMART_FILTERS = ['pinned', 'untagged', 'today', 'week', 'locked', 'due'];
+// Reminders can be set from 2000 up to 2100 (anything else is a typo or a bad clock).
+const DUE_MIN = Date.UTC(2000, 0, 1); const DUE_MAX = Date.UTC(2100, 0, 1);
+export function parseDue(v) {
+  if (v === null || v === '' || v === undefined) return null;
+  const d = new Date(v);
+  if (typeof v === 'boolean' || Number.isNaN(d.getTime()) || d.getTime() < DUE_MIN || d.getTime() >= DUE_MAX) throw new HttpError(400, 'dueAt must be an ISO date-time between 2000 and 2100, or null');
+  return d;
+}
 export const resetPurgeThrottle = () => lastPurge.clear();
 
 // Shape a lean note for list responses: locked notes redacted, long content cut to an excerpt.
@@ -123,14 +131,34 @@ router.get('/', asyncHandler(async (req, res) => {
     if (smart === 'today') filter.updatedAt = { $gte: new Date(Date.now() - day) };
     if (smart === 'week') filter.updatedAt = { $gte: new Date(Date.now() - 7 * day) };
     if (smart === 'locked') filter.locked = true;
+    if (smart === 'due') filter.dueAt = { $ne: null };
   }
   // Locked notes can't match on their hidden title/content/tags (that would leak them).
   if (search || tag) filter.locked = { $ne: true };
   if (smart === 'locked') filter.locked = true;
-  const sort = view === 'trash' ? { deletedAt: -1 } : { pinned: -1, updatedAt: -1 };
+  const sort = view === 'trash' ? { deletedAt: -1 } : smart === 'due' ? { dueAt: 1, updatedAt: -1 } : { pinned: -1, updatedAt: -1 };
   // Lists send excerpts (the editor fetches the full note), as lean objects without Mongoose overhead.
   const notes = await Note.find(filter).sort(sort).select('-__v').lean();
   res.json({ notes: notes.map(toListItem) });
+}));
+
+// Notes with a reminder (active and archived, not trashed), soonest first. The app polls this to
+// notify when one comes due. Lean list items: locked notes are redacted but keep their dueAt.
+router.get('/due', asyncHandler(async (req, res) => {
+  const notes = await Note.find({ user: req.userId, deletedAt: null, dueAt: { $ne: null } })
+    .sort({ dueAt: 1 }).limit(200).select('-__v').lean();
+  res.json({ notes: notes.map(toListItem) });
+}));
+
+// Set ({ dueAt: ISO }) or clear ({ dueAt: null }) a note's reminder. Allowed on locked notes without
+// unlocking: it doesn't touch (or reveal) the contents. Doesn't count as an edit.
+router.patch('/:id/due', asyncHandler(async (req, res) => {
+  if (!req.body || !('dueAt' in req.body)) throw new HttpError(400, 'dueAt is required (an ISO date-time, or null to clear)');
+  const note = await findOwnNote(req);
+  if (note.deletedAt) throw new HttpError(400, 'Restore the note before setting a reminder');
+  note.dueAt = parseDue(req.body.dueAt);
+  await note.save({ timestamps: false });
+  res.json({ note });
 }));
 
 // Recently viewed notes (last RECENT_LIMIT opened), newest first; trashed or deleted notes are skipped.

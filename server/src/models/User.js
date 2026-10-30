@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 
+export const DEFAULT_TIME_ZONE = 'Africa/Nairobi';
+export const isTimeZone = (tz) => { if (typeof tz !== 'string' || !tz || tz.length > 64) return false; try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true; } catch { return false; } };
+
 export const RECENT_LIMIT = 10;
 export const ACCENTS = ['amber', 'rose', 'emerald', 'sky', 'violet', 'stone'];
 
@@ -30,13 +33,15 @@ const userSchema = new mongoose.Schema(
     recent: { type: [{ _id: false, note: mongoose.Schema.Types.ObjectId, at: Date }], default: [], select: false },
     preferences: {
       accent: { type: String, enum: ACCENTS, default: 'amber' },
+      // IANA zone that reminders are shown and entered in (times are stored in UTC).
+      timeZone: { type: String, default: DEFAULT_TIME_ZONE, maxlength: 64 },
     },
   },
   { timestamps: true }
 );
 
 userSchema.methods.toJSON = function () {
-  return { id: this._id, name: this.name, email: this.email, hasLockPin: Boolean(this.hasLockPin), ...(this.hasLockPin && this.lockPinShort && { lockPinShort: true }), preferences: { accent: this.preferences?.accent || 'amber' }, createdAt: this.createdAt };
+  return { id: this._id, name: this.name, email: this.email, hasLockPin: Boolean(this.hasLockPin), ...(this.hasLockPin && this.lockPinShort && { lockPinShort: true }), preferences: { accent: this.preferences?.accent || 'amber', timeZone: this.preferences?.timeZone || DEFAULT_TIME_ZONE }, createdAt: this.createdAt };
 };
 
 export default mongoose.model('User', userSchema);

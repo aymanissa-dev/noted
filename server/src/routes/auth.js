@@ -2,7 +2,7 @@ import Share from '../models/Share.js';
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import User, { ACCENTS } from '../models/User.js';
+import User, { ACCENTS, isTimeZone } from '../models/User.js';
 import Note from '../models/Note.js';
 import NoteVersion from '../models/NoteVersion.js';
 import Folder from '../models/Folder.js';
@@ -135,6 +135,10 @@ router.patch('/preferences', requireAuth, asyncHandler(async (req, res) => {
   if (req.body?.accent !== undefined) {
     if (!ACCENTS.includes(req.body.accent)) throw new HttpError(400, `accent must be one of: ${ACCENTS.join(', ')}`);
     set['preferences.accent'] = req.body.accent;
+  }
+  if (req.body?.timeZone !== undefined) {
+    if (!isTimeZone(req.body.timeZone)) throw new HttpError(400, 'timeZone must be an IANA time zone, e.g. Africa/Nairobi');
+    set['preferences.timeZone'] = req.body.timeZone;
   }
   const user = await User.findByIdAndUpdate(req.userId, { $set: set }, { new: true });
   if (!user) throw new HttpError(401, 'User not found');

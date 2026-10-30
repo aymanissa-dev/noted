@@ -16,6 +16,8 @@ const noteSchema = new mongoose.Schema(
     color: { type: String, enum: NOTE_COLORS, default: '' },
     emoji: { type: String, default: '', maxlength: 16 },
     deletedAt: { type: Date, default: null },
+    // Reminder / due date (stored in UTC). Metadata like pin or color: kept visible on locked notes.
+    dueAt: { type: Date, default: null },
     // Markdown stripped to plain text, so search matches what you see (never sent to clients).
     plain: { type: String, default: '', select: false },
     folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
@@ -32,6 +34,7 @@ noteSchema.index({ user: 1, deletedAt: -1 });
 noteSchema.index({ user: 1, updatedAt: -1 });
 noteSchema.index({ user: 1, tags: 1 });
 noteSchema.index({ user: 1, folderId: 1 });
+noteSchema.index({ user: 1, dueAt: 1 }, { partialFilterExpression: { dueAt: { $type: 'date' } } });
 // Idempotent creates: the client's local id for a new note. A create that is re-sent (the page was
 // reloaded mid-request, or the offline queue retries) returns the note it already made.
 noteSchema.index({ user: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } });
